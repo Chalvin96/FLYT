@@ -1,15 +1,11 @@
-import { useEffect, useId, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { Badge } from '@flyt/ui';
 import { Button } from '@flyt/ui';
 
-import type {
-  DefinitionRead,
-  ExamplePair,
-  LemmaPos,
-  WordFormRead,
-} from './types';
+import type { DefinitionRead, LemmaPos, WordFormRead } from './types';
+import { DefinitionExamples } from './DefinitionExamples';
+import { NorwegianDefinition } from './NorwegianDefinition';
 
 export interface DefinitionViewProps {
   definition: DefinitionRead;
@@ -27,7 +23,17 @@ export interface DefinitionViewProps {
   collapsibleExamples?: boolean;
 }
 
-export function DefinitionView({
+export function DefinitionView({ definition, ...props }: DefinitionViewProps) {
+  return (
+    <DefinitionContent
+      key={`${definition.uuid}:${definition.definition}`}
+      definition={definition}
+      {...props}
+    />
+  );
+}
+
+function DefinitionContent({
   // `pos` and `inflectionLayout` remain in DefinitionViewProps for caller
   // compat (the frontend DefinitionItem shim forwards them), but the pure
   // view no longer renders the inflection table itself — the app injects it
@@ -42,60 +48,7 @@ export function DefinitionView({
   inflection,
   collapsibleExamples = false,
 }: DefinitionViewProps) {
-  const [isNorDefinitionExpanded, setIsNorDefinitionExpanded] = useState(false);
-  const [isExamplesExpanded, setIsExamplesExpanded] = useState(false);
-  const [openExampleIdx, setOpenExampleIdx] = useState<number | null>(null);
-  const instanceId = useId();
   const resolvedVariant = variant ?? (onAddToDeck ? 'lexicon' : 'flashcard');
-
-  // Reset reveal state when the definition changes (parent swaps without remount).
-  // Key on uuid for the lexicon path and on the gloss text as a fallback: the
-  // flashcard path synthesizes uuid: '' (DefinitionEntry has no uuid), so uuid
-  // alone wouldn't detect a swap there.
-  useEffect(() => {
-    setOpenExampleIdx(null);
-  }, [definition.uuid, definition.definition]);
-
-  // Whole-sentence tap target (D4/D5). Collapsed height == schema v2: the only
-  // added glyph is an inline chevron. `en: null`/"­" → plain <p>, no affordance.
-  // Collapsed English is `hidden` so it leaves the a11y tree (not just visual).
-  const renderExample = (ex: ExamplePair, index: number) => {
-    const open = openExampleIdx === index;
-    const enId = `${instanceId}-example-en-${index}`;
-    const hasEn = ex.en != null && ex.en !== '';
-    return (
-      <div key={index} className="space-y-0.5">
-        {hasEn ? (
-          <button
-            type="button"
-            onClick={() => setOpenExampleIdx(open ? null : index)}
-            aria-expanded={open}
-            aria-controls={enId}
-            className="type-caption italic text-secondary-80 text-left cursor-pointer transition-colors hover:text-secondary-100 inline bg-transparent border-0 p-0"
-          >
-            {ex.no}
-            <span
-              aria-hidden="true"
-              className="ml-1 align-baseline text-[10px] leading-none"
-            >
-              {open ? '▼' : '▶'}
-            </span>
-          </button>
-        ) : (
-          <p className="type-caption italic text-secondary-80">{ex.no}</p>
-        )}
-        {hasEn && (
-          <p
-            id={enId}
-            hidden={!open}
-            className="type-caption text-muted-foreground"
-          >
-            {ex.en}
-          </p>
-        )}
-      </div>
-    );
-  };
 
   return (
     <div
@@ -135,70 +88,12 @@ export function DefinitionView({
         )}
       </div>
 
-      {definition.examples_json.length > 0 &&
-        (collapsibleExamples ? (
-          <div data-testid="definition-examples">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsExamplesExpanded(!isExamplesExpanded)}
-              aria-expanded={isExamplesExpanded}
-              className="!px-0 !py-0 h-auto text-left type-caption font-medium text-secondary-70 transition-colors hover:text-secondary-90 flex items-center gap-1.5 justify-start"
-            >
-              <span aria-hidden="true" className="text-[10px] leading-none">
-                {isExamplesExpanded ? '▼' : '▶'}
-              </span>
-              {`Examples · ${definition.examples_json.length}`}
-            </Button>
-            {isExamplesExpanded && (
-              <div className="mt-1.5 space-y-1 pl-4">
-                {definition.examples_json.map(renderExample)}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div
-            className={`space-y-1 ${
-              resolvedVariant === 'flashcard' ? 'hidden md:block' : ''
-            }`}
-            data-testid="definition-examples"
-          >
-            <p className="type-caption text-muted-foreground font-medium">
-              Examples:
-            </p>
-            <div className="border-l-2 border-border space-y-1 pl-3">
-              {definition.examples_json.map(renderExample)}
-            </div>
-          </div>
-        ))}
-
-      {definition.definition && (
-        <div className="space-y-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsNorDefinitionExpanded(!isNorDefinitionExpanded)}
-            aria-expanded={isNorDefinitionExpanded}
-            className="!px-0 !py-0 h-auto w-full whitespace-normal text-left type-caption font-medium text-secondary-70 transition-colors hover:text-secondary-90 flex items-center gap-1.5 justify-start"
-          >
-            <span aria-hidden="true" className="text-[10px] leading-none">
-              {isNorDefinitionExpanded ? '▼' : '▶'}
-            </span>
-            <span className="flex-1">
-              {isNorDefinitionExpanded
-                ? 'Hide Norwegian definition'
-                : 'Show Norwegian definition'}
-            </span>
-          </Button>
-          {isNorDefinitionExpanded && (
-            <p className="type-caption break-words pl-4 italic text-secondary-70">
-              {definition.definition}
-            </p>
-          )}
-        </div>
-      )}
+      <DefinitionExamples
+        examples={definition.examples_json}
+        collapsible={collapsibleExamples}
+        variant={resolvedVariant}
+      />
+      <NorwegianDefinition text={definition.definition} />
 
       {wordForms && wordForms.length > 0 && (
         <div

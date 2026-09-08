@@ -27,7 +27,11 @@ function ReviewIndexRouteComponent() {
     <ReviewPage
       dueCards={dueCards}
       initialSelection={mode}
-      isLoading={isLoading}
+      status={{
+        isLoading,
+        isDecksLoading: isDecksPending,
+        isAddMoreNewPending,
+      }}
       hasPracticed={hasPracticed}
       onStart={(selection) => {
         void navigate({
@@ -36,9 +40,7 @@ function ReviewIndexRouteComponent() {
         });
       }}
       onAddMoreNew={addMoreNew}
-      isAddMoreNewPending={isAddMoreNewPending}
       decks={decks}
-      isDecksLoading={isDecksPending}
       subscribingDeckId={subscribingDeckId}
       onSubscribeDeck={(deckId) => void subscribeToDeck(deckId).catch(() => {})}
     />

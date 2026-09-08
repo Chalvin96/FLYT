@@ -165,6 +165,17 @@ function FlashCardRecallFillOneShot({
     );
   }
 
+  const spanKeyOccurrences = new Map<string, number>();
+  const keyedSegments = segments.map((segment) => {
+    if (segment.kind === 'blank') {
+      return { key: `blank-${segment.blank_id}`, segment };
+    }
+    const contentKey = JSON.stringify(segment.spans);
+    const occurrence = spanKeyOccurrences.get(contentKey) ?? 0;
+    spanKeyOccurrences.set(contentKey, occurrence + 1);
+    return { key: `span-${contentKey}-${occurrence}`, segment };
+  });
+
   return (
     <OperationShell
       exercise={exercise}
@@ -180,12 +191,12 @@ function FlashCardRecallFillOneShot({
       {/* The sentence is the hero; the blank fills live as a form is picked. */}
       <div className="radius-section border border-border bg-secondary-5 p-4">
         <p className="text-prompt leading-roomy text-foreground">
-          {segments.map((segment, index) => {
+          {keyedSegments.map(({ key, segment }) => {
             if (segment.kind === 'span') {
-              return <SpanView key={`span-${index}`} spans={segment.spans} />;
+              return <SpanView key={key} spans={segment.spans} />;
             }
             return (
-              <span key={segment.blank_id} className="whitespace-nowrap">
+              <span key={key} className="whitespace-nowrap">
                 {renderSlot(segment)}
               </span>
             );

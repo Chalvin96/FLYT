@@ -30,23 +30,16 @@ export function WordSpan({
   }
 
   return (
-    <span
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       data-testid={hasLemma ? 'word-button' : undefined}
       className={cn(
-        'inline cursor-pointer rounded px-0.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'inline cursor-pointer rounded border-0 bg-transparent p-0 px-0.5 font-inherit text-left text-inherit transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         hasLemma ? stateClassName[state] : browseFallbackClassName,
       )}
       onClick={onClick}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onClick?.();
-        }
-      }}
     >
       {text}
-    </span>
+    </button>
   );
 }

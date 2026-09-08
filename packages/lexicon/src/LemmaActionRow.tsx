@@ -22,6 +22,52 @@ export interface LemmaActionRowProps {
   className?: string;
 }
 
+function resolveLabels(
+  state: LemmaActionState,
+  pendingAction: LemmaAction | undefined,
+  showStateLabels: boolean,
+  knowLabel: string | undefined,
+  addLabel: string | undefined,
+) {
+  if (pendingAction === 'know')
+    return { know: 'Saving...', add: addLabel ?? '+ Add' };
+  if (pendingAction === 'add')
+    return { know: knowLabel ?? 'I know this', add: 'Saving...' };
+  return {
+    know:
+      showStateLabels && state === 'mastered'
+        ? 'Known'
+        : (knowLabel ?? 'I know this'),
+    add:
+      showStateLabels && state === 'learning' ? 'Added' : (addLabel ?? '+ Add'),
+  };
+}
+
+function resolveDisabled(
+  state: LemmaActionState,
+  pendingAction: LemmaAction | undefined,
+  isSubmitting: boolean,
+  behavior: Required<LemmaActionBehavior>,
+) {
+  const otherActionPending =
+    behavior.disableOtherActionWhilePending && pendingAction !== undefined;
+  return {
+    know:
+      isSubmitting ||
+      pendingAction === 'know' ||
+      otherActionPending ||
+      state === 'mastered' ||
+      (behavior.disableKnowWhenLearning && state === 'learning'),
+    add:
+      isSubmitting ||
+      pendingAction === 'add' ||
+      otherActionPending ||
+      (behavior.disableAddWhenMastered && state === 'mastered') ||
+      (state === 'learning' &&
+        (behavior.disableAddWhenLearning || !behavior.showStateLabels)),
+  };
+}
+
 export function LemmaActionRow({
   state,
   onMarkKnown,
@@ -33,38 +79,27 @@ export function LemmaActionRow({
   addLabel: addLabelProp,
   className,
 }: LemmaActionRowProps) {
-  const {
-    showStateLabels = true,
-    disableKnowWhenLearning = true,
-    disableAddWhenLearning = true,
-    disableAddWhenMastered = true,
-    disableOtherActionWhilePending = false,
-  } = behavior ?? {};
-  const knowPending = isSubmitting || pendingAction === 'know';
-  const addPending = isSubmitting || pendingAction === 'add';
-  const knowLabel =
-    pendingAction === 'know'
-      ? 'Saving...'
-      : showStateLabels && state === 'mastered'
-        ? 'Known'
-        : (knowLabelProp ?? 'I know this');
-  const addLabel =
-    pendingAction === 'add'
-      ? 'Saving...'
-      : showStateLabels && state === 'learning'
-        ? 'Added'
-        : (addLabelProp ?? '+ Add');
-
-  const knowDisabled =
-    knowPending ||
-    (disableOtherActionWhilePending && pendingAction !== undefined) ||
-    state === 'mastered' ||
-    (disableKnowWhenLearning && state === 'learning');
-  const addDisabled =
-    addPending ||
-    (disableOtherActionWhilePending && pendingAction !== undefined) ||
-    (disableAddWhenMastered && state === 'mastered') ||
-    (state === 'learning' && (disableAddWhenLearning || !showStateLabels));
+  const resolvedBehavior: Required<LemmaActionBehavior> = {
+    showStateLabels: behavior?.showStateLabels ?? true,
+    disableKnowWhenLearning: behavior?.disableKnowWhenLearning ?? true,
+    disableAddWhenLearning: behavior?.disableAddWhenLearning ?? true,
+    disableAddWhenMastered: behavior?.disableAddWhenMastered ?? true,
+    disableOtherActionWhilePending:
+      behavior?.disableOtherActionWhilePending ?? false,
+  };
+  const labels = resolveLabels(
+    state,
+    pendingAction,
+    resolvedBehavior.showStateLabels,
+    knowLabelProp,
+    addLabelProp,
+  );
+  const disabled = resolveDisabled(
+    state,
+    pendingAction,
+    isSubmitting,
+    resolvedBehavior,
+  );
 
   return (
     <div className={className ?? 'grid grid-cols-2 gap-3'}>
@@ -72,18 +107,18 @@ export function LemmaActionRow({
         type="button"
         size="sm"
         variant="outline"
-        disabled={knowDisabled}
+        disabled={disabled.know}
         onClick={onMarkKnown}
       >
-        {knowLabel}
+        {labels.know}
       </Button>
       <Button
         type="button"
         size="sm"
-        disabled={addDisabled}
+        disabled={disabled.add}
         onClick={onAddToReview}
       >
-        {addLabel}
+        {labels.add}
       </Button>
     </div>
   );

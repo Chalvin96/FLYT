@@ -1,5 +1,5 @@
 import { Flame } from 'lucide-react';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 
 import {
   Tooltip,
@@ -36,7 +36,7 @@ export function DashboardSnapshot({ practiceSnapshot, streak }: Props) {
   );
   const peak = Math.max(0, ...weekRows.flatMap((row) => row.values));
   return (
-    <motion.section variants={fadeUp}>
+    <m.section variants={fadeUp}>
       <TooltipProvider delayDuration={150}>
         <div className="shadow-soft radius-section border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-3">
@@ -137,6 +137,6 @@ export function DashboardSnapshot({ practiceSnapshot, streak }: Props) {
           </div>
         </div>
       </TooltipProvider>
-    </motion.section>
+    </m.section>
   );
 }

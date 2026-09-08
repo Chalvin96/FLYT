@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 
 import { AppCard } from '@/components/common/AppCard/AppCard';
 import { CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,83 +25,105 @@ export interface DashboardPageProps {
   isLoading?: boolean;
 }
 
-export function DashboardPage({
-  stats,
-  isError = false,
-  isLoading = false,
-}: DashboardPageProps) {
+function buildDashboardModel(stats: DashboardStatsRead | null) {
   const dueCount = stats?.dueCount ?? 0;
-  const dueNew = stats?.dueNew ?? 0;
   const lessonCount = stats?.lessonCount ?? 0;
-  const accuracy7d = stats?.accuracy7d ?? null;
-  const practiceSnapshot = stats?.snapshot ?? emptySnapshot;
+  const snapshot = stats?.snapshot ?? emptySnapshot;
   const streak = stats?.streak ?? 0;
-  const totalWordsPracticed = stats?.wordsPracticed ?? 0;
-  const lessonsHref = '/lesson';
-  const reviewHref = '/review';
-
-  if (isLoading) {
-    return (
-      <div className="mx-auto flex w-full max-w-md flex-col gap-4">
-        <Skeleton className="radius-field h-16" />
-        <Skeleton className="radius-section h-40" />
-        <div className="grid grid-cols-2 gap-3">
-          <Skeleton className="radius-field h-40" />
-          <Skeleton className="radius-field h-40" />
-          <Skeleton className="radius-field h-40" />
-          <Skeleton className="radius-field h-40" />
-        </div>
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <AppCard className="mx-auto w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Could not load dashboard</CardTitle>
-          <p className="type-body text-muted-foreground">
-            Try refreshing the page.
-          </p>
-        </CardHeader>
-      </AppCard>
-    );
-  }
-
-  const lessonsRemaining = lessonCount > 0;
-  const reviewRemaining = dueCount > 0;
-  const isNewUser =
-    totalWordsPracticed === 0 && dueCount === 0 && lessonCount === 0;
   const reviewedToday =
-    (practiceSnapshot.this_week[(new Date().getUTCDay() + 6) % 7] ?? 0) > 0;
+    (snapshot.this_week[(new Date().getUTCDay() + 6) % 7] ?? 0) > 0;
+  const isNewUser =
+    (stats?.wordsPracticed ?? 0) === 0 && dueCount === 0 && lessonCount === 0;
   const streakAtRisk =
     streak > 0 &&
     !reviewedToday &&
     dueCount > 0 &&
     new Date().getUTCHours() >= 18;
+  let state:
+    | typeof K_HERO_STATE_DONE
+    | typeof K_HERO_STATE_EMPTY
+    | typeof K_HERO_STATE_RISK
+    | typeof K_HERO_STATE_REVIEW
+    | typeof K_HERO_STATE_LESSONS = K_HERO_STATE_DONE;
+  if (isNewUser) state = K_HERO_STATE_EMPTY;
+  else if (streakAtRisk) state = K_HERO_STATE_RISK;
+  else if (dueCount > 0) state = K_HERO_STATE_REVIEW;
+  else if (lessonCount > 0) state = K_HERO_STATE_LESSONS;
+  return {
+    accuracy7d: stats?.accuracy7d ?? null,
+    dueCount,
+    dueNew: stats?.dueNew ?? 0,
+    lessonCount,
+    snapshot,
+    state,
+    streak,
+    totalWordsPracticed: stats?.wordsPracticed ?? 0,
+  };
+}
 
-  function resolveState() {
-    if (isNewUser) return K_HERO_STATE_EMPTY;
-    if (streakAtRisk) return K_HERO_STATE_RISK;
-    if (dueCount > 0) return K_HERO_STATE_REVIEW;
-    if (lessonsRemaining) return K_HERO_STATE_LESSONS;
-    return K_HERO_STATE_DONE;
+function DashboardLoading() {
+  return (
+    <div className="mx-auto flex w-full max-w-md flex-col gap-4">
+      <Skeleton className="radius-field h-16" />
+      <Skeleton className="radius-section h-40" />
+      <div className="grid grid-cols-2 gap-3">
+        {[1, 2, 3, 4].map((slot) => (
+          <Skeleton key={slot} className="radius-field h-40" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DashboardError() {
+  return (
+    <AppCard className="mx-auto w-full max-w-md">
+      <CardHeader>
+        <CardTitle>Could not load dashboard</CardTitle>
+        <p className="type-body text-muted-foreground">
+          Try refreshing the page.
+        </p>
+      </CardHeader>
+    </AppCard>
+  );
+}
+
+export function DashboardPage({
+  stats,
+  isError,
+  isLoading,
+}: DashboardPageProps) {
+  if (isLoading) {
+    return <DashboardLoading />;
   }
-  const state = resolveState();
+
+  if (isError) {
+    return <DashboardError />;
+  }
+  return <DashboardContent model={buildDashboardModel(stats)} />;
+}
+
+function DashboardContent({
+  model,
+}: {
+  model: ReturnType<typeof buildDashboardModel>;
+}) {
+  const lessonsHref = '/lesson';
+  const reviewHref = '/review';
 
   return (
-    <motion.div
+    <m.div
       className="container-max mx-auto flex w-full flex-col gap-4 pb-4"
       initial="hidden"
       animate="visible"
       variants={stagger}
     >
       <DashboardHero
-        dueCount={dueCount}
+        dueCount={model.dueCount}
         lessonsHref={lessonsHref}
         reviewHref={reviewHref}
-        state={state}
-        streak={streak}
+        state={model.state}
+        streak={model.streak}
       />
 
       {/* Mobile/tablet: Stats → Practice cards → Snapshot (stacked)
@@ -110,37 +132,34 @@ export function DashboardPage({
         {/* Stats: mobile row 1, desktop left col row 1 */}
         <div className="lg:col-start-1 lg:row-start-1">
           <DashboardStats
-            accuracy7d={accuracy7d}
-            cardsThisWeek={practiceSnapshot.this_week.reduce(
-              (a, b) => a + b,
-              0,
-            )}
-            dueCount={dueCount}
-            dueNew={dueNew}
-            totalWordsPracticed={totalWordsPracticed}
+            accuracy7d={model.accuracy7d}
+            cardsThisWeek={model.snapshot.this_week.reduce((a, b) => a + b, 0)}
+            dueCount={model.dueCount}
+            dueNew={model.dueNew}
+            totalWordsPracticed={model.totalWordsPracticed}
           />
         </div>
 
         {/* Practice cards: mobile row 2, desktop right col spanning both rows */}
         <div className="lg:col-start-2 lg:row-start-1 lg:row-span-2">
           <DashboardPracticeCards
-            dueCount={dueCount}
-            lessonCount={lessonCount}
+            dueCount={model.dueCount}
+            lessonCount={model.lessonCount}
             lessonsHref={lessonsHref}
-            lessonsRemaining={lessonsRemaining}
+            lessonsRemaining={model.lessonCount > 0}
             reviewHref={reviewHref}
-            reviewRemaining={reviewRemaining}
+            reviewRemaining={model.dueCount > 0}
           />
         </div>
 
         {/* Snapshot: mobile row 3, desktop left col row 2 */}
         <div className="lg:col-start-1 lg:row-start-2">
           <DashboardSnapshot
-            practiceSnapshot={practiceSnapshot}
-            streak={streak}
+            practiceSnapshot={model.snapshot}
+            streak={model.streak}
           />
         </div>
       </div>
-    </motion.div>
+    </m.div>
   );
 }

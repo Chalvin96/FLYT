@@ -1,23 +1,20 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@flyt/ui";
 
-import { SentenceView } from "./SentenceView";
 import { ResultView } from "./LemmaResults";
-import { SearchView } from "./SearchView";
 import { ImportAction, SignInPrompt } from "./PopupActions";
-
+import { SearchView } from "./SearchView";
+import { SelectionPanels } from "./SelectionPanels";
 import {
-  MSG_KIND,
-  MSG_RESULT_KIND,
-  sendMessage,
-  type LemmaContext,
-} from "../lib/messages";
-import type { MsgResult } from "../lib/messages";
+  deriveView,
+  buildLookupKey,
+  buildPopupAriaLabel,
+  type Override,
+} from "./popupView";
+import { usePopupFocusTrap } from "./usePopupFocusTrap";
+import { usePopupWordLookup } from "./usePopupWordLookup";
+
+import type { LemmaContext, MsgResult } from "../lib/messages";
 import type { ResolveResponse } from "../lib/resolve-types";
 
 export type PopupState =
@@ -30,23 +27,6 @@ export type PopupState =
 
 type VisiblePopupState = Exclude<PopupState, { kind: "hidden" }>;
 
-type Override =
-  | { kind: "none" }
-  | { kind: "search"; query: string }
-  | { kind: "result"; res: ResolveResponse };
-
-type View =
-  | { kind: "loading"; word: string }
-  | { kind: "result"; res: ResolveResponse }
-  | { kind: "selection"; selection: LemmaContext }
-  | { kind: "signIn" }
-  | { kind: "error" }
-  | { kind: "search"; query: string };
-
-
-const FOCUSABLE_SELECTOR =
-  'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
 export function Popup({
   state,
   onImportPage,
@@ -58,100 +38,48 @@ export function Popup({
   onClose?: () => void;
   sessionId?: number;
 }) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const prevFocusRef = useRef<HTMLElement | null>(null);
-  const isHidden = state.kind === "hidden";
+  const { handleKeyDown, panelRef } = usePopupFocusTrap(
+    state.kind === "hidden",
+  );
 
-  useEffect(() => {
-    if (isHidden) {
-      prevFocusRef.current?.focus();
-      prevFocusRef.current = null;
-      return;
-    }
-    prevFocusRef.current = document.activeElement as HTMLElement | null;
-    const panel = panelRef.current;
-    if (!panel) return;
-    const first = panel.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
-    (first ?? panel).focus();
-  }, [isHidden]);
-
-  if (isHidden) return null;
-
-  const lookupKey =
-    state.kind === "loading"
-      ? state.word
-      : state.kind === "result"
-        ? state.res.query
-        : state.kind === "selection"
-          ? state.selection.source_sentence
-        : "__" + state.kind + "__";
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "Tab") return;
-    const panel = panelRef.current;
-    if (!panel) return;
-    const focusable = Array.from(
-      panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
-    );
-    if (focusable.length === 0) return;
-    const first = focusable[0]!;
-    const last = focusable[focusable.length - 1]!;
-    const root = panel.getRootNode();
-    const active = (
-      root instanceof ShadowRoot ? root.activeElement : document.activeElement
-    ) as HTMLElement | null;
-    if (event.shiftKey && (active === first || !panel.contains(active))) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && active === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
-
-  const ariaLabel =
-    state.kind === "result"
-      ? "Definition of " + state.res.query
-      : state.kind === "loading"
-        ? "Looking up " + state.word
-        : state.kind === "selection"
-          ? "Translate selected text"
-        : state.kind === "signIn"
-          ? "Sign in to Flyt"
-          : state.kind === "error"
-            ? "Something went wrong"
-            : "Flyt";
+  if (state.kind === "hidden") return null;
 
   return (
     <div
+      aria-label={buildPopupAriaLabel(state)}
+      aria-modal="true"
+      className="flyt-popup"
+      onKeyDown={handleKeyDown}
       ref={panelRef}
       role="dialog"
-      aria-modal="true"
-      aria-label={ariaLabel}
       tabIndex={-1}
-      onKeyDown={handleKeyDown}
-      className="flyt-popup"
     >
-      <div className="flyt-logo-bar">
-        <div className="flyt-logo-box">F</div>
-        <span className="flyt-wordmark">Flyt</span>
-        {onClose && (
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="flyt-close-btn"
-            aria-label="Close"
-            onClick={onClose}
-          >
-            ×
-          </Button>
-        )}
-      </div>
+      <PopupHeader onClose={onClose} />
       <div className="flyt-popup-body">
-        <PopupBody key={lookupKey} state={state} />
+        <PopupBody key={buildLookupKey(state)} state={state} />
       </div>
       <ImportAction key={sessionId} onImportPage={onImportPage} />
+    </div>
+  );
+}
+
+function PopupHeader({ onClose }: { onClose?: () => void }) {
+  return (
+    <div className="flyt-logo-bar">
+      <div className="flyt-logo-box">F</div>
+      <span className="flyt-wordmark">Flyt</span>
+      {onClose ? (
+        <Button
+          aria-label="Close"
+          className="flyt-close-btn"
+          onClick={onClose}
+          size="icon"
+          type="button"
+          variant="ghost"
+        >
+          ×
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -159,162 +87,110 @@ export function Popup({
 function PopupBody({ state }: { state: VisiblePopupState }) {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [override, setOverride] = useState<Override>({ kind: "none" });
-  const [wordLookup, setWordLookup] = useState<
-    | { kind: "idle" }
-    | { kind: "loading" | "error" | "notFound"; word: string }
-  >({ kind: "idle" });
-  const resolveRequestRef = useRef(0);
-  const aliveRef = useRef(true);
+  const view = deriveView(override, state);
+
+  const showResolved = (res: ResolveResponse) => {
+    setOverride({ kind: "result", res });
+  };
+  const { invalidateLookup, resetLookup, resolveWord, wordLookup } =
+    usePopupWordLookup(showResolved);
 
   useEffect(() => {
     if (override.kind === "search") searchInputRef.current?.focus();
   }, [override.kind]);
 
-  useEffect(() => {
-    return () => {
-      aliveRef.current = false;
-      resolveRequestRef.current += 1;
-    };
-  }, []);
-
-  const view: View =
-    override.kind === "search"
-      ? { kind: "search", query: override.query }
-      : override.kind === "result"
-        ? { kind: "result", res: override.res }
-        : state.kind === "result"
-          ? { kind: "result", res: state.res }
-          : state.kind === "loading"
-            ? { kind: "loading", word: state.word }
-            : state.kind === "selection"
-              ? { kind: "selection", selection: state.selection }
-            : state.kind === "signIn"
-              ? { kind: "signIn" }
-              : state.kind === "error"
-                ? { kind: "error" }
-                : { kind: "search", query: "" };
-
   const enterSearch = () => {
-    resolveRequestRef.current += 1;
+    invalidateLookup();
     const query = view.kind === "result" ? view.res.query : "";
     setOverride({ kind: "search", query });
   };
 
   const searchForWord = (word: string) => {
-    resolveRequestRef.current += 1;
-    setWordLookup({ kind: "idle" });
+    invalidateLookup();
+    resetLookup();
     setOverride({ kind: "search", query: word });
   };
 
-  const showResolved = (res: ResolveResponse) => {
-    if (aliveRef.current) setOverride({ kind: "result", res });
-  };
-
-  const resolveWord = async (word: string) => {
-    const requestId = ++resolveRequestRef.current;
-    setWordLookup({ kind: "loading", word });
-    try {
-      const result = await sendMessage({ kind: MSG_KIND.RESOLVE, word });
-      if (
-        requestId === resolveRequestRef.current &&
-        result.ok &&
-        result.kind === MSG_RESULT_KIND.RESOLVE
-      ) {
-        if (result.data.candidates.length > 0) {
-          showResolved(result.data);
-          setWordLookup({ kind: "idle" });
-        } else {
-          setWordLookup({ kind: "notFound", word });
-        }
-      } else if (requestId === resolveRequestRef.current) {
-        setWordLookup({ kind: "error", word });
-      }
-    } catch {
-      if (requestId === resolveRequestRef.current) {
-        setWordLookup({ kind: "error", word });
-      }
-    }
+  const backToTranslation = () => {
+    invalidateLookup();
+    setOverride({ kind: "none" });
+    resetLookup();
   };
 
   return (
     <>
-      {state.kind === "selection" && (
-        <SentenceView
+      {state.kind === "selection" ? (
+        <SelectionPanels
+          hasWordResult={override.kind === "result"}
+          onBackToTranslation={backToTranslation}
+          onResolveWord={(word) => void resolveWord(word)}
+          onSearchWord={searchForWord}
           selection={state.selection}
           text={state.text}
-          activeWord={wordLookup.kind === "idle" ? undefined : wordLookup.word}
-          onResolveWord={(word) => void resolveWord(word)}
+          wordLookup={wordLookup}
         />
-      )}
-      {state.kind === "selection" && wordLookup.kind === "loading" && (
-        <p className="flyt-word-lookup-status" role="status">
-          Looking up &quot;{wordLookup.word}&quot;…
-        </p>
-      )}
-      {state.kind === "selection" && wordLookup.kind === "error" && (
-        <div className="flyt-word-lookup-error" role="alert">
-          <span>Could not find &quot;{wordLookup.word}&quot;.</span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => void resolveWord(wordLookup.word)}
-          >
-            Retry
-          </Button>
-        </div>
-      )}
-      {state.kind === "selection" && wordLookup.kind === "notFound" && (
-        <div className="flyt-word-lookup-empty" role="status">
-          <span>No dictionary entry for &quot;{wordLookup.word}&quot;.</span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => searchForWord(wordLookup.word)}
-          >
-            Search
-          </Button>
-        </div>
-      )}
-      {state.kind === "selection" && override.kind === "result" && (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="flyt-back-to-translation"
-          onClick={() => {
-            resolveRequestRef.current += 1;
-            setOverride({ kind: "none" });
-            setWordLookup({ kind: "idle" });
-          }}
-        >
-          Back to translation
-        </Button>
-      )}
-      {view.kind === "loading" && <LoadingView word={view.word} />}
-      {view.kind === "result" && (
-        <ResultView
-          res={view.res}
-          onSearch={enterSearch}
-          onResolveWord={(word) => void resolveWord(word)}
-          context={
-            state.kind === "selection"
-              ? state.selection
-              : state.kind === "result"
-                ? state.context
-                : undefined
-          }
-        />
-      )}
-      {view.kind === "search" && (
-        <SearchView
-          inputRef={searchInputRef}
-          initialQuery={view.query}
-          onResolveWord={(word) => void resolveWord(word)}
-        />
-      )}
-      {view.kind === "signIn" && <SignInPrompt />}
-      {view.kind === "error" && <ErrorView />}
+      ) : null}
+      <PopupMainView
+        enterSearch={enterSearch}
+        onResolveWord={resolveWord}
+        searchInputRef={searchInputRef}
+        state={state}
+        view={view}
+      />
     </>
   );
+}
+
+function PopupMainView({
+  enterSearch,
+  onResolveWord,
+  searchInputRef,
+  state,
+  view,
+}: {
+  enterSearch: () => void;
+  onResolveWord: (word: string) => Promise<void>;
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
+  state: VisiblePopupState;
+  view: ReturnType<typeof deriveView>;
+}) {
+  switch (view.kind) {
+    case "loading":
+      return <LoadingView word={view.word} />;
+    case "result":
+      return (
+        <ResultView
+          context={getResultContext(state)}
+          onResolveWord={(word) => void onResolveWord(word)}
+          onSearch={enterSearch}
+          res={view.res}
+        />
+      );
+    case "search":
+      return (
+        <SearchView
+          initialQuery={view.query}
+          inputRef={searchInputRef}
+          onResolveWord={(word) => void onResolveWord(word)}
+        />
+      );
+    case "signIn":
+      return <SignInPrompt />;
+    case "error":
+      return <ErrorView />;
+    default:
+      return null;
+  }
+}
+
+function getResultContext(state: VisiblePopupState): LemmaContext | undefined {
+  if (state.kind === "selection") {
+    return state.selection;
+  }
+  if (state.kind === "result") {
+    return state.context;
+  }
+  return undefined;
 }
 
 function LoadingView({ word }: { word: string }) {

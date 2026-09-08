@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { Button } from '@/components/common/Button/Button';
 import { ErrorMessage } from '@/components/common/ErrorMessage/ErrorMessage';
@@ -11,66 +11,29 @@ import { Badge } from '@/components/ui/badge';
 import {
   useReadingStory,
   useReadingStoryRecommendations,
-  useSaveReadingProgress,
 } from '@/hooks/reading/queries';
 import { getApiErrorCode } from '@/lib/apiError';
 import { cn } from '@/lib/utils';
 import { IMPORT_ERROR_CODES } from '@/types/api';
 
+import { useReadingProgressAutosave } from './useReadingProgressAutosave';
+
 export function StoryReaderPage({ storyUuid }: { storyUuid: string }) {
   const [page, setPage] = useState<number | undefined>(undefined);
-  const savedPageKeysRef = useRef(new Set<string>());
   const { data, isError, isPending, error, refetch } = useReadingStory(
     storyUuid,
     page,
   );
   const recommendationsQuery = useReadingStoryRecommendations(storyUuid);
-  const saveProgress = useSaveReadingProgress(storyUuid);
   const { openLemma } = useLookupContext();
   const isLastPage = data ? data.page.index >= data.totalPages - 1 : false;
 
-  useEffect(() => {
-    savedPageKeysRef.current.clear();
-  }, [storyUuid]);
-
-  const persistProgress = useCallback(
-    (pageIndex: number) => {
-      const key = `${storyUuid}:${pageIndex}`;
-      if (savedPageKeysRef.current.has(key)) {
-        return;
-      }
-
-      savedPageKeysRef.current.add(key);
-      saveProgress.mutate(pageIndex, {
-        onError: () => {
-          savedPageKeysRef.current.delete(key);
-        },
-      });
-    },
-    [saveProgress, storyUuid],
-  );
+  useReadingProgressAutosave({ data, isLastPage, page, storyUuid });
 
   const paragraphs = useMemo(
     () => (data ? buildStoryParagraphs(data.page, data.userStates) : []),
     [data],
   );
-
-  useEffect(() => {
-    if (!data) {
-      return;
-    }
-
-    if (page !== undefined) {
-      if (data.page.index === page) {
-        persistProgress(page);
-      }
-      return;
-    }
-
-    if (isLastPage && !data.completed) {
-      persistProgress(data.page.index);
-    }
-  }, [data, isLastPage, page, persistProgress]);
 
   if (isPending) {
     return (

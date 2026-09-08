@@ -1,30 +1,21 @@
 import { useMessageScroller } from '@shadcn/react/message-scroller';
 import { Bot, Plus, X } from 'lucide-react';
-import { useLayoutEffect, useRef, useState } from 'react';
-import type { FormEvent, KeyboardEvent } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
 
-import {
-  MessageScroller,
-  MessageScrollerButton,
-  MessageScrollerContent,
-  MessageScrollerItem,
-  MessageScrollerProvider,
-  MessageScrollerViewport,
-} from '@/components/chatbot/ui/message-scroller';
-import { ErrorMessage } from '@/components/common/ErrorMessage/ErrorMessage';
+import { MessageScrollerProvider } from '@/components/chatbot/ui/message-scroller';
 import { cn } from '@/lib/utils';
 
 import { formatChatbotLabel, MODEL_ORDER, modelLabel } from './chatbotModels';
 import { ChatbotComposer, IconButton } from './FlytChatbotComposer';
-import { ContextNote } from './FlytChatbotContextElements';
-import { FollowUpActions, MessageRow } from './FlytChatbotConversation';
-import { EmptyState } from './FlytChatbotEmptyState';
-import { ChatbotLiveStatus, LoadingStatus } from './FlytChatbotStatus';
+import { ChatbotConversationList } from './FlytChatbotConversationList';
+import { ChatbotLiveStatus } from './FlytChatbotStatus';
 import type {
   FlytChatbotMessage,
   FlytChatbotModel,
   FlytChatbotPanelProps,
 } from './types';
+import { usePendingFollowUp } from './usePendingFollowUp';
 
 export type {
   FlytChatbotContext,
@@ -53,16 +44,6 @@ const EMPTY_MODEL_ACTIONS: Partial<Record<FlytChatbotModel, string | null>> =
   {};
 
 const MESSAGE_SCROLL_EDGE_THRESHOLD_PX = 96;
-
-const MESSAGE_SCROLL_INTENT_KEYS = new Set([
-  'ArrowDown',
-  'ArrowUp',
-  'End',
-  'Home',
-  'PageDown',
-  'PageUp',
-  ' ',
-]);
 
 export function FlytChatbotPanel(props: FlytChatbotPanelProps) {
   return (
@@ -109,38 +90,36 @@ function FlytChatbotPanelContent({
   const draft = controlledDraft ?? internalDraft;
   const selectedModel = controlledSelectedModel ?? internalSelectedModel;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const pendingFollowRef = useRef<{
-    messageCount: number;
-    error: string | null;
-  } | null>(null);
   const { scrollToEnd } = useMessageScroller();
-  const isModelUsable = (model: FlytChatbotModel) =>
-    !unavailableModels.includes(model);
+
+  const lastMessage = messages[messages.length - 1];
+  const { clearPendingFollow, markSendPending } = usePendingFollowUp({
+    draft,
+    error,
+    isLoading,
+    lastMessage,
+    messages,
+    scrollToEnd,
+  });
+
+  const isModelUsable = useCallback(
+    (model: FlytChatbotModel) => !unavailableModels.includes(model),
+    [unavailableModels],
+  );
   const fallbackModel = MODEL_ORDER.find(isModelUsable) ?? null;
   const activeModel = isModelUsable(selectedModel)
     ? selectedModel
     : fallbackModel;
   const canSend = draft.trim().length > 0 && !isLoading && activeModel !== null;
-  const lastMessage = messages[messages.length - 1];
   const hasCompletedAnswer =
     !isLoading && !error && lastMessage?.role === 'chatbot';
   const lastChatbotLabel = formatChatbotLabel(lastMessage, activeModel);
-
-  useLayoutEffect(() => {
-    const pendingFollow = pendingFollowRef.current;
-    if (!pendingFollow) return;
-
-    scrollToEnd({ behavior: 'auto' });
-
-    const hasNewError = Boolean(error && error !== pendingFollow.error);
-    const hasCompletedNewAnswer =
-      messages.length > pendingFollow.messageCount &&
-      !isLoading &&
-      lastMessage?.role === 'chatbot';
-    if (hasNewError || hasCompletedNewAnswer) {
-      pendingFollowRef.current = null;
-    }
-  }, [draft, error, isLoading, lastMessage?.role, messages, scrollToEnd]);
+  const availabilityNotice =
+    activeModel === null
+      ? 'No available model is connected. Connect a model to keep going.'
+      : isModelUsable(selectedModel)
+        ? null
+        : `${modelLabel[selectedModel]} is unavailable — switched to ${modelLabel[activeModel]}`;
 
   const handleModelChange = (model: FlytChatbotModel) => {
     setInternalSelectedModel(model);
@@ -158,16 +137,10 @@ function FlytChatbotPanelContent({
     const message = draft.trim();
     if (!message || !canSend || !activeModel) return;
 
-    if (!onSend) {
-      handleDraftChange('');
-      return;
+    if (onSend) {
+      markSendPending();
+      onSend(message, activeModel);
     }
-
-    pendingFollowRef.current = {
-      error,
-      messageCount: messages.length,
-    };
-    onSend(message, activeModel);
     handleDraftChange('');
   };
 
@@ -184,27 +157,10 @@ function FlytChatbotPanelContent({
   };
 
   const handleNewConversation = () => {
-    pendingFollowRef.current = null;
+    clearPendingFollow();
     handleDraftChange('');
     onNewConversation?.();
   };
-
-  const handleViewportInteraction = () => {
-    pendingFollowRef.current = null;
-  };
-
-  const handleViewportKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (MESSAGE_SCROLL_INTENT_KEYS.has(event.key)) {
-      handleViewportInteraction();
-    }
-  };
-
-  const availabilityNotice =
-    activeModel === null
-      ? 'No available model is connected. Connect a model to keep going.'
-      : isModelUsable(selectedModel)
-        ? null
-        : `${modelLabel[selectedModel]} is unavailable — switched to ${modelLabel[activeModel]}`;
 
   return (
     <section
@@ -218,27 +174,10 @@ function FlytChatbotPanelContent({
       )}
       data-testid="flyt-chatbot-panel"
     >
-      <header className="flex min-h-14 min-w-0 shrink-0 items-center justify-between gap-2 border-b border-border/70 px-3 sm:px-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-5 text-primary-70 @max-[360px]:hidden">
-            <Bot aria-hidden="true" className="icon-sm" strokeWidth={1.8} />
-          </span>
-          <h2 className="min-w-0 truncate font-display type-body font-semibold text-foreground">
-            Ask Flyt
-          </h2>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-0.5">
-          <IconButton label="New conversation" onClick={handleNewConversation}>
-            <Plus />
-          </IconButton>
-          {onClose ? (
-            <IconButton label="Close chatbot" onClick={onClose}>
-              <X />
-            </IconButton>
-          ) : null}
-        </div>
-      </header>
+      <ChatbotPanelHeader
+        onClose={onClose}
+        onNewConversation={handleNewConversation}
+      />
 
       <ChatbotLiveStatus
         chatbotLabel={lastChatbotLabel}
@@ -249,105 +188,21 @@ function FlytChatbotPanelContent({
         lastMessageId={lastMessage?.id ?? null}
       />
 
-      <div className="relative min-h-0 min-w-0 bg-card">
-        <MessageScroller>
-          <MessageScrollerViewport
-            aria-label="Messages"
-            className="h-full"
-            data-testid="chatbot-messages"
-            onKeyDown={handleViewportKeyDown}
-            onTouchMove={handleViewportInteraction}
-            onWheel={handleViewportInteraction}
-            style={{ overflowAnchor: 'none' }}
-          >
-            <MessageScrollerContent
-              aria-busy={isLoading}
-              aria-label="Conversation"
-              aria-live="off"
-              className="gap-0 px-4 pt-6 pb-5 sm:px-5"
-            >
-              {messages.map((message, messageIndex) => {
-                const previous = messages[messageIndex - 1];
-                const continuesExchange =
-                  previous?.role === 'user' && message.role === 'chatbot';
-
-                return (
-                  <MessageScrollerItem
-                    className={
-                      message.role === 'note'
-                        ? undefined
-                        : messageIndex === 0
-                          ? undefined
-                          : continuesExchange
-                            ? 'mt-3'
-                            : 'mt-7'
-                    }
-                    key={message.id}
-                    messageId={message.id}
-                  >
-                    {message.role === 'note' ? (
-                      <ContextNote message={message} />
-                    ) : (
-                      <MessageRow
-                        chatbotLabel={
-                          activeModel ? modelLabel[activeModel] : 'Flyt'
-                        }
-                        message={message}
-                      />
-                    )}
-                  </MessageScrollerItem>
-                );
-              })}
-              {isLoading && messages.length > 0 ? (
-                <MessageScrollerItem messageId="chatbot-loading">
-                  <LoadingStatus className="mt-3" />
-                </MessageScrollerItem>
-              ) : null}
-              {hasCompletedAnswer ? (
-                <MessageScrollerItem messageId="chatbot-follow-ups">
-                  <FollowUpActions
-                    onPromptSelect={handleFollowUpSelect}
-                    prompts={followUpPrompts}
-                  />
-                </MessageScrollerItem>
-              ) : null}
-              {error ? (
-                <MessageScrollerItem messageId="chatbot-error">
-                  <ErrorMessage
-                    className="mt-4 max-w-full"
-                    error={error}
-                    onDismiss={onErrorDismiss}
-                    onRetry={onErrorRetry}
-                    role="none"
-                    title="Unable to answer"
-                  />
-                </MessageScrollerItem>
-              ) : null}
-              {messages.length === 0 && !isLoading ? (
-                <MessageScrollerItem
-                  className="flex min-h-full flex-1"
-                  messageId="chatbot-empty"
-                >
-                  <EmptyState
-                    context={context}
-                    prompts={starterPrompts}
-                    onPromptSelect={handleStarterSelect}
-                  />
-                </MessageScrollerItem>
-              ) : null}
-              {messages.length === 0 && isLoading ? (
-                <MessageScrollerItem
-                  className="flex min-h-64 flex-1 items-center justify-center"
-                  messageId="chatbot-loading-empty"
-                >
-                  <LoadingStatus />
-                </MessageScrollerItem>
-              ) : null}
-            </MessageScrollerContent>
-          </MessageScrollerViewport>
-          <MessageScrollerButton />
-        </MessageScroller>
-      </div>
+      <ChatbotConversationList
+        chatbotLabel={activeModel ? modelLabel[activeModel] : 'Flyt'}
+        context={context}
+        error={error}
+        followUpPrompts={followUpPrompts}
+        hasCompletedAnswer={hasCompletedAnswer}
+        isLoading={isLoading}
+        messages={messages}
+        onErrorDismiss={onErrorDismiss}
+        onErrorRetry={onErrorRetry}
+        onFollowUpSelect={handleFollowUpSelect}
+        onStarterSelect={handleStarterSelect}
+        onUserInteraction={clearPendingFollow}
+        starterPrompts={starterPrompts}
+      />
 
       <ChatbotComposer
         activeModel={activeModel}
@@ -369,5 +224,37 @@ function FlytChatbotPanelContent({
         textareaRef={textareaRef}
       />
     </section>
+  );
+}
+
+function ChatbotPanelHeader({
+  onClose,
+  onNewConversation,
+}: {
+  onClose?: () => void;
+  onNewConversation: () => void;
+}) {
+  return (
+    <header className="flex min-h-14 min-w-0 shrink-0 items-center justify-between gap-2 border-b border-border/70 px-3 sm:px-4">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-5 text-primary-70 @max-[360px]:hidden">
+          <Bot aria-hidden="true" className="icon-sm" strokeWidth={1.8} />
+        </span>
+        <h2 className="min-w-0 truncate font-display type-body font-semibold text-foreground">
+          Ask Flyt
+        </h2>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-0.5">
+        <IconButton label="New conversation" onClick={onNewConversation}>
+          <Plus />
+        </IconButton>
+        {onClose ? (
+          <IconButton label="Close chatbot" onClick={onClose}>
+            <X />
+          </IconButton>
+        ) : null}
+      </div>
+    </header>
   );
 }

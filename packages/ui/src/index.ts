@@ -8,8 +8,10 @@ export type {
   AudioPlaybackCallbacks,
   AudioPlaybackOwner,
 } from './components/audio-playback';
-export { Badge, badgeVariants } from './components/badge';
-export { Button, buttonVariants } from './components/button';
+export { Badge } from './components/badge';
+export { badgeVariants } from './components/badge-variants';
+export { Button } from './components/button';
+export { buttonVariants } from './components/button-variants';
 export {
   Card,
   CardHeader,

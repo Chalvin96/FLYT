@@ -1,5 +1,5 @@
 import { BookOpenText, BookText, Target, Zap } from 'lucide-react';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 
 import { fadeUp } from './constants';
 import { PracticeCard, type PracticeCardProps } from './PracticeCard';
@@ -64,7 +64,7 @@ export function DashboardPracticeCards({
       : [lessonsCard, READING_CARD, reviewCard];
 
   return (
-    <motion.section variants={fadeUp}>
+    <m.section variants={fadeUp}>
       <div className="mb-3 px-1">
         <h2 className="type-title leading-none">Choose your next step</h2>
       </div>
@@ -73,6 +73,6 @@ export function DashboardPracticeCards({
           <PracticeCard key={item.title} {...item} />
         ))}
       </div>
-    </motion.section>
+    </m.section>
   );
 }

@@ -18,16 +18,15 @@ function StoryParagraphViewComponent({
 }: StoryParagraphViewProps) {
   return (
     <p className="whitespace-pre-wrap">
-      {paragraph.map((part, index) => {
+      {paragraph.map((part, partIndex) => {
+        const partKey = `${part.isToken ? 'token' : 'text'}-${paragraphIndex}-${partIndex}-${part.text}-${part.lemmaUuid ?? ''}`;
         if (!part.isToken || !WORD_TOKEN_PATTERN.test(part.text)) {
-          return (
-            <span key={`text-${paragraphIndex}-${index}`}>{part.text}</span>
-          );
+          return <span key={partKey}>{part.text}</span>;
         }
 
         return (
           <WordSpan
-            key={`token-${paragraphIndex}-${index}-${part.text}`}
+            key={partKey}
             text={part.text}
             state={part.state}
             hasLemma={part.lemmaUuid !== null}

@@ -126,9 +126,12 @@ export function FlashCardMatch({
         id: item.left_id,
         text: item.text,
         side: 'left' as const,
-        pairIds: pairs
-          .filter((pair) => pair.left_id === item.left_id)
-          .map((pair) => pairKey(pair.left_id, pair.right_id)),
+        pairIds: pairs.reduce<string[]>((pairIds, pair) => {
+          if (pair.left_id === item.left_id) {
+            pairIds.push(pairKey(pair.left_id, pair.right_id));
+          }
+          return pairIds;
+        }, []),
       })),
     ),
   );
@@ -140,9 +143,12 @@ export function FlashCardMatch({
         id: item.right_id,
         text: item.text,
         side: 'right' as const,
-        pairIds: pairs
-          .filter((pair) => pair.right_id === item.right_id)
-          .map((pair) => pairKey(pair.left_id, pair.right_id)),
+        pairIds: pairs.reduce<string[]>((pairIds, pair) => {
+          if (pair.right_id === item.right_id) {
+            pairIds.push(pairKey(pair.left_id, pair.right_id));
+          }
+          return pairIds;
+        }, []),
       })),
     );
   });

@@ -9,7 +9,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { useCheckableExercise } from '@/hooks/flashcard/useCheckableExercise/useCheckableExercise';
 import { gradedOutcome } from '@/lib/operationResult';
@@ -295,11 +295,12 @@ export function FlashCardCategorize({
                 onClick={() => handleZoneClick(bucket.bucket_id)}
                 className="min-h-14 content-start border-2 border-primary-40/60 bg-primary-5/30 p-2 sm:min-h-[4.5rem]"
               >
-                {items
-                  .filter(
-                    (item) => assignments[item.item_id] === bucket.bucket_id,
-                  )
-                  .map((item) => renderChip(item.item_id, item.text))}
+                {items.reduce<ReactNode[]>((chips, item) => {
+                  if (assignments[item.item_id] === bucket.bucket_id) {
+                    chips.push(renderChip(item.item_id, item.text));
+                  }
+                  return chips;
+                }, [])}
               </DropZone>
             </div>
           ))}

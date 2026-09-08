@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 
 import { fadeUp } from '@/lib/animations';
 
@@ -34,7 +34,7 @@ export function BaseHeroCard({
     : 0;
 
   return (
-    <motion.div
+    <m.div
       initial="hidden"
       animate="visible"
       variants={fadeUp}
@@ -102,6 +102,6 @@ export function BaseHeroCard({
           {secondaryAction}
         </div>
       </section>
-    </motion.div>
+    </m.div>
   );
 }

@@ -75,14 +75,13 @@ export function deriveLessonPages(packet: LessonPacket): LessonPage[] {
     });
   });
 
-  const omitted = [
-    ...packet.sections
-      .filter((section) => !seen.has(`section:${section.id}`))
-      .map((section) => section.id),
-    ...packet.exercises
-      .filter((exercise) => !seen.has(`exercise:${exercise.id}`))
-      .map((exercise) => exercise.id),
-  ];
+  const omitted: string[] = [];
+  for (const section of packet.sections) {
+    if (!seen.has(`section:${section.id}`)) omitted.push(section.id);
+  }
+  for (const exercise of packet.exercises) {
+    if (!seen.has(`exercise:${exercise.id}`)) omitted.push(exercise.id);
+  }
   if (omitted.length > 0) {
     throw new Error(`content omits ${omitted[0]}`);
   }
@@ -91,7 +90,8 @@ export function deriveLessonPages(packet: LessonPacket): LessonPage[] {
 }
 
 export function packetExerciseIds(packet: LessonPacket): string[] {
-  return packet.content
-    .filter((reference) => reference.kind === 'exercise')
-    .map((reference) => reference.id);
+  return packet.content.reduce<string[]>((ids, reference) => {
+    if (reference.kind === 'exercise') ids.push(reference.id);
+    return ids;
+  }, []);
 }

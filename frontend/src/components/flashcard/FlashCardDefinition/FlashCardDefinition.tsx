@@ -1,10 +1,5 @@
-import {
-  formatPos,
-  getGenderFromTags,
-  getLemmaGrammarTag,
-} from '@flyt/lexicon/grammar';
-import { motion } from 'motion/react';
-import { useCallback, useMemo, useState } from 'react';
+import { m } from 'motion/react';
+import { useCallback, useState } from 'react';
 
 import { Button } from '@/components/common/Button/Button';
 import { FlashcardActionFooter } from '@/components/flashcard/FlashcardActionFooter';
@@ -12,18 +7,17 @@ import {
   flashCardFooterClassName,
   flashCardPanelClassName,
 } from '@/components/flashcard/FlashCardFrame';
-import { detectInflectionKind } from '@/components/flashcard/InflectionTable/utils';
 import { RatingButtons } from '@/components/flashcard/RatingButtons/RatingButtons';
 import { cn } from '@/lib/utils';
-import {
-  FlashCardType,
-  type DefinitionEntry,
-  type DefinitionRead,
-  type FlashCardRenderable,
-  type LemmaContextRead,
-  type WordFormRead,
+import type {
+  DefinitionRead,
+  FlashCardRenderable,
+  LemmaContextRead,
+  LemmaPos,
+  WordFormRead,
 } from '@/types/api';
 
+import { buildDefinitionCardView } from './definitionCardView';
 import { FlashCardDefinitionBack } from './FlashCardDefinitionBack';
 import { FlashCardDefinitionFront } from './FlashCardDefinitionFront';
 
@@ -43,19 +37,6 @@ export interface FlashCardDefinitionProps {
 
 const EMPTY_WORD_FORMS: WordFormRead[] = [];
 
-function buildDefinitionsFromPayload(
-  definitions: DefinitionEntry[],
-): DefinitionRead[] {
-  return definitions.map((d, index) => ({
-    uuid: d.uuid,
-    id: index,
-    definition: d.definition,
-    translation: d.translation,
-    translation_source: null,
-    examples_json: d.examples_json,
-  }));
-}
-
 export const FlashCardDefinition = ({
   card,
   wordForms = EMPTY_WORD_FORMS,
@@ -66,40 +47,7 @@ export const FlashCardDefinition = ({
 }: FlashCardDefinitionProps) => {
   const context = contextProp ?? card.context ?? null;
   const [isFlipped, setIsFlipped] = useState(false);
-  const definitionPayload =
-    card.card.type === FlashCardType.DEFINITION ? card.card.payload : null;
-
-  const definitions = definitionPayload
-    ? buildDefinitionsFromPayload(definitionPayload.definitions)
-    : [];
-
-  const primaryTranslation = definitionPayload?.primary_translation ?? '';
-
-  const pos = definitionPayload?.pos;
-  const word = definitionPayload?.word;
-  const inflectionClass = useMemo(
-    () => (pos ? getLemmaGrammarTag(pos, wordForms) : null),
-    [pos, wordForms],
-  );
-
-  const { isNoun, isVerb } = useMemo(
-    () => detectInflectionKind(wordForms, pos),
-    [wordForms, pos],
-  );
-
-  const gender = useMemo(
-    () =>
-      isNoun && wordForms[0] ? getGenderFromTags(wordForms[0].tags_json) : null,
-    [isNoun, wordForms],
-  );
-
-  const formattedPos = pos ? formatPos(pos) : null;
-
-  const ipa = definitionPayload?.ipa ?? null;
-  const intonation = definitionPayload?.intonation ?? null;
-  const ipaApproximate = definitionPayload?.ipa_approximate ?? false;
-  const audioUrl =
-    definitionPayload?.audio_url ?? wordForms[0]?.audio_url ?? null;
+  const view = buildDefinitionCardView(card, wordForms);
 
   const handleFlip = () => setIsFlipped(true);
 
@@ -110,40 +58,9 @@ export const FlashCardDefinition = ({
     [onFinished],
   );
 
-  if (!definitionPayload || definitions.length === 0) {
+  if (!view) {
     return null;
   }
-
-  const backContents = (
-    <>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <FlashCardDefinitionBack
-          word={word}
-          primaryTranslation={primaryTranslation}
-          definitions={definitions}
-          gender={gender}
-          inflectionClass={inflectionClass}
-          isVerb={isVerb}
-          wordForms={wordForms}
-          pos={pos}
-          ipa={ipa}
-          intonation={intonation}
-          ipaApproximate={ipaApproximate}
-          audioUrl={audioUrl}
-          context={context}
-        />
-      </div>
-      {onFinished && (
-        <div className={cn(flashCardFooterClassName, 'sticky bottom-0 z-10')}>
-          <RatingButtons
-            onRate={handleRate}
-            previews={card.rating_previews}
-            disabled={isSubmitting}
-          />
-        </div>
-      )}
-    </>
-  );
 
   // Front and back cross-fade in the same layer. We deliberately avoid a 3D
   // flip (rotateY/perspective/backface-visibility): a 3D rendering context on an
@@ -152,57 +69,177 @@ export const FlashCardDefinition = ({
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col', className)}>
       <div className="relative flex min-h-0 flex-1">
-        <div className="relative w-full min-h-0 self-stretch">
-          <motion.div
-            className={cn(
-              flashCardPanelClassName,
-              'absolute inset-0 overflow-hidden',
-              isFlipped && 'pointer-events-none',
-            )}
-            aria-hidden={isFlipped}
-            initial={false}
-            animate={{ opacity: isFlipped ? 0 : 1 }}
-            transition={{ duration: 0.25, ease: 'easeInOut' }}
-          >
-            <div className="flex min-h-0 flex-1 flex-col">
-              <FlashCardDefinitionFront
-                word={word}
-                senseCue={definitionPayload.sense_cue}
-                formattedPos={formattedPos}
-                ipaApproximate={ipaApproximate}
-                audioUrl={audioUrl}
-              />
-              <div className={flashCardFooterClassName}>
-                <FlashcardActionFooter>
-                  <Button
-                    type="button"
-                    className="w-full"
-                    size="default"
-                    onClick={handleFlip}
-                    disabled={isFlipped || isSubmitting}
-                  >
-                    Check answer
-                  </Button>
-                </FlashcardActionFooter>
-              </div>
-            </div>
-          </motion.div>
+        <div className="relative min-h-0 w-full self-stretch">
+          <DefinitionFrontLayer
+            audioUrl={view.audioUrl}
+            formattedPos={view.formattedPos}
+            ipaApproximate={view.ipaApproximate}
+            isFlipped={isFlipped}
+            isSubmitting={isSubmitting}
+            senseCue={view.senseCue}
+            word={view.word}
+            onFlip={handleFlip}
+          />
 
-          <motion.div
+          <m.div
+            animate={{ opacity: isFlipped ? 1 : 0 }}
+            aria-hidden={!isFlipped}
             className={cn(
               flashCardPanelClassName,
               'absolute inset-0 overflow-hidden',
               !isFlipped && 'pointer-events-none',
             )}
-            aria-hidden={!isFlipped}
             initial={false}
-            animate={{ opacity: isFlipped ? 1 : 0 }}
             transition={{ duration: 0.25, ease: 'easeInOut' }}
           >
-            {backContents}
-          </motion.div>
+            <DefinitionBackLayer
+              audioUrl={view.audioUrl}
+              card={card}
+              context={context}
+              definitions={view.definitions}
+              gender={view.gender}
+              inflectionClass={view.inflectionClass}
+              intonation={view.intonation}
+              ipa={view.ipa}
+              ipaApproximate={view.ipaApproximate}
+              isSubmitting={isSubmitting}
+              isVerb={view.isVerb}
+              onFinished={onFinished}
+              onRate={handleRate}
+              pos={view.pos}
+              primaryTranslation={view.primaryTranslation}
+              word={view.word}
+              wordForms={wordForms}
+            />
+          </m.div>
         </div>
       </div>
     </div>
   );
 };
+
+function DefinitionFrontLayer({
+  audioUrl,
+  formattedPos,
+  ipaApproximate,
+  isFlipped,
+  isSubmitting,
+  senseCue,
+  word,
+  onFlip,
+}: {
+  audioUrl: string | null;
+  formattedPos: string | null;
+  ipaApproximate: boolean;
+  isFlipped: boolean;
+  isSubmitting: boolean;
+  senseCue: string | null | undefined;
+  word: string;
+  onFlip: () => void;
+}) {
+  return (
+    <m.div
+      animate={{ opacity: isFlipped ? 0 : 1 }}
+      aria-hidden={isFlipped}
+      className={cn(
+        flashCardPanelClassName,
+        'absolute inset-0 overflow-hidden',
+        isFlipped && 'pointer-events-none',
+      )}
+      initial={false}
+      transition={{ duration: 0.25, ease: 'easeInOut' }}
+    >
+      <div className="flex min-h-0 flex-1 flex-col">
+        <FlashCardDefinitionFront
+          audioUrl={audioUrl}
+          formattedPos={formattedPos}
+          ipaApproximate={ipaApproximate}
+          senseCue={senseCue}
+          word={word}
+        />
+        <div className={flashCardFooterClassName}>
+          <FlashcardActionFooter>
+            <Button
+              className="w-full"
+              disabled={isFlipped || isSubmitting}
+              onClick={onFlip}
+              size="default"
+              type="button"
+            >
+              Check answer
+            </Button>
+          </FlashcardActionFooter>
+        </div>
+      </div>
+    </m.div>
+  );
+}
+
+function DefinitionBackLayer({
+  audioUrl,
+  card,
+  context,
+  definitions,
+  gender,
+  inflectionClass,
+  intonation,
+  ipa,
+  ipaApproximate,
+  isSubmitting,
+  isVerb,
+  onFinished,
+  onRate,
+  pos,
+  primaryTranslation,
+  word,
+  wordForms,
+}: {
+  audioUrl: string | null;
+  card: FlashCardRenderable;
+  context: LemmaContextRead | null;
+  definitions: DefinitionRead[];
+  gender: string | null;
+  inflectionClass: string | null;
+  intonation: string | null;
+  ipa: string | null;
+  ipaApproximate: boolean;
+  isSubmitting: boolean;
+  isVerb: boolean;
+  onFinished?: (rating: number) => void;
+  onRate: (rating: 1 | 2 | 3 | 4) => void;
+  pos: LemmaPos | undefined;
+  primaryTranslation: string;
+  word: string;
+  wordForms: WordFormRead[];
+}) {
+  return (
+    <>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <FlashCardDefinitionBack
+          audioUrl={audioUrl}
+          context={context}
+          definitions={definitions}
+          gender={gender}
+          inflectionClass={inflectionClass}
+          intonation={intonation}
+          ipa={ipa}
+          ipaApproximate={ipaApproximate}
+          isVerb={isVerb}
+          pos={pos}
+          primaryTranslation={primaryTranslation}
+          word={word}
+          wordForms={wordForms}
+        />
+      </div>
+      {onFinished ? (
+        <div className={cn(flashCardFooterClassName, 'sticky bottom-0 z-10')}>
+          <RatingButtons
+            disabled={isSubmitting}
+            onRate={onRate}
+            previews={card.rating_previews}
+          />
+        </div>
+      ) : null}
+    </>
+  );
+}

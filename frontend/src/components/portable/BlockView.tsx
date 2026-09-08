@@ -46,8 +46,8 @@ export function BlockView({
             block.ordered ? 'list-decimal' : 'list-disc',
           )}
         >
-          {block.items.map((item, index) => (
-            <li key={index}>
+          {block.items.map((item, itemIndex) => (
+            <li key={`${itemIndex}-${JSON.stringify(item)}`}>
               <SpanView spans={item} />
             </li>
           ))}
@@ -75,11 +75,11 @@ export function BlockView({
           <table className="w-full border-collapse text-left type-caption">
             <thead className="bg-secondary-10">
               <tr>
-                {block.headers.map((header, index) => {
-                  const lang = columnLang(block, index);
+                {block.headers.map((header, columnIndex) => {
+                  const lang = columnLang(block, columnIndex);
                   return (
                     <th
-                      key={index}
+                      key={`${columnIndex}-${lang ?? 'unset'}-${JSON.stringify(header)}`}
                       lang={lang}
                       className={cn(
                         'border-b border-border px-3 py-2 font-semibold',
@@ -94,12 +94,12 @@ export function BlockView({
             </thead>
             <tbody>
               {block.rows.map((row, rowIndex) => (
-                <tr key={rowIndex}>
-                  {row.map((cell, index) => {
-                    const lang = columnLang(block, index);
+                <tr key={`${rowIndex}-${JSON.stringify(row)}`}>
+                  {row.map((cell, columnIndex) => {
+                    const lang = columnLang(block, columnIndex);
                     return (
                       <td
-                        key={index}
+                        key={`${columnIndex}-${lang ?? 'unset'}-${JSON.stringify(cell)}`}
                         lang={lang}
                         className={cn(
                           'border-t border-border px-3 py-2',

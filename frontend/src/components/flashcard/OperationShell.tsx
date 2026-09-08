@@ -1,17 +1,21 @@
-import { Loader2 } from 'lucide-react';
-import { motion, useReducedMotion } from 'motion/react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { m, useReducedMotion } from 'motion/react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
-import { Button } from '@/components/common/Button/Button';
 import { SpanView } from '@/components/portable/SpanView';
 import { useCardShake } from '@/hooks/flashcard/useCardShake/useCardShake';
-import type { CheckablePhase } from '@/hooks/flashcard/useCheckableExercise/useCheckableExercise';
-import { type OperationResult } from '@/lib/operationResult';
+import type { OperationResult } from '@/lib/operationResult';
 import { cn } from '@/lib/utils';
 import type { Exercise } from '@/types/lesson-contracts';
 
-import { exercisePromptId, spanPlainText } from './flashcard-utils';
 import { FlashCardFrame } from './FlashCardFrame';
+import { OperationBannerSlot, OperationHeader } from './OperationShellBody';
+import { OperationFooterBar } from './OperationShellFooter';
+import {
+  buildFooterView,
+  buildOperationShellView,
+  type RetryConfig,
+  type RetryPhase,
+} from './operationShellView';
 
 /**
  * Shared "stimulus sentence" surface — the Norwegian sentence a learner
@@ -22,22 +26,7 @@ import { FlashCardFrame } from './FlashCardFrame';
 export const stimulusSentenceClassName =
   'radius-field text-prompt border border-border bg-secondary-5 p-4 leading-roomy text-foreground text-balance';
 
-/**
- * Re-exported as a type alias so the canonical phase union lives in one
- * place (`useCheckableExercise`) and both the hook and the shell share it.
- */
-export type RetryPhase = CheckablePhase;
-
-export interface RetryConfig {
-  /** Current phase of the no-fail retry state machine. */
-  phase: RetryPhase;
-  /** Increments on every wrong check to retrigger the shake animation. */
-  shakeKey: number;
-  /** True when Reveal is allowed (>= 1 wrong check, not terminal). */
-  canReveal: boolean;
-  /** Called when the learner clicks "Reveal answer". */
-  onReveal: () => void;
-}
+export type { RetryConfig, RetryPhase };
 
 type OperationShellProps = {
   exercise: Exercise;
@@ -113,77 +102,6 @@ type OperationShellProps = {
   children: ReactNode;
 };
 
-/**
- * Derive a short contextual status string for the action bar's left side.
- * - Before Check: prompts the next action ("Select an answer" / custom
- *   progress hint from statusHint / "Ready to check").
- * - After Check: an action cue that stays distinct from the result banner
- *   text ("Correct" / "Not quite") so both remain independently queryable.
- */
-function footerStatus(
-  result: OperationResult | null,
-  canCheck: boolean,
-  statusHint: string | undefined,
-  retryPhase: RetryPhase | undefined,
-  ownsResultFeedback: boolean,
-) {
-  if (result) {
-    if (ownsResultFeedback && statusHint) return statusHint;
-    return result.correct ? 'Nice work' : 'Review the answer';
-  }
-  if (canCheck) return 'Ready to check';
-  // In a retry-wrong state the board is already filled but Check is gated
-  // on a board change (dirty). The generic "Select an answer" is misleading
-  // because nothing is missing — guide the learner to change their answer.
-  if (retryPhase === 'wrong') {
-    return 'Adjust your answer to try again.';
-  }
-  return statusHint ?? 'Select an answer';
-}
-
-const K_INSTRUCTION_CLAMP_CHARS = 180;
-
-/**
- * A multi-sentence authored task would otherwise fill a phone screen before
- * the learner reaches the work surface, so long instructions clamp on small
- * viewports behind the shared disclosure control and stay in the a11y tree.
- */
-function InstructionPrompt({ exercise }: { exercise: Exercise }) {
-  const [expanded, setExpanded] = useState(false);
-  const promptId = exercisePromptId(exercise.id);
-  const clampable =
-    spanPlainText(exercise.prompt).length > K_INSTRUCTION_CLAMP_CHARS;
-
-  return (
-    <>
-      <p
-        id={promptId}
-        data-testid="exercise-prompt"
-        className={cn(
-          'type-caption sm:type-body max-w-text text-foreground text-pretty',
-          clampable && !expanded && 'line-clamp-3 sm:line-clamp-none',
-        )}
-      >
-        <SpanView spans={exercise.prompt} />
-      </p>
-      {clampable ? (
-        <button
-          type="button"
-          aria-expanded={expanded}
-          aria-controls={promptId}
-          onClick={() => setExpanded((open) => !open)}
-          className="type-label-xs mt-0.5 inline-flex min-h-11 items-center self-start px-2 text-muted-foreground underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:hidden"
-        >
-          <span aria-hidden="true" className="mr-1">
-            {expanded ? '▼' : '▶'}
-          </span>
-          {expanded ? 'Show less' : 'Show full task'}
-        </button>
-      ) : null}
-    </>
-  );
-}
-
 export function OperationShell({
   exercise,
   className,
@@ -213,28 +131,19 @@ export function OperationShell({
   const retryPhase = retry?.phase;
   const isTerminal = retryPhase === 'solved' || retryPhase === 'revealed';
 
-  // In retry mode, the effective result is whatever the component passes
-  // (non-null only in terminal phases). In non-retry mode it's the legacy
-  // commit-on-check `result`.
-  const effectiveResult: OperationResult | null = retryActive
-    ? isTerminal
-      ? (result ?? null)
-      : null
-    : (result ?? null);
-
-  const status = pending
-    ? pendingLabel
-    : footerStatus(
-        effectiveResult,
-        canCheck,
-        statusHint,
-        retryPhase,
-        ownsResultFeedback,
-      );
-  const resultHint =
-    !retryActive && effectiveResult && !effectiveResult.correct
-      ? wrongHint
-      : null;
+  const view = buildOperationShellView({
+    canCheck,
+    explanation: exercise.explanation,
+    isTerminal,
+    ownsResultFeedback,
+    pending,
+    pendingLabel,
+    result: result ?? null,
+    retryActive,
+    retryPhase,
+    statusHint,
+    wrongHint,
+  });
 
   const reducedMotion = Boolean(useReducedMotion());
   const { controls, shake } = useCardShake();
@@ -243,7 +152,7 @@ export function OperationShell({
   // Move focus to the Continue button when it appears (terminal phase in
   // retry mode, or any result in non-retry mode) so keyboard / SR users can
   // advance without re-finding the footer.
-  const showContinue = retryActive ? isTerminal : Boolean(effectiveResult);
+  const showContinue = retryActive ? isTerminal : Boolean(view.effectiveResult);
 
   useEffect(() => {
     if (showContinue) {
@@ -251,175 +160,50 @@ export function OperationShell({
     }
   }, [showContinue]);
 
-  const showWrongBanner = retryActive && retryPhase === 'wrong';
   const shakeKey = retry && !reducedMotion ? retry.shakeKey : null;
 
   useEffect(() => {
-    if (showWrongBanner && !reducedMotion) {
+    if (view.bannerKind === 'wrong' && !reducedMotion) {
       shake();
     } else {
       controls.set({ x: 0 });
     }
-  }, [showWrongBanner, reducedMotion, shakeKey, shake, controls]);
+  }, [view.bannerKind, reducedMotion, shakeKey, shake, controls]);
 
-  const showRevealedBanner =
-    retryActive && retryPhase === 'revealed' && !ownsResultFeedback;
-  const showSolvedBanner =
-    (!ownsResultFeedback && retryActive && retryPhase === 'solved') ||
-    (!retryActive && !ownsResultFeedback && effectiveResult?.correct);
-  const showIncorrectBanner = Boolean(
-    !retryActive &&
-    !ownsResultFeedback &&
-    effectiveResult &&
-    !effectiveResult.correct,
-  );
-  const hasBanner = Boolean(
-    showWrongBanner ||
-    showRevealedBanner ||
-    showSolvedBanner ||
-    showIncorrectBanner,
-  );
-  // The authored explanation is terminal feedback: it stays out of the
-  // answerable view and appears once, below the operation-specific result.
-  // A wrong retry phase is not terminal — the learner is still working.
-  const showExplanation =
-    Boolean(exercise.explanation?.length) &&
-    (showSolvedBanner ||
-      showRevealedBanner ||
-      (!retryActive && effectiveResult !== null));
-
-  const renderFooter = () => {
-    if (pending) {
-      return (
-        <Button variant="pill" className="w-full sm:w-auto" disabled>
-          <Loader2
-            aria-hidden="true"
-            className={cn('mr-1 size-4', !reducedMotion && 'animate-spin')}
-          />
-          {pendingLabel}
-        </Button>
-      );
-    }
-
-    if (!retryActive) {
-      // Non-retry path: Check and Continue are ALWAYS separate button
-      // instances. This eliminates the fall-through where a fast second
-      // click or held Enter on the old single swapping button would skip
-      // the card. No timer / disable-window is needed.
-      if (effectiveResult) {
-        return (
-          <Button
-            ref={continueRef}
-            variant="pill"
-            className="w-full sm:w-auto"
-            disabled={isSubmitting || !onContinue}
-            onClick={onContinue}
-          >
-            Continue
-            <span aria-hidden="true" className="ml-0.5">
-              →
-            </span>
-          </Button>
-        );
-      }
-      return (
-        <Button
-          variant="pill"
-          className="w-full sm:w-auto"
-          disabled={!canCheck || isSubmitting}
-          onClick={onCheck}
-        >
-          Check
-          <span aria-hidden="true" className="ml-0.5">
-            →
-          </span>
-        </Button>
-      );
-    }
-
-    if (isTerminal) {
-      return (
-        <Button
-          ref={continueRef}
-          variant="pill"
-          className="w-full sm:w-auto"
-          disabled={isSubmitting || !onContinue}
-          onClick={onContinue}
-        >
-          Continue
-          <span aria-hidden="true" className="ml-0.5">
-            →
-          </span>
-        </Button>
-      );
-    }
-
-    // working / wrong: Check + optional Reveal answer.
-    return (
-      <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-        {retry?.canReveal ? (
-          <Button
-            variant="outline"
-            className="w-full sm:w-auto"
-            onClick={retry.onReveal}
-          >
-            Reveal answer
-          </Button>
-        ) : null}
-        <Button
-          variant="pill"
-          className="w-full sm:w-auto"
-          disabled={!canCheck || isSubmitting}
-          onClick={onCheck}
-        >
-          Check
-          <span aria-hidden="true" className="ml-0.5">
-            →
-          </span>
-        </Button>
-      </div>
-    );
-  };
+  const footerView = buildFooterView({
+    canCheck,
+    effectiveResult: view.effectiveResult,
+    isSubmitting,
+    isTerminal,
+    onCheck,
+    onContinue,
+    pending,
+    pendingLabel,
+    retry,
+    retryActive,
+  });
 
   return (
     <FlashCardFrame
+      bodyClassName={bodyClassName}
+      bodyFill
       className={className}
       desktopExpanded={desktopExpanded}
-      bodyClassName={bodyClassName}
-      headerless
-      bodyFill
-      naturalHeightOnMobile={naturalHeightOnMobile}
-      hasFooterDivider={false}
       footer={
-        <div
-          data-testid="flashcard-footer"
-          className={cn(
-            'flex gap-2 sm:flex-row sm:items-center sm:justify-between',
-            statusFirstOnMobile ? 'flex-col' : 'flex-col-reverse',
-          )}
-        >
-          <p
-            className={cn(
-              'type-caption',
-              effectiveResult
-                ? effectiveResult.correct
-                  ? 'text-accent-80'
-                  : 'text-destructive'
-                : showWrongBanner && !canCheck
-                  ? 'text-destructive'
-                  : 'text-muted-foreground',
-            )}
-            data-testid="flashcard-action-status"
-            aria-live={hasBanner ? undefined : 'polite'}
-          >
-            {status}
-          </p>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-            {escapeAction}
-            {renderFooter()}
-          </div>
-        </div>
+        <OperationFooterBar
+          ariaLive={view.ariaLive}
+          continueRef={continueRef}
+          escapeAction={escapeAction}
+          footerView={footerView}
+          reducedMotion={reducedMotion}
+          status={view.status}
+          statusFirstOnMobile={statusFirstOnMobile}
+          statusTone={view.statusTone}
+        />
       }
+      hasFooterDivider={false}
+      headerless
+      naturalHeightOnMobile={naturalHeightOnMobile}
     >
       <div
         className={cn(
@@ -428,126 +212,41 @@ export function OperationShell({
         )}
         data-testid="operation-body"
       >
-        <div
-          className="mb-4 flex flex-col gap-3"
-          data-testid="operation-header"
-        >
-          <div className="flex flex-col gap-1">
-            {exercise.prompt.length ? (
-              promptInWorkSurface ? (
-                <h2 className="font-display text-prompt font-semibold leading-prompt text-foreground capitalize text-balance">
-                  {exercise.operation.replace('_', ' ')}
-                </h2>
-              ) : promptAsInstruction ? (
-                <>
-                  <p className="font-display type-label leading-flat text-muted-foreground capitalize">
-                    {exercise.operation.replace('_', ' ')}
-                  </p>
-                  <InstructionPrompt exercise={exercise} />
-                </>
-              ) : (
-                <>
-                  <p className="font-display type-label leading-flat text-muted-foreground">
-                    {exercise.operation.replace('_', ' ')}
-                  </p>
-                  <h2
-                    data-testid="exercise-prompt"
-                    className="font-display text-prompt font-semibold leading-prompt text-foreground text-balance"
-                  >
-                    <SpanView spans={exercise.prompt} />
-                  </h2>
-                </>
-              )
-            ) : (
-              <h2 className="font-display text-prompt font-semibold leading-prompt text-foreground capitalize text-balance">
-                {exercise.operation.replace('_', ' ')}
-              </h2>
-            )}
-          </div>
-          {instruction ? (
-            <div className="flex items-start gap-2.5">
-              <span
-                aria-hidden="true"
-                className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-primary-20 bg-primary-10 font-serif text-[0.8rem] leading-none font-semibold text-primary-80 italic"
-              >
-                i
-              </span>
-              <p className="type-caption text-muted-foreground">
-                {instruction}
-              </p>
-            </div>
-          ) : null}
-        </div>
+        <OperationHeader
+          exercise={exercise}
+          instruction={instruction}
+          promptAsInstruction={promptAsInstruction}
+          promptInWorkSurface={promptInWorkSurface}
+        />
 
-        <motion.div
-          key={`work-surface-shake-${shakeKey ?? 'none'}`}
-          data-testid="work-surface"
+        <m.div
           animate={controls}
           className={cn(
             'radius-section surface-mat flex w-full flex-1 flex-col gap-4 p-5 sm:p-6',
             fillWorkSurface ? 'min-h-max sm:min-h-[18rem]' : 'min-h-[18rem]',
             !fillWorkSurface && 'justify-center',
           )}
+          data-testid="work-surface"
+          key={`work-surface-shake-${shakeKey ?? 'none'}`}
         >
           {children}
 
-          {/*
-            Banner slot — kept in the layout while empty so the footer button
-            does not jump when feedback appears. A filled work surface absorbs
-            that height by shrinking instead, so it renders the slot only when
-            there is feedback. Only one banner variant is ever visible at a
-            time.
+          <OperationBannerSlot
+            bannerKind={view.bannerKind}
+            hasBanner={view.hasBanner}
+            reserved={!fillWorkSurface}
+            resultHint={view.resultHint}
+          />
 
-            The wrong-phase banner intentionally carries no role/aria-live here
-            (SR announcement is handled by the keyed sr-only live region below
-            so it re-announces correctly on every wrong attempt without
-            remounting this element).
-          */}
-          {hasBanner || !fillWorkSurface ? (
+          {view.showExplanation && exercise.explanation ? (
             <div
-              {...(showRevealedBanner || showSolvedBanner || showIncorrectBanner
-                ? { role: 'status' }
-                : {})}
-              data-testid="operation-banner"
-              aria-hidden={!hasBanner}
-              className={cn(
-                'radius-field type-caption border p-3',
-                showWrongBanner
-                  ? 'border-destructive-20 bg-destructive-0 text-destructive-80'
-                  : showRevealedBanner
-                    ? 'border-border bg-secondary-5 text-foreground'
-                    : showSolvedBanner
-                      ? 'border-accent-20 bg-accent-0 text-accent-90'
-                      : showIncorrectBanner
-                        ? 'border-destructive-20 bg-destructive-0 text-destructive-80'
-                        : 'invisible',
-              )}
-            >
-              {showWrongBanner &&
-                'Incorrect — adjust your answer and try again.'}
-              {showRevealedBanner && "Here's the answer."}
-              {showSolvedBanner && 'Correct'}
-              {showIncorrectBanner && (
-                <>
-                  Not quite
-                  {resultHint ? (
-                    <p className="mt-1 text-foreground">{resultHint}</p>
-                  ) : null}
-                </>
-              )}
-              {!hasBanner && ' '}
-            </div>
-          ) : null}
-
-          {showExplanation && exercise.explanation ? (
-            <div
-              data-testid="exercise-explanation"
               className="radius-field type-caption border border-border bg-secondary-5 p-3 text-muted-foreground"
+              data-testid="exercise-explanation"
             >
               <SpanView spans={exercise.explanation} />
             </div>
           ) : null}
-        </motion.div>
+        </m.div>
 
         {/*
           Separate visually-hidden live region for screen-reader users.
@@ -558,10 +257,10 @@ export function OperationShell({
           `retry.shakeKey` forces a remount here per attempt, decoupling the
           SR announcement from the animated container for everyone.
         */}
-        {showWrongBanner ? (
+        {view.bannerKind === 'wrong' ? (
           <p
-            key={`sr-retry-announce-${retry?.shakeKey ?? 0}`}
             className="sr-only"
+            key={`sr-retry-announce-${retry?.shakeKey ?? 0}`}
             role="alert"
           >
             Incorrect — adjust your answer and try again.

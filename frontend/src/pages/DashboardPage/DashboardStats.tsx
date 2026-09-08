@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 
 import { Badge } from '@/components/ui/badge';
 import { formatNumber } from '@/lib/utils';
@@ -42,7 +42,7 @@ export function DashboardStats({
   const dueReview = Math.max(0, dueCount - dueNew);
 
   return (
-    <motion.section
+    <m.section
       className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-2"
       variants={fadeUp}
     >
@@ -87,6 +87,6 @@ export function DashboardStats({
         label="Words practiced"
         value={formatNumber(totalWordsPracticed)}
       />
-    </motion.section>
+    </m.section>
   );
 }

@@ -1,4 +1,5 @@
-import { createEvent, fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { WordSpan } from './WordSpan';
@@ -33,41 +34,40 @@ describe('WordSpan', () => {
     expect(button).not.toHaveClass('bg-warning-10');
   });
 
-  it('test_interactive_word_given_render_expect_button_role_and_tabindex_zero', () => {
+  it('test_interactive_word_given_render_expect_native_button', () => {
     render(
       <WordSpan text="går" state="learning" isInteractive onClick={() => {}} />,
     );
 
     const word = screen.getByRole('button', { name: 'går' });
-    expect(word.tagName).toBe('SPAN');
-    expect(word).toHaveAttribute('tabindex', '0');
+    expect(word.tagName).toBe('BUTTON');
+    expect(word).toHaveAttribute('type', 'button');
   });
 
-  it('test_interactive_word_given_enter_keydown_expect_handler_called', () => {
-    const onClick = vi.fn();
-    render(
-      <WordSpan text="går" state="learning" isInteractive onClick={onClick} />,
-    );
-
-    fireEvent.keyDown(screen.getByRole('button', { name: 'går' }), {
-      key: 'Enter',
-    });
-
-    expect(onClick).toHaveBeenCalledOnce();
-  });
-
-  it('test_interactive_word_given_space_keydown_expect_handler_called_and_scroll_prevented', () => {
+  it('test_interactive_word_given_enter_key_expect_handler_called', async () => {
     const onClick = vi.fn();
     render(
       <WordSpan text="går" state="learning" isInteractive onClick={onClick} />,
     );
 
     const word = screen.getByRole('button', { name: 'går' });
-    const event = createEvent.keyDown(word, { key: ' ' });
-    fireEvent(word, event);
+    word.focus();
+    await userEvent.keyboard('{Enter}');
 
     expect(onClick).toHaveBeenCalledOnce();
-    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('test_interactive_word_given_space_key_expect_handler_called', async () => {
+    const onClick = vi.fn();
+    render(
+      <WordSpan text="går" state="learning" isInteractive onClick={onClick} />,
+    );
+
+    const word = screen.getByRole('button', { name: 'går' });
+    word.focus();
+    await userEvent.keyboard(' ');
+
+    expect(onClick).toHaveBeenCalledOnce();
   });
 
   it('test_non_interactive_word_given_render_expect_no_role_and_no_tabindex', () => {

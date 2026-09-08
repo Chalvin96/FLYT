@@ -155,7 +155,7 @@ function LemmaSheetContent() {
   if (!lemmaTarget) return null;
 
   const entries = isBrowseMode ? (browseQuery.data?.entries ?? []) : [];
-  const isLoadingEntries = isBrowseMode ? browseQuery.isPending : false;
+  const handleBack = () => (priorQuery ? switchToSearch() : openSearch(''));
 
   return (
     <div
@@ -165,23 +165,7 @@ function LemmaSheetContent() {
       aria-label={`Dictionary entry for ${lemmaTarget.wordText}`}
       className="flex flex-col min-h-0 outline-none"
     >
-      <div className="shrink-0 px-5 pt-4 pb-3 border-b border-border bg-card flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => (priorQuery ? switchToSearch() : openSearch(''))}
-          className="cursor-pointer type-caption text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1 min-w-0"
-        >
-          {priorQuery ? (
-            <span className="truncate">← &quot;{priorQuery}&quot;</span>
-          ) : (
-            <span>← Back to search</span>
-          )}
-        </button>
-        <DialogPrimitive.Close className="ml-3 shrink-0 rounded-full p-1 text-muted-foreground transition-colors hover:bg-secondary-10 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
-          <X className="icon-sm" />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
-      </div>
+      <LemmaSheetHeader onBack={handleBack} priorQuery={priorQuery} />
 
       <DialogTitle className="sr-only">{lemmaTarget.wordText}</DialogTitle>
       <DialogDescription className="sr-only">
@@ -191,29 +175,75 @@ function LemmaSheetContent() {
       <div
         className="overflow-y-auto flex-1 min-h-0 px-5 py-4"
         aria-live="polite"
-        aria-busy={isLoadingEntries}
+        aria-busy={isBrowseMode ? browseQuery.isPending : false}
       >
-        {isBrowseFailed ? (
-          <BrowseFailedNotice
-            onSearchAgain={() =>
-              priorQuery ? switchToSearch() : openSearch('')
-            }
-          />
-        ) : isBrowseMode ? (
-          entries.length > 0 ? (
-            <div className="space-y-4">
-              {entries.map((entry) => (
-                <HomographCard key={entry.uuid} lemmaUuid={entry.uuid} />
-              ))}
-            </div>
-          ) : (
-            <LemmaCardSkeleton />
-          )
-        ) : lemmaTarget.lemmaUuid ? (
-          <HomographCard lemmaUuid={lemmaTarget.lemmaUuid} />
-        ) : null}
+        <LemmaSheetBody
+          entries={entries}
+          isBrowseFailed={isBrowseFailed}
+          isBrowseMode={isBrowseMode}
+          lemmaUuid={lemmaTarget.lemmaUuid}
+          onSearchAgain={handleBack}
+        />
       </div>
     </div>
+  );
+}
+
+function LemmaSheetHeader({
+  onBack,
+  priorQuery,
+}: {
+  onBack: () => void;
+  priorQuery: string | null;
+}) {
+  return (
+    <div className="shrink-0 px-5 pt-4 pb-3 border-b border-border bg-card flex items-center justify-between">
+      <button
+        type="button"
+        onClick={onBack}
+        className="cursor-pointer type-caption text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1 min-w-0"
+      >
+        {priorQuery ? (
+          <span className="truncate">← &quot;{priorQuery}&quot;</span>
+        ) : (
+          <span>← Back to search</span>
+        )}
+      </button>
+      <DialogPrimitive.Close className="ml-3 shrink-0 rounded-full p-1 text-muted-foreground transition-colors hover:bg-secondary-10 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+        <X className="icon-sm" />
+        <span className="sr-only">Close</span>
+      </DialogPrimitive.Close>
+    </div>
+  );
+}
+
+function LemmaSheetBody({
+  entries,
+  isBrowseFailed,
+  isBrowseMode,
+  lemmaUuid,
+  onSearchAgain,
+}: {
+  entries: { uuid: string }[];
+  isBrowseFailed: boolean;
+  isBrowseMode: boolean;
+  lemmaUuid: string | null;
+  onSearchAgain: () => void;
+}) {
+  if (isBrowseFailed) {
+    return <BrowseFailedNotice onSearchAgain={onSearchAgain} />;
+  }
+  if (!isBrowseMode) {
+    return lemmaUuid ? <HomographCard lemmaUuid={lemmaUuid} /> : null;
+  }
+  return entries.length > 0 ? (
+    <div className="space-y-4">
+      {entries.map((entry) => (
+        <HomographCard key={entry.uuid} lemmaUuid={entry.uuid} />
+      ))}
+    </div>
+  ) : (
+    <LemmaCardSkeleton />
   );
 }
 

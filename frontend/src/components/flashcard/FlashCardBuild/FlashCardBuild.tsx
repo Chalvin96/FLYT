@@ -51,7 +51,10 @@ export function FlashCardBuild({
   );
   const [bankTokenIds] = useState(() =>
     shuffledMovableTokenIds(
-      tokens.filter((token) => !token.fixed).map((token) => token.token_id),
+      tokens.reduce<string[]>((tokenIds, token) => {
+        if (!token.fixed) tokenIds.push(token.token_id);
+        return tokenIds;
+      }, []),
       movableAnswerOrder,
     ),
   );

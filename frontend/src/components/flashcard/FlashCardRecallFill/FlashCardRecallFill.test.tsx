@@ -58,6 +58,43 @@ function option(text: string): HTMLElement {
 }
 
 describe('FlashCardRecallFill', () => {
+  it('test_recall_fill_given_repeated_span_content_expect_unique_render_keys', () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    render(
+      <FlashCardRecallFill
+        exercise={makeExercise({
+          segments: [
+            { kind: 'span', spans: [{ kind: 'text', value: ' og ' }] },
+            {
+              kind: 'blank',
+              blank_id: 'first',
+              options: ['går', 'gå'],
+              answer_index: 0,
+            },
+            { kind: 'span', spans: [{ kind: 'text', value: ' og ' }] },
+            {
+              kind: 'blank',
+              blank_id: 'second',
+              options: ['ser', 'se'],
+              answer_index: 0,
+            },
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getAllByText('og')).toHaveLength(2);
+    expect(
+      consoleError.mock.calls.some(([message]) =>
+        String(message).includes('same key'),
+      ),
+    ).toBe(false);
+    consoleError.mockRestore();
+  });
+
   it('renders the sentence spans and an empty slot per blank', () => {
     render(<FlashCardRecallFill exercise={makeExercise()} />);
 

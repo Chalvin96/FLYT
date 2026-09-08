@@ -3,9 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+import { ReviewCardsRouteComponent } from '@/pages/WordsPage/ReviewCardsRouteComponent';
 import type { MyCardsResponse } from '@/types/api';
-
-import { ReviewCardsRouteComponent } from './_reviewCards.review.cards';
 
 // Render TanStack's <Link> as a plain anchor and no-op createFileRoute so the
 // route module loads and WordsPage's links work without a router context.

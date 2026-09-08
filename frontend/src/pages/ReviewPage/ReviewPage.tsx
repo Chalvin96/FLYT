@@ -18,10 +18,20 @@ import { SessionLengthTile } from './SessionLengthTile';
 export { QUICK_REVIEW_CARD_COUNT } from '@/types/review';
 export type { SessionLength } from '@/types/review';
 
+/** Async statuses the page surfaces, grouped so callers pass one view state. */
+export interface ReviewPageStatus {
+  /** Due-card query still loading — renders the skeleton shell. */
+  isLoading: boolean;
+  /** Deck browse query still loading — renders the deck section skeleton. */
+  isDecksLoading: boolean;
+  /** "Add more new" promotion mutation in flight. */
+  isAddMoreNewPending: boolean;
+}
+
 export interface ReviewPageProps {
   dueCards?: UserCard[];
   initialSelection?: SessionLength;
-  isLoading?: boolean;
+  status?: ReviewPageStatus;
   onStart?: (mode: SessionLength) => void;
   /** True once the learner has practised before — drives a "caught up" empty
    * state instead of the brand-new onboarding one. */
@@ -29,31 +39,33 @@ export interface ReviewPageProps {
   /** Decks available for subscription. Renders the "Word packs" browse
    * section below the practice selector / empty states. */
   decks?: DeckSummaryItem[];
-  isDecksLoading?: boolean;
   /** Deck id with a subscribe mutation currently in-flight, or null. */
   subscribingDeckId?: number | null;
   onSubscribeDeck?: (deckId: number) => void;
   /** Called to promote new words into the active due queue. */
   onAddMoreNew?: () => void;
-  isAddMoreNewPending?: boolean;
 }
 
 const EMPTY_DUE_CARDS: UserCard[] = [];
 const EMPTY_DECKS: DeckSummaryItem[] = [];
+const DEFAULT_STATUS: ReviewPageStatus = {
+  isLoading: false,
+  isDecksLoading: false,
+  isAddMoreNewPending: false,
+};
 
 export function ReviewPage({
   dueCards = EMPTY_DUE_CARDS,
   initialSelection = 'quick',
-  isLoading = false,
+  status = DEFAULT_STATUS,
   onStart,
   hasPracticed = false,
   decks = EMPTY_DECKS,
-  isDecksLoading = false,
   subscribingDeckId = null,
   onSubscribeDeck,
   onAddMoreNew,
-  isAddMoreNewPending = false,
 }: ReviewPageProps) {
+  const { isLoading, isDecksLoading, isAddMoreNewPending } = status;
   const counts = useMemo(() => getReviewCardCounts(dueCards), [dueCards]);
   const dueCount = counts.total;
   const quickCardCount = Math.min(QUICK_REVIEW_CARD_COUNT, dueCount);
@@ -72,16 +84,15 @@ export function ReviewPage({
   const quickEstimatedMinutes = Math.max(1, Math.round(quickCardCount / 2));
   const fullEstimatedMinutes = Math.max(1, Math.round(dueCount / 2));
 
-  const showDecks = isDecksLoading || decks.length > 0;
-
-  const decksSection = showDecks ? (
-    <DeckBrowseSection
-      decks={decks}
-      isLoading={isDecksLoading}
-      subscribingDeckId={subscribingDeckId}
-      onSubscribe={onSubscribeDeck}
-    />
-  ) : null;
+  const decksSection =
+    isDecksLoading || decks.length > 0 ? (
+      <DeckBrowseSection
+        decks={decks}
+        isLoading={isDecksLoading}
+        subscribingDeckId={subscribingDeckId}
+        onSubscribe={onSubscribeDeck}
+      />
+    ) : null;
 
   if (isLoading) {
     return (

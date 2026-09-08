@@ -39,10 +39,8 @@ function ReviewSessionRouteComponent() {
       currentCard={currentCard}
       status={status}
       counts={counts}
-      isLoading={isLoading}
-      isError={isError}
+      loadState={{ isLoading, isError, isRetrying }}
       error={error}
-      isRetrying={isRetrying}
       onRetry={retry}
       isSubmitting={isSubmitting}
       presentationSeq={presentationSeq}

@@ -8,7 +8,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { LayoutGroup, motion, useReducedMotion } from 'motion/react';
+import { LayoutGroup, m, useReducedMotion } from 'motion/react';
 import { useMemo } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -75,10 +75,6 @@ export interface TokenBoardProps {
   movableAnswerOrder?: string[];
   result?: { correct: boolean } | null;
   className?: string;
-}
-
-function isToken(token: TokenBoardToken | undefined): token is TokenBoardToken {
-  return token !== undefined;
 }
 
 type Slot =
@@ -204,11 +200,16 @@ export function TokenBoard({
 
   const bankOrder = bankTokenIds ?? tokens.map((token) => token.token_id);
   const selectedTokenIdSet = new Set(selectedTokenIds);
-  const availableTokens = bankOrder
-    .map((tokenId) => tokensById.get(tokenId))
-    .filter(isToken)
-    .filter((token) => !token.fixed)
-    .filter((token) => !selectedTokenIdSet.has(token.token_id));
+  const availableTokens = bankOrder.reduce<TokenBoardToken[]>(
+    (tokens, tokenId) => {
+      const token = tokensById.get(tokenId);
+      if (token && !token.fixed && !selectedTokenIdSet.has(token.token_id)) {
+        tokens.push(token);
+      }
+      return tokens;
+    },
+    [],
+  );
   const { setNodeRef: setBankRef, isOver: isBankOver } = useDroppable({
     id: BANK_DROP_ID,
   });
@@ -288,7 +289,7 @@ export function TokenBoard({
 
               if (slot.tokenId) {
                 return (
-                  <motion.div
+                  <m.div
                     key={slot.tokenId}
                     layoutId={shouldReduceMotion ? undefined : slot.tokenId}
                     layout={!shouldReduceMotion}
@@ -305,7 +306,7 @@ export function TokenBoard({
                         disabled ? undefined : () => onRemove(slot.slotIndex)
                       }
                     />
-                  </motion.div>
+                  </m.div>
                 );
               }
 
@@ -328,7 +329,7 @@ export function TokenBoard({
             )}
           >
             {availableTokens.map((token) => (
-              <motion.div
+              <m.div
                 key={token.token_id}
                 layoutId={shouldReduceMotion ? undefined : token.token_id}
                 layout={!shouldReduceMotion}
@@ -347,7 +348,7 @@ export function TokenBoard({
                   ariaLabel={disabled ? undefined : `Add ${token.text}`}
                   onClick={disabled ? undefined : () => onAdd(token.token_id)}
                 />
-              </motion.div>
+              </m.div>
             ))}
           </div>
         </div>

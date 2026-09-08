@@ -7,6 +7,7 @@ import type { QueueCounts } from '@/lib/sessionQueue';
 import type { UserCard } from '@/types/api';
 import { LESSON_PACKET_SCHEMA_VERSION } from '@/types/lesson-contracts';
 
+import { IDLE_LOAD_STATE } from './reviewSessionLoadState';
 import { ReviewSessionPage } from './ReviewSessionPage';
 
 const mockNavigate = vi.fn();
@@ -18,6 +19,10 @@ vi.mock('@tanstack/react-router', async () => {
 
   return {
     ...actual,
+    Navigate: (props: unknown) => {
+      mockNavigate(props);
+      return null;
+    },
     useNavigate: () => mockNavigate,
   };
 });
@@ -180,7 +185,7 @@ describe('ReviewSessionPage', () => {
         currentCard={undefined}
         status="error"
         counts={EMPTY_COUNTS}
-        isError
+        loadState={{ ...IDLE_LOAD_STATE, isError: true }}
         error={new Error('Could not reach the review queue.')}
         onRetry={onRetry}
         submitReview={vi.fn()}
@@ -261,7 +266,7 @@ describe('ReviewSessionPage', () => {
       <ReviewSessionPage
         currentCard={undefined}
         status="done"
-        counts={EMPTY_COUNTS}
+        counts={{ new: 0, learning: 0, review: 1 }}
         submitReview={vi.fn()}
       />,
     );
@@ -291,7 +296,7 @@ describe('ReviewSessionPage', () => {
       <ReviewSessionPage
         currentCard={undefined}
         status="done"
-        counts={EMPTY_COUNTS}
+        counts={{ new: 0, learning: 0, review: 1 }}
         submitReview={vi.fn()}
       />,
     );
@@ -306,7 +311,7 @@ describe('ReviewSessionPage', () => {
       <ReviewSessionPage
         currentCard={undefined}
         status="done"
-        counts={EMPTY_COUNTS}
+        counts={{ new: 0, learning: 0, review: 1 }}
         submitReview={vi.fn()}
       />,
     );
@@ -327,7 +332,7 @@ describe('ReviewSessionPage', () => {
         currentCard={undefined}
         status="done"
         counts={EMPTY_COUNTS}
-        isLoading={false}
+        loadState={IDLE_LOAD_STATE}
         submitReview={vi.fn()}
       />,
     );
@@ -353,7 +358,7 @@ describe('ReviewSessionPage', () => {
         currentCard={undefined}
         status="done"
         counts={{ new: 0, learning: 2, review: 0 }}
-        isLoading={false}
+        loadState={IDLE_LOAD_STATE}
         submitReview={vi.fn()}
       />,
     );
