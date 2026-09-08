@@ -6,7 +6,7 @@ Full local setup for Flyt — the [README](README.md) keeps only a minimal quick
 
 - Python 3.12–3.13 and [uv](https://docs.astral.sh/uv/); Python 3.14 is
   currently unsupported because locked spaCy 3.8.15 has no cp314 wheel
-- Node 24+ and [pnpm](https://pnpm.io/) 11; the root preinstall guard rejects other pnpm majors
+- Node 24+ and [pnpm](https://pnpm.io/) 12; the root preinstall guard rejects other pnpm majors
 - PostgreSQL 16, Redis
 
 ## Running the stack
