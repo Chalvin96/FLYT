@@ -1,50 +1,54 @@
-# Flyt — learn Norwegian through lessons, reading, and review
+# Flyt
+
+**Learn Norwegian Bokmål through lessons, reading, and spaced repetition.**
 
 [![CI](https://github.com/Chalvin96/flyt/actions/workflows/master.yml/badge.svg)](https://github.com/Chalvin96/flyt/actions/workflows/master.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Flyt connects structured lessons, Norwegian reading, dictionary lookup, and
-FSRS spaced repetition. Finish a lesson to add its concepts to review, or save
-an unfamiliar word while reading to practise it later.
+Flyt brings learning and practice into one place. Work through a lesson, read
+Norwegian with a dictionary at hand, and review the concepts and words you save.
 
 **[Open Flyt](https://flyt.umebocchi.my.id)** ·
-[Local setup](CONTRIBUTING.md) ·
+[Run locally](CONTRIBUTING.md#running-the-stack) ·
+[Contribute](CONTRIBUTING.md) ·
 [Privacy](https://flyt.umebocchi.my.id/about#privacy)
 
-## What you can do
+The hosted app is free and uses Google Sign-In. There is no paid tier or
+expiring trial.
 
-- **Learn with lessons.** Work through a CEFR-organised curriculum with teaching
-  steps and interactive exercises. Completed lessons enrol their concept pools
-  in review.
-- **Review what you learn.** FSRS schedules each concept, with rotating card
-  variants and progress derived from your review history.
-- **Read Norwegian.** Read curated stories, import articles, or generate stories
-  using vocabulary from your learning activity. Tap words for lookup and save
-  them to your cards.
-- **Explore the dictionary.** Look up lemmas, definitions, inflections, and
-  pronunciation from imported Ordbokene data enriched by the companion
-  [norsk-lemma](https://github.com/Chalvin96/norsk-lemma) pipeline.
-- **Use FlytLese in the browser.** The Chromium extension supports word lookup,
-  text translation, saving vocabulary, and article import. Chrome and Edge
-  store listings are not published yet; Firefox and Safari are not supported.
-- **Ask for help.** The chatbot uses your message and current page context;
-  available AI and speech features depend on the deployment's provider setup.
+## How learning works
 
-```mermaid
-flowchart LR
-    Lessons -->|Complete a lesson| Review[FSRS review]
-    Reading -->|Look up a word| Lexicon
-    Lexicon -->|Save vocabulary| Review
-```
+1. **Learn a concept.** Follow a CEFR-organised curriculum with explanations,
+   examples, audio, and interactive exercises. Completing a lesson adds its
+   concepts to your review schedule.
+2. **Meet it in context.** Read curated stories, import articles, or generate
+   stories around vocabulary from your learning activity. Look up unfamiliar
+   words as you read and save them for practice.
+3. **Review over time.** FSRS spaced repetition schedules your next reviews.
+   Cards rotate through variants of a concept, and your review history informs
+   your progress.
+
+You can also:
+
+- **Explore the dictionary:** look up definitions, inflections, and
+  pronunciation from Ordbokene data, with English glosses supplied by the
+  companion [norsk-lemma](https://github.com/Chalvin96/norsk-lemma) project.
+- **Read across the web with FlytLese:** the Chromium extension offers word
+  lookup, text translation, vocabulary saving, and article import. Chrome and
+  Edge store listings are not published yet; Firefox and Safari are not supported.
+- **Ask for help:** the chatbot can use your message and current page context.
+  AI generation, chat, and speech features depend on the deployment's provider
+  and service configuration.
 
 ## Run locally
 
-You need Python **3.12+**, [uv](https://docs.astral.sh/uv/), Node **24+**,
-**pnpm 12** (the exact version is pinned in `package.json`), PostgreSQL **16**,
-and Redis. CI and the backend container currently use Python 3.12.
-Docker is needed for the isolated end-to-end test runners.
+The development stack needs Python **3.12+**, [uv](https://docs.astral.sh/uv/),
+Node **24+**, **pnpm 12**, PostgreSQL **16**, and Redis. The exact pnpm version is
+pinned in [`package.json`](package.json); CI and the backend container use Python
+3.12. Docker is also required for the isolated end-to-end test runners.
 
-From a checkout of this repository:
+From a checkout of this repository, install the workspace dependencies and copy
+the environment templates:
 
 ```bash
 pnpm install --frozen-lockfile
@@ -52,131 +56,124 @@ cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env.local
 ```
 
-Follow **[CONTRIBUTING.md](CONTRIBUTING.md#running-the-stack)** to configure the
-backend environment, create the local database, install the locked Python dependencies
-(including the Norwegian spaCy model), and apply migrations. Generate real signing and
-provider-encryption keys before starting the API; the example environment is a
-template. The guide also explains local login without Google OAuth and disabling
-or stubbing story generation when no provider key is available.
+Then follow the **[local setup guide](CONTRIBUTING.md#running-the-stack)** to
+configure PostgreSQL and Redis, set real signing and provider-encryption keys,
+install the locked Python dependencies, and apply migrations. The environment
+templates need configuration before the API can start. The guide includes a
+local login without Google OAuth and options for development without an AI
+provider key.
 
-Once setup is complete, run each process in its own terminal:
+Once configured, start each process in a separate terminal:
 
 ```bash
 # API
 uv run --directory backend uvicorn flyt.main:app --reload
 
-# Reading/background jobs
+# Background worker for reading imports and generation
 uv run --directory backend arq flyt.worker.WorkerSettings
 
 # Web app
 pnpm --filter frontend dev
 ```
 
-Open the frontend at `http://localhost:5173`. Dictionary and lesson content are
-separate release artifacts: migrations create the schema, and the
-[import commands](CONTRIBUTING.md#loading-data-lessons-dictionary-reading-stories)
-load the learning content.
+Open **http://localhost:5173**.
 
-## Development and checks
+### Load learning content
 
-[CONTRIBUTING.md](CONTRIBUTING.md) covers environment variables, content imports,
-isolated backend tests, end-to-end tests, hooks, and operations. Useful checks
-from the repository root include:
+Migrations create the database schema; lesson and dictionary content are
+imported separately from public releases:
 
-```bash
-pnpm spec:validate
-pnpm --filter frontend lint
-pnpm --filter frontend type-check
-pnpm --filter frontend test --run
-pnpm --filter @flyt/extension test
-```
+| Content                                                   | Producer                                                                  |
+| --------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Lessons and their audio references                        | [norsk-lesson-factory](https://github.com/Chalvin96/norsk-lesson-factory) |
+| Dictionary, pronunciation, and vocabulary frequency ranks | [norsk-lemma](https://github.com/Chalvin96/norsk-lemma)                   |
 
-Backend tests create and drop their schema; use the dedicated PostgreSQL and
-Redis setup in [the testing guide](CONTRIBUTING.md#tests). The Playwright runners
-`bash scripts/run_e2e.sh` and `bash scripts/run_extension_e2e.sh` create an isolated
-Compose stack, seed fixtures, and clean up their containers and volumes.
+Use the [content import guide](CONTRIBUTING.md#loading-data-lessons-dictionary-reading-stories)
+for download URLs, preview commands, and frequency-deck creation. Preview lesson
+imports before applying them: a lesson release replaces the curriculum, removing
+omitted lessons and their lesson-owned learner state. Lesson audio remains
+hosted by the content producer.
 
-Pull requests and `master` share [the CI workflow](.github/workflows/_ci.yml),
-which checks backend lint, formatting, types, tests, and migration drift;
-frontend generated API types, lint, formatting, types, build, unit tests, and
-Storybook browser tests; extension types, tests, and build; and security scans.
-See the workflow for the complete gates and
-[the contribution conventions](CONTRIBUTING.md#conventions) before submitting
-changes.
+## Contribute
 
-## Architecture
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, environment variables, tests,
+hooks, and conventions. Backend tests require a disposable database; the
+[testing guide](CONTRIBUTING.md#tests) provides an isolated setup. The browser and
+extension end-to-end runners create and clean up their own Compose stacks.
 
-| Area                                | Stack / responsibility                                          |
-| ----------------------------------- | --------------------------------------------------------------- |
-| `backend/`                          | Python, FastAPI, async SQLAlchemy, Alembic, PostgreSQL, FSRS    |
-| `frontend/`                         | React 19, TypeScript, Vite, TanStack Router/Query, Tailwind CSS |
-| `extension/`                        | Chromium Manifest V3 extension                                  |
-| `packages/ui/`, `packages/lexicon/` | Shared UI and dictionary components                             |
-| Background worker                   | arq and Redis for imports and generation                        |
-| `morph-svc/`, `stt-svc/`            | Optional morphology fallback and private speech transcription   |
+Pull requests and `master` run the same [CI checks](.github/workflows/_ci.yml),
+covering backend, frontend, extension, migrations, generated API types, and
+security. Run the affected workspace checks before submitting a change.
 
-PostgreSQL owns durable content, learner progress, and accounting. Redis holds
-transient coordination and generated text. Review scheduling belongs to a
-concept pool, while card payload snapshots keep later dictionary edits from
-rewriting existing questions. Lessons and dictionary data arrive as versioned
-releases from their producer repositories.
+### Repository layout
 
-Read [system architecture](knowledge/architecture/system.md),
-[architecture decisions](knowledge/architecture/decisions.md), and the owning
-concepts in `knowledge/` for the current engineering boundaries.
+| Directory                                                                | Responsibility                                                                       |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| [`frontend/`](frontend/)                                                 | React, TypeScript, Vite, TanStack Router/Query, and Tailwind CSS web app             |
+| [`backend/`](backend/)                                                   | FastAPI API, SQLAlchemy models, Alembic migrations, FSRS scheduling, and arq workers |
+| [`extension/`](extension/)                                               | FlytLese Chromium Manifest V3 extension                                              |
+| [`packages/ui/`](packages/ui/), [`packages/lexicon/`](packages/lexicon/) | UI and dictionary components shared by the web app and extension                     |
+| [`morph-svc/`](morph-svc/README.md)                                      | Optional morphology fallback service                                                 |
+| [`stt-svc/`](stt-svc/README.md)                                          | Optional speech transcription service behind the backend                             |
+| [`knowledge/`](knowledge/)                                               | Current product, domain, architecture, and operations documentation                  |
 
-## Hosting and privacy
+PostgreSQL stores durable content and learner state; Redis supports transient
+coordination and generation. The API and background worker run as separate
+processes. Start with [system architecture](knowledge/architecture/system.md)
+and [architecture decisions](knowledge/architecture/decisions.md) for the
+engineering boundaries.
 
-The hosted app uses Google Sign-In. Its
-[privacy policy](https://flyt.umebocchi.my.id/about#privacy) describes account and
-learning data, external AI processing, error monitoring, and data requests.
-Story generation can send selected vocabulary and story instructions to a
-configured provider. Chatbot requests can send messages, recent history, and
-page context to the selected provider. Account deletion is available in the app.
+## Self-hosting and privacy
 
-For self-hosting, [CONTRIBUTING.md](CONTRIBUTING.md#optional-services-and-operations)
-covers migrations, the separate worker, readiness, recovery, and configuration.
-Application images publish to GHCR after CI on `master`; deployment is managed
-outside this repository. Optional services have their own
-[morphology](morph-svc/README.md) and [speech](stt-svc/README.md) deployment guides.
-Authentication boundaries are documented in
-[auth and API](knowledge/architecture/auth-and-api.md), and credential rotation in
-[ChatGPT link operations](knowledge/operations/chatgpt-link.md).
+Backend and frontend container images publish to GHCR after CI passes on
+`master`. Deployment is managed outside this repository. The
+[operations guide](CONTRIBUTING.md#optional-services-and-operations) covers
+migrations, workers, readiness checks, and recovery; the optional
+[morphology](morph-svc/README.md) and [speech](stt-svc/README.md) services have their
+own deployment guides.
 
-## Attribution
+The hosted app's [privacy policy](https://flyt.umebocchi.my.id/about#privacy)
+explains account and learning data, external AI processing, error monitoring,
+and data requests. Story generation can send selected vocabulary and story
+instructions to a configured provider. Chat requests can send your message,
+recent history, and page context to the selected provider. You can delete your
+account in the app.
 
-Dictionary data is derived from **Bokmålsordboka / Nynorskordboka** and used under **CC BY 4.0**:
+For deployment details, see [authentication and API boundaries](knowledge/architecture/auth-and-api.md)
+and [provider credential operations](knowledge/operations/chatgpt-link.md).
+
+## Attribution and licenses
+
+Flyt's application source code is licensed under the **[MIT License](LICENSE)**.
+Imported dictionary and frequency data retain their own licenses and attribution
+requirements.
+
+### Dictionary data — CC BY 4.0
+
+Dictionary data is derived from **Bokmålsordboka / Nynorskordboka**:
 
 > Bokmålsordboka/Nynorskordboka, Universitetet i Bergen og Språkrådet, ordbøkene.no, CC BY 4.0.
 
-- License: <https://creativecommons.org/licenses/by/4.0/>
-- Ordbøkene open data: <https://ordbokene.no/nob/about/open-data>
-- Citation guide: <https://ordbokene.no/nob/help/cite>
+[License](https://creativecommons.org/licenses/by/4.0/) ·
+[Ordbøkene open data](https://ordbokene.no/nob/about/open-data) ·
+[Citation guide](https://ordbokene.no/nob/help/cite)
 
-The data is fetched, enriched, and packaged by the companion repo
-[**norsk-lemma**](https://github.com/Chalvin96/norsk-lemma). English glosses are
-LLM-generated and may contain errors; they are a learning aid, not an authoritative
-translation of the source dictionaries.
+The [norsk-lemma](https://github.com/Chalvin96/norsk-lemma) pipeline fetches,
+enriches, and packages this data. English glosses are LLM-generated and may
+contain errors; they are a learning aid, not an authoritative translation of
+the source dictionaries.
+
+### Vocabulary frequency data — CC BY-SA 4.0
 
 Frequency ranking for the word-pack decks is derived from the **Norwegian Kelly
-list** (Universitetet i Oslo, Tekstlaboratoriet), used under **CC BY-SA 4.0**:
+list**, used under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/):
 
 > Norwegian Kelly list, UiO Text Laboratory (tekstlab.uio.no/kelly), CC BY-SA 4.0.
 
-- License: <https://creativecommons.org/licenses/by-sa/4.0/>
+### Speech models and runtime
 
-The private [CPU speech service](stt-svc/README.md) uses the Apache-2.0
-NB-Whisper Medium model and MIT-licensed faster-whisper/CTranslate2 runtime.
-Model provenance and distributed license text are listed in
-[`stt-svc/NOTICE.md`](stt-svc/NOTICE.md). Browser clients use the
-authenticated backend proxy; the frontend does not ship a model runtime.
-
-## License
-
-The application source code is licensed under the **[MIT License](LICENSE)** — free to
-use, modify, and build on, including commercially, as long as the copyright notice is
-retained.
-
-The bundled dictionary and frequency **data** are licensed separately by their original
-authors (CC BY 4.0 / CC BY-SA 4.0) and are not covered by the MIT license — see
-[Attribution](#attribution) above and [`LICENSE`](LICENSE) for the notices.
+The optional CPU speech service uses **NB-Whisper Medium** under Apache-2.0 and
+**faster-whisper / CTranslate2** under MIT. See the
+[speech service notices](stt-svc/NOTICE.md) for model provenance and distributed
+license text. Browser clients use the authenticated backend proxy; the frontend
+does not ship a model runtime.
