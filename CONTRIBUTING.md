@@ -4,8 +4,8 @@ Full local setup for Flyt — the [README](README.md) keeps only a minimal quick
 
 ## Requirements
 
-- Python 3.12–3.13 and [uv](https://docs.astral.sh/uv/); Python 3.14 is
-  currently unsupported because locked spaCy 3.8.15 has no cp314 wheel
+- Python 3.12+ and [uv](https://docs.astral.sh/uv/); CI and the backend
+  container currently use Python 3.12
 - Node 24+ and [pnpm](https://pnpm.io/) 12; the root preinstall guard rejects other pnpm majors
 - PostgreSQL 16, Redis
 
@@ -16,7 +16,6 @@ Full local setup for Flyt — the [README](README.md) keeps only a minimal quick
 cd backend
 cp .env.example .env          # fill in values (see env table below)
 uv sync
-uv run python -m spacy download nb_core_news_md
 uv run alembic upgrade head
 uv run uvicorn flyt.main:app --reload
 
@@ -88,11 +87,12 @@ from the ranked lemmas (idempotent — safe to re-run after a `--force` re-impor
 uv run python scripts/create_frequency_deck.py
 ```
 
-**Lessons.** Imported from the published [norsk-lesson-data](https://github.com/Chalvin96/norsk-lesson-data)
+**Lessons.** Imported from the published
+[norsk-lesson-factory](https://github.com/Chalvin96/norsk-lesson-factory)
 bundle (directory, local `.tar.gz`, or release URL):
 
 ```bash
-LESSON_SOURCE=/path/to/release.tar.gz  # or a release URL or local directory
+LESSON_SOURCE=https://github.com/Chalvin96/norsk-lesson-factory/releases/latest/download/lessons.tar.gz
 uv run python scripts/import_lessons.py "$LESSON_SOURCE" --dry-run
 uv run python scripts/import_lessons.py "$LESSON_SOURCE"
 ```

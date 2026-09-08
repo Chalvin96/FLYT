@@ -39,9 +39,9 @@ flowchart LR
 
 ## Run locally
 
-You need Python **3.12–3.13**, [uv](https://docs.astral.sh/uv/), Node **24+**,
+You need Python **3.12+**, [uv](https://docs.astral.sh/uv/), Node **24+**,
 **pnpm 12** (the exact version is pinned in `package.json`), PostgreSQL **16**,
-and Redis. Python 3.14 is currently unsupported by the locked spaCy dependency.
+and Redis. CI and the backend container currently use Python 3.12.
 Docker is needed for the isolated end-to-end test runners.
 
 From a checkout of this repository:
@@ -53,8 +53,8 @@ cp frontend/.env.example frontend/.env.local
 ```
 
 Follow **[CONTRIBUTING.md](CONTRIBUTING.md#running-the-stack)** to configure the
-backend environment, create the local database, install Python dependencies and
-the Norwegian spaCy model, and apply migrations. Generate real signing and
+backend environment, create the local database, install the locked Python dependencies
+(including the Norwegian spaCy model), and apply migrations. Generate real signing and
 provider-encryption keys before starting the API; the example environment is a
 template. The guide also explains local login without Google OAuth and disabling
 or stubbing story generation when no provider key is available.
