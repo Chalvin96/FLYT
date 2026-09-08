@@ -1,0 +1,211 @@
+{
+  "source_article_id": 55031,
+  "lemmas": [
+    {
+      "lemma": "snakke",
+      "hgno": 0,
+      "pos": "VERB",
+      "source_lemma_id": 63381,
+      "is_sub_article": false,
+      "primary_translation": "talk / chat / discuss / gossip / exclaim",
+      "word_forms": [
+        {
+          "word_form": "snakke",
+          "tags_json": [
+            "v1",
+            "Inf"
+          ]
+        },
+        {
+          "word_form": "snakker",
+          "tags_json": [
+            "v1",
+            "Pres"
+          ]
+        },
+        {
+          "word_form": "snakkes",
+          "tags_json": [
+            "v1",
+            "Inf",
+            "Pass",
+            "Pres"
+          ]
+        },
+        {
+          "word_form": "snakka",
+          "tags_json": [
+            "v1",
+            "Past",
+            "<PerfPart>",
+            "Adj",
+            "Neuter",
+            "Ind",
+            "Sing",
+            "Masc/Fem",
+            "Def",
+            "Plur"
+          ]
+        },
+        {
+          "word_form": "snakkende",
+          "tags_json": [
+            "v1",
+            "Adj",
+            "<PresPart>"
+          ]
+        },
+        {
+          "word_form": "snakk",
+          "tags_json": [
+            "v1",
+            "Imp"
+          ]
+        },
+        {
+          "word_form": "snakket",
+          "tags_json": [
+            "v1",
+            "Past",
+            "<PerfPart>",
+            "Adj",
+            "Neuter",
+            "Ind",
+            "Sing",
+            "Masc/Fem"
+          ]
+        },
+        {
+          "word_form": "snakkede",
+          "tags_json": [
+            "v1",
+            "Adj",
+            "<PerfPart>",
+            "Def",
+            "Sing",
+            "Plur"
+          ]
+        },
+        {
+          "word_form": "snakkete",
+          "tags_json": [
+            "v1",
+            "Adj",
+            "<PerfPart>",
+            "Def",
+            "Sing",
+            "Plur"
+          ]
+        }
+      ]
+    }
+  ],
+  "cross_reference": null,
+  "definitions": [
+    {
+      "text": "prate, samtale",
+      "translation": "to chat, converse",
+      "examples": []
+    },
+    {
+      "text": "jamfør snakkes",
+      "translation": "to talk together",
+      "examples": [
+        {
+          "no": "snakke sammen",
+          "en": "talk together"
+        },
+        {
+          "no": "snakke med hverandre",
+          "en": null
+        },
+        {
+          "no": "snakke på vegne av flere",
+          "en": null
+        },
+        {
+          "no": "snakke om andre ting",
+          "en": null
+        },
+        {
+          "no": "det er ikke noe å snakke om",
+          "en": null
+        },
+        {
+          "no": "vi har aldri snakket om det",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "skravle",
+      "translation": "to chatter",
+      "examples": [
+        {
+          "no": "snakke i ett kjør",
+          "en": null
+        },
+        {
+          "no": "snakke seg fra noe",
+          "en": null
+        },
+        {
+          "no": "han snakker i vei om hobbyen sin",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "bruke sin taleevne",
+      "translation": "to use one's ability to speak",
+      "examples": [
+        {
+          "no": "barnet kunne ikke snakke ennå",
+          "en": null
+        },
+        {
+          "no": "snakke rent",
+          "en": null
+        },
+        {
+          "no": "snakke russisk",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "drøfte",
+      "translation": "to discuss",
+      "examples": [
+        {
+          "no": "snakke forretninger",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "sladre",
+      "translation": "to gossip",
+      "examples": [
+        {
+          "no": "de snakket om henne over hele byen",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "brukt i utrop om noe storartet",
+      "translation": "used in an exclamation about something great",
+      "examples": [
+        {
+          "no": "snakk om flaks!",
+          "en": null
+        },
+        {
+          "no": "du snakker om flott forestilling!",
+          "en": null
+        }
+      ]
+    }
+  ]
+}

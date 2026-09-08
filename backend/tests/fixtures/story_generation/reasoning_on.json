@@ -1,0 +1,54 @@
+{
+  "id": "gen-1786405070-5Swok5718kKiWKQrxEgv",
+  "object": "chat.completion",
+  "created": 1786405070,
+  "model": "deepseek/deepseek-v4-flash",
+  "provider": "Fireworks",
+  "system_fingerprint": null,
+  "service_tier": null,
+  "choices": [
+    {
+      "index": 0,
+      "logprobs": null,
+      "finish_reason": "stop",
+      "native_finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "Det var en ny dag i Bergen. Regnet kom som en stor elv fra himmelen. En gammel mann gikk opp trappen til huset sitt. Han hadde en god, stor paraply. En kvinne sto i døren og så barnet leke i trappen. Barnet var lite. Det hadde en liten paraply, men regnet var for stort. Mannen kom til kvinnen og ga barnet sin paraply. Han sa: \"Ha en god dag.\" Kvinnen så på mannen. Han var gammel, men god. Nå var paraplyen ny for barnet. Barnet lo. Regnet fortsatte hele dagen og hele natten. Mannen gikk inn i huset. Han var våt, men han var glad.",
+        "refusal": null,
+        "reasoning": "Vi må skrive en novelle på norsk bokmål, omtrent 120 ord, med gitt vokabular. Eleven kan ordene: hus, mann, kvinne, barn, dag, natt, gå, komme, se, ha, være, stor, liten, god, ny, gammel. Tilleggsord: paraply, trapp. Tema: Regn i Bergen. Historien må inneholde disse ordene. Skal være enkel, for språkelever.\n\nJeg lager en kort historie: En mann går hjem i regnet. Han har en paraply. En kvinne og et barn står i en trapp. Regnet er stort? Eller dagen er våt. Bruk ordene. Hold deg til 120 ord. Fortellende, ikke komplisert.",
+        "reasoning_details": [
+          {
+            "type": "reasoning.text",
+            "text": "Vi må skrive en novelle på norsk bokmål, omtrent 120 ord, med gitt vokabular. Eleven kan ordene: hus, mann, kvinne, barn, dag, natt, gå, komme, se, ha, være, stor, liten, god, ny, gammel. Tilleggsord: paraply, trapp. Tema: Regn i Bergen. Historien må inneholde disse ordene. Skal være enkel, for språkelever.\n\nJeg lager en kort historie: En mann går hjem i regnet. Han har en paraply. En kvinne og et barn står i en trapp. Regnet er stort? Eller dagen er våt. Bruk ordene. Hold deg til 120 ord. Fortellende, ikke komplisert.",
+            "format": "unknown",
+            "index": 0
+          }
+        ]
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 151,
+    "completion_tokens": 363,
+    "total_tokens": 514,
+    "cost": 0.00012278,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.00012278,
+      "upstream_inference_prompt_cost": 2.114e-05,
+      "upstream_inference_completions_cost": 0.00010164
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 135,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  }
+}

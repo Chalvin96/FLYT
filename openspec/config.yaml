@@ -1,0 +1,20 @@
+schema: spec-driven
+
+context: |
+  Flyt is a pnpm monorepo: FastAPI + SQLAlchemy + Alembic backend, React + Vite
+  frontend, Manifest V3 extension, PostgreSQL, Redis/arq workers. Durable
+  current-state guidance is kept in the focused documents under knowledge/.
+  OpenSpec tracks active non-trivial behavior and architecture changes.
+
+rules:
+  proposal:
+    - State which durable concepts and capabilities the change affects.
+    - Keep scope narrow and preserve accepted decisions unless explicitly changed.
+  design:
+    - Identify durable concepts to update after implementation and why.
+    - Preserve API, database, worker, authentication, quota, and privacy contracts.
+  tasks:
+    - Include focused tests and exact verification commands.
+    - End with updating affected durable docs, validating OpenSpec, and retiring the change.
+    - Retire only after every task is complete and the active change validates.
+    - Remove completed artifacts instead of retaining dated archives or task history.

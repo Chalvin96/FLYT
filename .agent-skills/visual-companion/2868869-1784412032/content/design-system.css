@@ -1,0 +1,79 @@
+/* Flyt adapter — faithful to frontend/src components. Disposable render aid. */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap');
+
+:root {
+  /* token values copied from packages/ui/src/styles/tokens.css (light) */
+  --primary-10:#f0ebff; --primary-40:#c4b7ff; --primary-70:#7a68ee; --primary-100:#412f91;
+  --secondary-0:#f2fbf9; --secondary-10:#e7f6f2; --secondary-20:#c4ead9; --secondary-40:#8bc4b1;
+  --secondary-60:#629da3; --secondary-70:#47728a; --secondary-80:#315d75; --secondary-90:#1e4350; --secondary-100:#15303a;
+  --accent-10:#f0f6d4; --accent-50:#b6c547; --accent-100:#394625;
+  --warning-10:#ffe9d6; --warning-30:#ffbc66; --warning-60:#d76d20; --warning-100:#451608;
+  --destructive-10:#ffe3df; --destructive-40:#ff8f80; --destructive-70:#c53d2f; --destructive-100:#55140f;
+  --white-90:rgba(255,255,255,.92); --white-100:#fff;
+  --card:var(--white-100);
+  --foreground:var(--secondary-100);
+  --muted-foreground:var(--secondary-70);
+  --border:var(--secondary-20);
+  --radius-section:1rem; --radius-field:.75rem;
+  --shadow-raised:0 1px 2px -1px rgba(8,12,24,.12), 0 10px 22px -14px rgba(8,12,24,.22);
+}
+
+.flyt {
+  font-family:'DM Sans',system-ui,sans-serif; color:var(--foreground);
+  background:
+    radial-gradient(120% 80% at 50% -10%, color-mix(in srgb,var(--primary-10) 55%,var(--white-100)) 0%, transparent 58%),
+    linear-gradient(180deg,var(--white-90),var(--secondary-10));
+  padding:22px; border-radius:var(--radius-section);
+}
+.flyt .font-display{font-family:'Outfit',system-ui,sans-serif;}
+.flyt .type-title{font-size:1.5rem;line-height:1.1;font-weight:700;font-family:'Outfit',sans-serif;}
+.flyt .type-section{font-size:1.125rem;line-height:1.25;}
+.flyt .type-body{font-size:1rem;line-height:1.6;}
+.flyt .type-caption{font-size:.875rem;line-height:1.5;}
+.flyt .type-caption-sm{font-size:.75rem;line-height:1.45;}
+.flyt .muted{color:var(--muted-foreground);}
+.flyt .link{color:var(--primary-70);font-weight:600;font-size:.875rem;}
+
+/* shelf header (matches ThemeSection) */
+.flyt .shelf-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;}
+
+/* AppCard shelf card (matches StoryCard variant="shelf") */
+.flyt .shelf{display:flex;gap:16px;overflow-x:auto;padding-bottom:8px;}
+.flyt .card{
+  width:280px;flex:0 0 auto;min-height:264px;display:flex;flex-direction:column;overflow:hidden;
+  border-radius:var(--radius-section);border:1px solid var(--border);background:var(--card);
+  box-shadow:var(--shadow-raised);position:relative;transition:transform .2s,border-color .2s;
+}
+.flyt .card.ready{cursor:pointer;}
+.flyt .card.ready:hover{transform:translateY(-2px);border-color:var(--primary-70);}
+.flyt .cover{height:140px;flex:0 0 auto;display:flex;align-items:flex-end;padding:12px;font-weight:600;font-size:.875rem;}
+.flyt .cover-import{background:linear-gradient(135deg,var(--secondary-80),var(--secondary-60));color:var(--white-100);}
+.flyt .cover-A2{background:var(--primary-70);color:var(--white-100);}   /* curated ref */
+.flyt .card-body{flex:1;display:flex;flex-direction:column;gap:12px;background:var(--white-100);padding:16px;}
+.flyt .card-title{font-family:'Outfit',sans-serif;font-weight:600;font-size:1rem;color:var(--foreground);}
+.flyt .card-preview{font-size:.875rem;line-height:1.45;color:var(--muted-foreground);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.flyt .meta-row{display:flex;align-items:center;gap:8px;font-size:.75rem;color:var(--muted-foreground);}
+
+/* status chip (matches StoryStatusChip: rounded-full border px-2.5 py-0.5) */
+.flyt .chip{position:absolute;top:8px;right:8px;z-index:10;display:inline-flex;align-items:center;gap:5px;
+  border-radius:999px;border:1px solid;padding:2px 10px;font-size:.72rem;font-weight:600;}
+.flyt .chip-processing{border-color:var(--warning-30);background:var(--warning-10);color:var(--warning-100);}
+.flyt .chip-ready{border-color:var(--secondary-40);background:var(--secondary-10);color:var(--secondary-100);}
+.flyt .chip-failed{border-color:var(--destructive-40);background:var(--destructive-10);color:var(--destructive-100);}
+.flyt .dot{width:6px;height:6px;border-radius:999px;}
+.flyt .dot-pulse{background:var(--warning-60);animation:pulse 1.1s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+
+/* processing cover shimmer */
+.flyt .cover-busy{background:linear-gradient(135deg,var(--secondary-20),var(--secondary-10));position:relative;overflow:hidden;}
+.flyt .cover-busy::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);animation:shimmer 1.5s linear infinite;}
+@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.flyt .skel{height:9px;border-radius:999px;background:var(--secondary-10);}
+
+/* buttons */
+.flyt .btn{font-family:'DM Sans',sans-serif;font-weight:600;font-size:.8rem;border-radius:var(--radius-field);padding:8px 14px;border:0;cursor:pointer;}
+.flyt .btn-primary{background:var(--primary-70);color:#fff;}
+.flyt .btn-outline{background:transparent;border:1px solid var(--border);color:var(--foreground);}
+
+/* text-forward variant B card */
+.flyt .card-flat{width:280px;flex:0 0 auto;border-radius:var(--radius-section);border:1px solid var(--border);background:var(--card);box-shadow:var(--shadow-raised);padding:16px;display:flex;flex-direction:column;gap:10px;position:relative;}

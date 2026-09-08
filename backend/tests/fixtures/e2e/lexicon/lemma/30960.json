@@ -1,0 +1,334 @@
+{
+  "source_article_id": 30960,
+  "lemmas": [
+    {
+      "lemma": "komme",
+      "hgno": 2,
+      "pos": "VERB",
+      "source_lemma_id": 36469,
+      "is_sub_article": false,
+      "primary_translation": "come / arrive / originate / follow / be equipped / orgasm",
+      "word_forms": [
+        {
+          "word_form": "komme",
+          "tags_json": [
+            "verb",
+            "Inf"
+          ]
+        },
+        {
+          "word_form": "kommer",
+          "tags_json": [
+            "verb",
+            "Pres"
+          ]
+        },
+        {
+          "word_form": "kommes",
+          "tags_json": [
+            "verb",
+            "Inf",
+            "Pass",
+            "Pres"
+          ]
+        },
+        {
+          "word_form": "kom",
+          "tags_json": [
+            "verb",
+            "Past",
+            "Imp"
+          ]
+        },
+        {
+          "word_form": "kommet",
+          "tags_json": [
+            "verb",
+            "<PerfPart>",
+            "Adj",
+            "Neuter",
+            "Ind",
+            "Sing",
+            "Masc/Fem"
+          ]
+        },
+        {
+          "word_form": "komne",
+          "tags_json": [
+            "verb",
+            "Adj",
+            "<PerfPart>",
+            "Def",
+            "Sing",
+            "Plur"
+          ]
+        },
+        {
+          "word_form": "kommende",
+          "tags_json": [
+            "verb",
+            "Adj",
+            "<PresPart>"
+          ]
+        },
+        {
+          "word_form": "kommen",
+          "tags_json": [
+            "verb",
+            "Adj",
+            "<PerfPart>",
+            "Masc/Fem",
+            "Ind",
+            "Sing"
+          ]
+        }
+      ]
+    }
+  ],
+  "cross_reference": null,
+  "definitions": [
+    {
+      "text": "nærme seg",
+      "translation": "to approach",
+      "examples": []
+    },
+    {
+      "text": "bevege seg mot",
+      "translation": "to move towards",
+      "examples": [
+        {
+          "no": "det kommer noen nedover veien",
+          "en": "someone is coming down the road"
+        },
+        {
+          "no": "der kommer bussen",
+          "en": null
+        },
+        {
+          "no": "hunden kom settende",
+          "en": null
+        },
+        {
+          "no": "de kom farende i full fart",
+          "en": null
+        },
+        {
+          "no": "kom nå, da!",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "nå fram (til et sted, en tilstand eller en stilling)",
+      "translation": "to reach (a place, a state, or a position)",
+      "examples": []
+    },
+    {
+      "text": "ankomme, innfinne seg",
+      "translation": "to arrive, to appear",
+      "examples": [
+        {
+          "no": "hun kommer nok snart",
+          "en": null
+        },
+        {
+          "no": "det har kommet mange gjester",
+          "en": null
+        },
+        {
+          "no": "det ble mørkt før de kom fram",
+          "en": null
+        },
+        {
+          "no": "det begynte å komme varme i lufta",
+          "en": null
+        },
+        {
+          "no": "hjemlengselen kom over henne",
+          "en": null
+        },
+        {
+          "no": "han vred seg når smertene kom",
+          "en": null
+        },
+        {
+          "no": "svaret kom omgående",
+          "en": null
+        },
+        {
+          "no": "er posten kommet?",
+          "en": null
+        },
+        {
+          "no": "kom snart igjen!",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "bli satt i en viss stilling, tilstand eller situasjon",
+      "translation": "to be put in a certain position, state, or situation",
+      "examples": [
+        {
+          "no": "komme i brann",
+          "en": null
+        },
+        {
+          "no": "han kom ikke til skade",
+          "en": null
+        },
+        {
+          "no": "hun kom til bevissthet i går",
+          "en": null
+        },
+        {
+          "no": "komme til krefter etter sykdommen",
+          "en": null
+        },
+        {
+          "no": "komme til seg selv",
+          "en": null
+        },
+        {
+          "no": "komme i tanker om noe",
+          "en": null
+        },
+        {
+          "no": "komme i stemning",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "bli synlig",
+      "translation": "to become visible",
+      "examples": []
+    },
+    {
+      "text": "dukke opp",
+      "translation": "to appear",
+      "examples": [
+        {
+          "no": "nå kommer sola",
+          "en": null
+        },
+        {
+          "no": "komme fram bak en stein",
+          "en": null
+        },
+        {
+          "no": "bilen kom rundt svingen",
+          "en": null
+        },
+        {
+          "no": "komme i avisen",
+          "en": null
+        },
+        {
+          "no": "boka kom ut i fjor",
+          "en": null
+        },
+        {
+          "no": "det kom fram at konflikten hadde vart lenge",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "utgå fra",
+      "translation": "to originate from",
+      "examples": []
+    },
+    {
+      "text": "stamme fra",
+      "translation": "to stem from",
+      "examples": [
+        {
+          "no": "et sted må pengene komme fra",
+          "en": null
+        },
+        {
+          "no": "de kommer fra en fornem familie",
+          "en": null
+        },
+        {
+          "no": "hvor kommer du fra?",
+          "en": null
+        },
+        {
+          "no": "uka som kommer",
+          "en": null
+        },
+        {
+          "no": "det kommer under neste kapittel",
+          "en": null
+        },
+        {
+          "no": "de kom like bak oss",
+          "en": null
+        },
+        {
+          "no": "etter a kommer b",
+          "en": null
+        },
+        {
+          "no": "kommende slekter",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "nå (til et visst punkt, en viss tilstand eller lignende)",
+      "translation": "to reach (a certain point, a certain state)",
+      "examples": [
+        {
+          "no": "båten kom vel i havn",
+          "en": null
+        },
+        {
+          "no": "de kom velberget over fjellet",
+          "en": null
+        },
+        {
+          "no": "komme til enighet om noe",
+          "en": null
+        },
+        {
+          "no": "komme til side 72 i boka",
+          "en": null
+        },
+        {
+          "no": "komme på fote igjen",
+          "en": null
+        },
+        {
+          "no": "komme til makten",
+          "en": null
+        },
+        {
+          "no": "vi kommer ingen vei uten hjelp",
+          "en": null
+        },
+        {
+          "no": "dette problemet kommer vi ikke forbi",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "være utstyrt (med)",
+      "translation": "to be equipped (with)",
+      "examples": [
+        {
+          "no": "bilmodellen kommer også med en større motorvariant",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "få orgasme",
+      "translation": "to orgasm",
+      "examples": []
+    }
+  ]
+}

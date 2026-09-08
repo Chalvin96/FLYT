@@ -1,0 +1,81 @@
+name: PR
+
+on:
+  pull_request:
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_ci.yml
+
+  e2e:
+    name: Flyt E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run Flyt E2E foundation
+        run: ./scripts/run_e2e.sh
+
+  extension-e2e:
+    name: Extension E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      # The extension resolves @flyt/ui and @flyt/lexicon from the workspace,
+      # so this needs the whole install, not just extension/.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Playwright Chromium
+        working-directory: extension
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run extension E2E
+        run: ./scripts/run_extension_e2e.sh
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: extension-e2e-report
+          path: |
+            extension/playwright-report
+            extension/test-results
+          retention-days: 7

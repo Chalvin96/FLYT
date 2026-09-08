@@ -1,0 +1,73 @@
+<h2>Import entry — paste sheet + guard states</h2>
+<p class="subtitle">"+ Import text" opens a sheet (reuses the lookup sheet/dialog pattern — bottom sheet on mobile, centered dialog on desktop). Guards from D-004 surface here: 100 KB size cap and 10/day quota. Confirm the affordance + copy.</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Paste sheet — normal + size counter</div>
+    <div class="mockup-body" style="display:flex;justify-content:center">
+      <div class="flyt" style="width:100%">
+        <div class="sheet" style="margin:0 auto">
+          <div class="type-title" style="margin-bottom:4px">Import text</div>
+          <p class="type-caption muted" style="margin-bottom:14px">Paste Norwegian text. We'll process it into a reader you can tap through.</p>
+          <input class="field" placeholder="Title (optional)" style="margin-bottom:10px" value="Klimaendringene i Arktis"/>
+          <textarea class="field" placeholder="Paste text here…">Klimaendringene i Arktis skjer raskere enn noe annet sted på jorda. Isen smelter, og dyrelivet må tilpasse seg…</textarea>
+          <div class="counter">12.4 KB / 100 KB</div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+            <button class="btn btn-outline">Cancel</button>
+            <button class="btn btn-primary">Import</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Over 100 KB — submit blocked (client, before 413)</div>
+    <div class="mockup-body" style="display:flex;justify-content:center">
+      <div class="flyt" style="width:100%">
+        <div class="sheet" style="margin:0 auto">
+          <div class="type-title" style="margin-bottom:4px">Import text</div>
+          <p class="type-caption muted" style="margin-bottom:14px">Paste Norwegian text. We'll process it into a reader you can tap through.</p>
+          <input class="field" placeholder="Title (optional)" style="margin-bottom:10px"/>
+          <textarea class="field" style="border-color:var(--destructive-40)">…very long pasted text…</textarea>
+          <div class="counter over">108 KB / 100 KB — too long by 8 KB</div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+            <button class="btn btn-outline">Cancel</button>
+            <button class="btn btn-primary" style="opacity:.4;cursor:not-allowed">Import</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup" style="margin-top:22px">
+  <div class="mockup-header">Quota reached (10/10 today) — 429 IMPORT_QUOTA_EXCEEDED</div>
+  <div class="mockup-body" style="display:flex;justify-content:center">
+    <div class="flyt" style="width:100%">
+      <div class="sheet" style="margin:0 auto">
+        <div class="type-title" style="margin-bottom:8px">Daily limit reached</div>
+        <p class="type-caption muted">You've imported 10 texts today. You can import more after the limit resets at 00:00 UTC. Your existing imports stay available.</p>
+        <div style="display:flex;justify-content:flex-end;margin-top:14px">
+          <button class="btn btn-primary">Got it</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:20px"><strong>On submit</strong> (within limits): sheet closes, an optimistic <em>Processing…</em> card appears at the front of "Your imports" immediately (D-003 pending), polling flips it to Ready. <strong>Dedup:</strong> if you paste something already imported, it still counts against quota (D-004) and jumps straight to the existing Ready card.</p>
+
+<h3 style="margin-top:12px">Does the paste-sheet flow + guard copy work?</h3>
+<div class="options">
+  <div class="option" data-choice="ok" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content"><h3>Yes — sheet + inline size counter + quota dialog</h3>
+      <p>Client blocks over-size before submit; server 413/429 are the backstop. Optimistic Processing card on submit.</p></div>
+  </div>
+  <div class="option" data-choice="tweak" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content"><h3>Change something</h3>
+      <p>Different copy, different affordance (full page vs sheet), or different guard presentation. Tell me what.</p></div>
+  </div>
+</div>

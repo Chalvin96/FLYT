@@ -1,0 +1,598 @@
+/* Popup styles - injected into the closed shadow root alongside the Tailwind/tokens CSS.
+   Token custom properties (var(--card), var(--border), etc.) resolve because mountShadow
+   bridges :root declarations to :host so they cascade into the shadow tree. */
+
+.flyt-popup {
+  font:
+    14px/1.4 system-ui,
+    -apple-system,
+    sans-serif;
+  width: min(440px, calc(100vw - 20px));
+  max-width: 440px;
+  max-height: min(720px, calc(100vh - 20px));
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lift);
+  outline: none;
+  overflow: hidden;
+}
+
+.flyt-close-btn {
+  margin-left: auto;
+  min-width: 44px;
+  min-height: 44px;
+  color: var(--muted-foreground);
+}
+
+.flyt-close-btn:hover {
+  color: var(--card-foreground);
+}
+
+/* ── Logo bar: purple F-box + "Flyt" wordmark ────────────────────────────── */
+
+.flyt-logo-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+
+.flyt-popup-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.flyt-logo-box {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--primary);
+  box-shadow: var(--shadow-tile);
+  font-family: Georgia, serif;
+  font-size: 14px;
+  font-weight: 700;
+  font-style: italic;
+  color: var(--white-100);
+}
+
+.flyt-wordmark {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--secondary-90);
+}
+
+/* ── Headword + POS badge ────────────────────────────────────────────────── */
+
+.flyt-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.flyt-headword {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--secondary-90);
+}
+
+.flyt-pos-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--secondary-70);
+  border: 1px solid var(--secondary-30);
+  background: var(--secondary-0);
+  border-radius: 6px;
+  padding: 1px 8px;
+}
+
+/* Legacy compat: some older markup references flyt-pos directly. */
+.flyt-pos {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.flyt-def {
+  margin: 6px 0;
+}
+
+.flyt-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  color: var(--muted-foreground);
+}
+
+.flyt-search-toggle {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--primary);
+}
+
+.flyt-skel {
+  padding: 12px 14px;
+  color: var(--muted-foreground);
+}
+
+.flyt-err {
+  padding: 12px 14px;
+  color: var(--destructive);
+}
+
+.flyt-hint {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+/* ── Whole-page import action ───────────────────────────────────────────── */
+
+.flyt-import-page {
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--secondary-0) 55%, var(--card));
+  opacity: 0.92;
+  flex: none;
+}
+
+.flyt-import-btn {
+  width: 100%;
+}
+
+.flyt-import-success {
+  color: var(--secondary-90);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.flyt-import-success-title,
+.flyt-import-success-copy {
+  margin: 0;
+}
+
+.flyt-import-success-copy {
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.flyt-import-success a {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.flyt-import-error {
+  margin-top: 8px;
+  color: var(--destructive);
+  font-size: 12px;
+}
+
+.flyt-toast-msg {
+  color: var(--secondary-90);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.flyt-toast-close {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  color: var(--muted-foreground);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.flyt-toast-close:hover {
+  background: var(--secondary-0);
+  color: var(--secondary-90);
+}
+
+/* ── Entry layout ────────────────────────────────────────────────────────── */
+
+.flyt-popup .flyt-entry {
+  padding: 10px;
+}
+
+.flyt-popup .flyt-entry:last-of-type {
+  border-bottom: none;
+}
+
+.flyt-results {
+  max-height: none;
+}
+
+.flyt-detail-status {
+  margin: 0 10px 8px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.flyt-action-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 10px 8px;
+  color: var(--destructive);
+  font-size: 12px;
+}
+
+.flyt-homograph {
+  border-top: 1px solid var(--border);
+}
+
+.flyt-homograph summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 14px;
+  color: var(--secondary-90);
+  font-weight: 600;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.flyt-homograph summary::marker {
+  color: var(--primary);
+}
+
+.flyt-homograph-meta {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.flyt-homograph:focus-within summary {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+/* ── Big purple Add button ───────────────────────────────────────────────── */
+
+.flyt-add-btn {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--primary);
+  color: var(--white-100);
+  font-size: 14px;
+  font-weight: 700;
+  border: 1px solid var(--primary);
+  box-shadow: var(--shadow-tile);
+  transition: background 0.15s;
+}
+
+.flyt-add-btn:hover:not(:disabled) {
+  background: var(--primary-90);
+}
+
+.flyt-add-btn:disabled {
+  opacity: 0.7;
+}
+
+.flyt-popup .flyt-added {
+  background: var(--secondary-50);
+  color: var(--white-100);
+  border-color: var(--secondary-50);
+}
+
+/* ── Show N more meanings pill ───────────────────────────────────────────── */
+
+.flyt-pill-row {
+  display: flex;
+  justify-content: center;
+  padding: 8px 14px 12px;
+}
+
+.flyt-more-pill {
+  border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
+  color: var(--primary);
+  border-radius: 9999px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+@media (max-width: 360px) {
+  .flyt-popup {
+    width: calc(100vw - 12px);
+    max-height: calc(100vh - 12px);
+  }
+
+  .flyt-popup .p-4 {
+    padding: 12px;
+  }
+}
+
+.flyt-more-pill:hover {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.flyt-popup :focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.flyt-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+}
+
+.flyt-suggestions {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.flyt-suggestion {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--card-foreground);
+  font: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.flyt-suggestion:hover {
+  background: var(--secondary-50);
+}
+
+/* ── Related links (see_also cross-references) ───────────────────────────── */
+
+.flyt-related {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  padding: 0.25rem 0 0.125rem;
+}
+
+.flyt-related-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--secondary-70, #6b7280);
+}
+
+.flyt-related-link {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--primary, #7c3aed);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.flyt-related-link:hover {
+  opacity: 0.8;
+}
+
+.flyt-related-muted {
+  font-size: 0.8125rem;
+  color: var(--secondary-40, #9ca3af);
+}
+
+/* ── Selection lookup affordance ──────────────────────────────────────────── */
+
+.flyt-lookup-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--shadow-lift);
+  font-family: Georgia, serif;
+  font-size: 14px;
+  font-weight: 700;
+  font-style: italic;
+  color: var(--primary);
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    background 120ms ease;
+}
+
+.flyt-lookup-icon:hover {
+  background: var(--primary);
+  color: var(--white-100);
+  transform: scale(1.08);
+}
+
+.flyt-lookup-icon:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ── Selected sentence translation ───────────────────────────────────────── */
+
+.flyt-translation {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--secondary-0) 38%, var(--card));
+}
+
+.flyt-translation-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.flyt-translation-label {
+  color: var(--secondary-90);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.flyt-translation-title {
+  max-width: 62%;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flyt-source-text,
+.flyt-translated-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.flyt-source-text {
+  color: var(--secondary-90);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.flyt-source-word {
+  margin: 0;
+  padding: 1px 2px;
+  border: 0;
+  border-bottom: 2px solid
+    color-mix(in srgb, var(--primary) 48%, transparent);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.flyt-source-word:hover {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+}
+
+.flyt-source-word.is-active {
+  border-bottom-width: 3px;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
+.flyt-translation-hint,
+.flyt-word-lookup-status,
+.flyt-word-lookup-empty,
+.flyt-word-lookup-error {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.flyt-word-lookup-status,
+.flyt-word-lookup-empty,
+.flyt-word-lookup-error,
+.flyt-back-to-translation {
+  margin: 10px 14px 0;
+}
+
+.flyt-word-lookup-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--destructive);
+}
+
+.flyt-word-lookup-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.flyt-translated-text {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--card-foreground);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.flyt-translation-status,
+.flyt-translation-error {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.flyt-translation-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--destructive);
+}
+
+.flyt-translate-btn {
+  align-self: flex-start;
+}
+
+@media (max-width: 360px) {
+  .flyt-translation-heading,
+  .flyt-translation-error {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .flyt-translation-title {
+    max-width: 100%;
+  }
+}

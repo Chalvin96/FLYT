@@ -1,0 +1,309 @@
+{
+  "source_article_id": 50315,
+  "lemmas": [
+    {
+      "lemma": "se",
+      "hgno": 0,
+      "pos": "VERB",
+      "source_lemma_id": 57721,
+      "is_sub_article": false,
+      "primary_translation": "see / understand / prefer",
+      "word_forms": [
+        {
+          "word_form": "se",
+          "tags_json": [
+            "verb",
+            "Inf",
+            "Imp"
+          ]
+        },
+        {
+          "word_form": "ser",
+          "tags_json": [
+            "verb",
+            "Pres"
+          ]
+        },
+        {
+          "word_form": "ses",
+          "tags_json": [
+            "verb",
+            "Inf",
+            "Pass",
+            "Pres"
+          ]
+        },
+        {
+          "word_form": "så",
+          "tags_json": [
+            "verb",
+            "Past"
+          ]
+        },
+        {
+          "word_form": "sett",
+          "tags_json": [
+            "verb",
+            "<PerfPart>",
+            "Adj",
+            "Neuter",
+            "Ind",
+            "Sing",
+            "Masc/Fem"
+          ]
+        },
+        {
+          "word_form": "sette",
+          "tags_json": [
+            "verb",
+            "Adj",
+            "<PerfPart>",
+            "Def",
+            "Sing",
+            "Plur"
+          ]
+        },
+        {
+          "word_form": "seende",
+          "tags_json": [
+            "verb",
+            "Adj",
+            "<PresPart>"
+          ]
+        },
+        {
+          "word_form": "sees",
+          "tags_json": [
+            "verb",
+            "Inf",
+            "Pass",
+            "Pres"
+          ]
+        }
+      ]
+    }
+  ],
+  "cross_reference": null,
+  "definitions": [
+    {
+      "text": "oppfatte med øyet",
+      "translation": "perceive with the eye",
+      "examples": []
+    },
+    {
+      "text": "oppdage, få øye på",
+      "translation": "discover, spot",
+      "examples": [
+        {
+          "no": "hun ser ikke uten briller",
+          "en": "she cannot see without glasses"
+        },
+        {
+          "no": "han så båtene i havnen",
+          "en": null
+        },
+        {
+          "no": "han ser seg selv i speilet",
+          "en": null
+        },
+        {
+          "no": "har du sett henne?",
+          "en": null
+        },
+        {
+          "no": "plutselig så jeg det lå noe i veien",
+          "en": null
+        },
+        {
+          "no": "se! Et stjerneskudd!",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "rette blikket i en bestemt retning",
+      "translation": "direct one's gaze in a specific direction",
+      "examples": []
+    },
+    {
+      "text": "stirre, kikke",
+      "translation": "regard",
+      "examples": [
+        {
+          "no": "se ut gjennom vinduet",
+          "en": null
+        },
+        {
+          "no": "de så på tv",
+          "en": null
+        },
+        {
+          "no": "hun ser i avisa",
+          "en": null
+        },
+        {
+          "no": "han så en film",
+          "en": null
+        },
+        {
+          "no": "de så på utstillingen",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "forstå, skjønne",
+      "translation": "understand, comprehend",
+      "examples": [
+        {
+          "no": "han er rik, ser du",
+          "en": null
+        },
+        {
+          "no": "der ser du hvordan det kan gå",
+          "en": null
+        },
+        {
+          "no": "jeg kan ikke se at dette er noe problem",
+          "en": null
+        },
+        {
+          "no": "så langt jeg kan se, er det ingen problemer",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "få lære eller oppleve, erfare",
+      "translation": "get to know or experience, undergo",
+      "examples": []
+    },
+    {
+      "text": "finne, oppdage",
+      "translation": "find, discover",
+      "examples": []
+    },
+    {
+      "text": "komme fram til",
+      "translation": "arrive at",
+      "examples": [
+        {
+          "no": "vi får se, kanskje det går bra",
+          "en": null
+        },
+        {
+          "no": "en så god avgangsklasse er noe vi sjelden ser",
+          "en": null
+        },
+        {
+          "no": "jeg skjønner ikke hva hun ser i ham",
+          "en": null
+        },
+        {
+          "no": "vi så hjembyen vår på en ny måte",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "legge positivt merke til",
+      "translation": "notice positively",
+      "examples": []
+    },
+    {
+      "text": "vise forståelse for, anerkjenne",
+      "translation": "show understanding for, acknowledge",
+      "examples": [
+        {
+          "no": "den nye treneren var flink til å se spillerne sine",
+          "en": null
+        },
+        {
+          "no": "hun forlot mannen sin fordi hun ikke følte seg sett",
+          "en": null
+        },
+        {
+          "no": "det er viktig for en leder å se de ansatte",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "ville, ønske",
+      "translation": "want, wish",
+      "examples": [
+        {
+          "no": "jeg ser helst at du går",
+          "en": null
+        },
+        {
+          "no": "retten så helst at partene fant en minnelig løsning",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "være sammen med",
+      "translation": "be together with",
+      "examples": []
+    },
+    {
+      "text": "treffe, møte",
+      "translation": "meet, encounter",
+      "examples": [
+        {
+          "no": "han så mora hver helg",
+          "en": null
+        },
+        {
+          "no": "når skal du se henne igjen?",
+          "en": null
+        },
+        {
+          "no": "vi har ikke sett noe til ham i det siste",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "betrakte eller bedømme fra en bestemt synsvinkel",
+      "translation": "consider or judge from a specific point of view",
+      "examples": [
+        {
+          "no": "stort sett er folk veldig hjepsomme",
+          "en": null
+        },
+        {
+          "no": "teoretisk sett var det en god plan",
+          "en": null
+        },
+        {
+          "no": "hun ser seg selv som en helt",
+          "en": null
+        },
+        {
+          "no": "du ser alltid ting på din egen måte",
+          "en": null
+        },
+        {
+          "no": "isolert sett har endringene små konsekvenser",
+          "en": null
+        },
+        {
+          "no": "faglig sett har elevene blitt bedre",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "tenke etter, fundere",
+      "translation": "think about, ponder",
+      "examples": [
+        {
+          "no": "la meg se, hvor la jeg brillene?",
+          "en": null
+        }
+      ]
+    }
+  ]
+}

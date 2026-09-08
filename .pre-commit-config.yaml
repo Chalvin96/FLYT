@@ -1,0 +1,107 @@
+minimum_pre_commit_version: "3.0.0"
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.6
+    hooks:
+      - id: ruff-check
+        name: backend ruff fix
+        args: [--fix]
+        files: ^backend/.*\.py$
+        stages: [pre-commit]
+
+      - id: ruff-format
+        name: backend ruff format
+        files: ^backend/.*\.py$
+        stages: [pre-commit]
+
+      - id: ruff-check
+        name: backend ruff check
+        files: ^backend/.*\.py$
+        stages: [pre-commit]
+
+  - repo: local
+    hooks:
+      - id: openspec-validate
+        name: OpenSpec validation
+        entry: pnpm spec:validate
+        language: system
+        files: ^openspec/
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: repository-convention-ratchet
+        name: repository convention ratchet
+        entry: pnpm quality:conventions
+        language: system
+        files: ^(backend|morph-svc|stt-svc|frontend|extension|packages|scripts)/.*\.(py|pyi|js|jsx|ts|tsx)$
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: backend-test-name-ratchet
+        name: backend test name ratchet
+        entry: pnpm test:names:backend:staged
+        language: system
+        files: ^backend/tests/.*\.py$
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: frontend-test-name-ratchet
+        name: frontend test name ratchet
+        entry: pnpm test:names:frontend:staged
+        language: system
+        files: ^(frontend/src|extension/src|packages)/.*\.(ts|tsx)$
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: frontend-eslint-fix
+        name: frontend eslint fix
+        entry: pnpm --dir frontend exec eslint --fix .
+        language: system
+        files: ^frontend/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: prettier
+        name: prettier
+        entry: pnpm --dir frontend exec prettier --write --ignore-unknown .
+        language: system
+        files: ^frontend/.*\.(ts|tsx|js|jsx|json|css|md|yaml|yml)$
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: packages-prettier
+        name: packages prettier
+        entry: pnpm --dir frontend exec prettier --write --ignore-unknown ../packages
+        language: system
+        files: ^packages/.*\.(ts|tsx|js|jsx|json|css|md|yaml|yml)$
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: backend-mypy
+        name: backend mypy check
+        entry: uv run --directory backend mypy --config-file pyproject.toml
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: backend-migration-drift
+        name: backend migration drift check
+        entry: env SECRET_KEY=pre-commit-secret-key-for-local-hooks-only OAUTH_SESSION_SECRET=pre-commit-oauth-session-secret ADMIN_SESSION_SECRET=pre-commit-admin-session-secret-only PROVIDER_CREDENTIAL_ENCRYPTION_KEYS='["kkx-ZViSkteSQGh9z5FDskkiQGFImdcA1ceQt2DnwAk="]' GOOGLE_CLIENT_ID=x GOOGLE_CLIENT_SECRET=x uv run --directory backend alembic check
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: frontend-lint
+        name: frontend lint
+        entry: pnpm --dir frontend lint
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: frontend-type-check
+        name: frontend type check
+        entry: pnpm --dir frontend type-check
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]

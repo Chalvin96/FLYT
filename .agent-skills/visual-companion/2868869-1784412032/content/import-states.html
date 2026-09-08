@@ -1,0 +1,82 @@
+<h2>Import card states — reading home</h2>
+<p class="subtitle">Proposed "Your imports" section that sits on the reading home (Q2). Each imported text is a card that reflects its processing status (R-002). Reader opens only when a card is <strong>ready</strong>. Does the treatment + state language read right?</p>
+
+<div class="mockup">
+  <div class="mockup-header">Preview: reading home — "Your imports" section</div>
+  <div class="mockup-body">
+    <div class="flyt">
+      <div class="section-head">
+        <div class="type-section">Your imports</div>
+        <button class="btn btn-primary btn-sm">+ Import text</button>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+
+        <!-- PROCESSING (pending + processing share this busy treatment) -->
+        <div class="import-card busy" title="pending / processing">
+          <span class="chip chip-processing"><span class="dot dot-pulse"></span>Processing…</span>
+          <div class="import-title">Klimaendringene i Arktis</div>
+          <div style="display:flex; flex-direction:column; gap:7px; margin-top:2px;">
+            <div class="skel" style="width:92%"></div>
+            <div class="skel" style="width:78%"></div>
+            <div class="skel" style="width:85%"></div>
+          </div>
+          <div class="import-meta">Not clickable yet · auto-updates when ready</div>
+        </div>
+
+        <!-- READY -->
+        <div class="import-card" title="ready — clickable, opens reader" style="cursor:pointer; border-color:var(--secondary-30);">
+          <span class="chip chip-ready">✓ Ready</span>
+          <div class="import-title">Historien om Norge</div>
+          <div class="import-meta">1 240 words · 6 pages · from nrk.no</div>
+          <div class="row" style="justify-content:space-between; margin-top:2px;">
+            <span class="type-caption muted">Tap to read →</span>
+            <span class="type-caption-sm muted">Delete</span>
+          </div>
+        </div>
+
+        <!-- FAILED -->
+        <div class="import-card" title="failed — reason + retry" style="border-color:var(--destructive-40);">
+          <span class="chip chip-failed">! Failed</span>
+          <div class="import-title">Uklar tekst fra blogg</div>
+          <div class="import-meta">Couldn't process this text. It may be too short or not Norwegian.</div>
+          <div class="row" style="margin-top:4px;">
+            <button class="btn btn-primary btn-sm">Retry</button>
+            <button class="btn btn-outline btn-sm">Delete</button>
+          </div>
+        </div>
+
+        <!-- READY (second, to show list rhythm) -->
+        <div class="import-card" title="ready" style="cursor:pointer;">
+          <span class="chip chip-ready">✓ Ready</span>
+          <div class="import-title">Pasta-oppskrift</div>
+          <div class="import-meta">320 words · 2 pages · pasted</div>
+          <div class="row" style="justify-content:space-between; margin-top:2px;">
+            <span class="type-caption muted">Tap to read →</span>
+            <span class="type-caption-sm muted">Delete</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:20px;">One open sub-decision — the <strong>pending vs processing</strong> distinction. R-002 lists both as separate states. Pick how visible that split should be:</p>
+
+<div class="options">
+  <div class="option" data-choice="merge" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>One "Processing…" treatment (recommended)</h3>
+      <p>pending + processing look identical to the learner (busy card above). Status enum still tracks both under the hood; the user only cares "not ready yet." Simplest, least flicker.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="split" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Distinct "Queued" vs "Processing…"</h3>
+      <p>pending shows "Queued", processing shows "Processing…". Honest about queue waits under load, but two near-identical states add copy + transitions the learner rarely benefits from at MVP scale.</p>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,19 @@
+{
+  "lessons": [
+    {
+      "lesson_id": "operations_tour",
+      "position": 0,
+      "family_id": "v4_contract"
+    },
+    {
+      "lesson_id": "cardinal_numbers",
+      "position": 1,
+      "family_id": "quantity_time"
+    },
+    {
+      "lesson_id": "adjective_agreement",
+      "position": 2,
+      "family_id": "adjective_adverb_comparison"
+    }
+  ]
+}

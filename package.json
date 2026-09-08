@@ -1,0 +1,25 @@
+{
+  "name": "norsk-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.3.4",
+  "scripts": {
+    "preinstall": "node scripts/check_pnpm_version.mjs",
+    "spec:validate": "openspec validate --all --strict --no-interactive",
+    "test:names": "python3 scripts/check_test_names.py --all",
+    "test:names:staged": "python3 scripts/check_test_names.py --staged",
+    "test:names:backend:staged": "python3 scripts/check_test_names.py --staged --scope backend",
+    "test:names:frontend:staged": "python3 scripts/check_test_names.py --staged --scope frontend",
+    "react-doctor:check": "python3 scripts/check_react_doctor.py",
+    "quality:test": "python3 scripts/test_quality_checkers.py",
+    "quality:conventions": "python3 scripts/check_conventions.py --staged",
+    "quality:ruff": "uv run --directory backend --locked ruff check .",
+    "quality:dependencies": "uv run --directory backend --locked pip-audit --local && pnpm audit --prod --audit-level high",
+    "quality:check": "pnpm quality:test && pnpm quality:conventions && pnpm quality:ruff && pnpm quality:dependencies"
+  },
+  "devDependencies": {
+    "@fission-ai/openspec": "1.12.0",
+    "react-doctor": "0.9.13"
+  }
+}

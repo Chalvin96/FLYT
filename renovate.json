@@ -1,0 +1,49 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "dependencyDashboard": true,
+  "timezone": "UTC",
+  "schedule": ["before 6am on monday"],
+  "prConcurrentLimit": 8,
+  "prHourlyLimit": 2,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "vulnerabilityFixStrategy": "lowest",
+    "labels": ["dependencies", "security"],
+    "automerge": false
+  },
+  "packageRules": [
+    {
+      "matchFileNames": ["frontend/**"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "frontend non-major dependencies",
+      "labels": ["dependencies", "frontend"]
+    },
+    {
+      "matchFileNames": ["backend/**"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "backend non-major dependencies",
+      "labels": ["dependencies", "backend"]
+    },
+    {
+      "matchFileNames": ["package.json", "pnpm-lock.yaml"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "repo tooling dependencies",
+      "labels": ["dependencies", "tooling"]
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions dependencies",
+      "labels": ["dependencies", "ci"]
+    },
+    {
+      "matchManagers": ["pre-commit"],
+      "groupName": "pre-commit hooks",
+      "labels": ["dependencies", "backend"]
+    }
+  ]
+}

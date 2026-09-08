@@ -1,0 +1,68 @@
+{
+  "source_article_id": 27578,
+  "lemmas": [
+    {
+      "lemma": "jeg",
+      "hgno": 2,
+      "pos": "PRON",
+      "source_lemma_id": 32714,
+      "is_sub_article": false,
+      "primary_translation": "me / my",
+      "word_forms": [
+        {
+          "word_form": "jeg",
+          "tags_json": [
+            "Prs",
+            "1",
+            "Sing",
+            "Hum",
+            "Nom"
+          ]
+        },
+        {
+          "word_form": "meg",
+          "tags_json": [
+            "Prs",
+            "1",
+            "Sing",
+            "Hum",
+            "Acc"
+          ]
+        }
+      ]
+    }
+  ],
+  "cross_reference": null,
+  "definitions": [
+    {
+      "text": "1. person entall",
+      "translation": "my",
+      "examples": [
+        {
+          "no": "arme meg!",
+          "en": "poor me!"
+        },
+        {
+          "no": "trøste og bære meg!",
+          "en": null
+        },
+        {
+          "no": "du er meg en luring",
+          "en": null
+        },
+        {
+          "no": "du er større enn jegmeg",
+          "en": null
+        },
+        {
+          "no": "det er bare jegmeg",
+          "en": null
+        },
+        {
+          "no": "jeg tar med meg boka mi",
+          "en": null
+        }
+      ]
+    }
+  ]
+}

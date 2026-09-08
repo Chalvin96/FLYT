@@ -1,0 +1,648 @@
+{
+  "schema_version": "4.0",
+  "id": "operations_tour",
+  "kind": "grammar",
+  "language": "nb-NO",
+  "title": "The v4 operations tour",
+  "cefr_level": "A1",
+  "goal": "Exercise every v4 operation, dialogue, and audio status.",
+  "objectives": [
+    {
+      "id": "obj-tour",
+      "statement": "Use every exported operation once."
+    },
+    {
+      "id": "obj-dialogue",
+      "statement": "Follow a named dialogue."
+    }
+  ],
+  "content": [
+    {
+      "kind": "section",
+      "id": "sec-orient"
+    },
+    {
+      "kind": "section",
+      "id": "sec-model"
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-choose"
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-recall-fill"
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-match-pairs"
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-build"
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-judge"
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-find-fix"
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-categorize"
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-speak"
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-write"
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-write-bounded"
+    }
+  ],
+  "sections": [
+    {
+      "kind": "section",
+      "id": "sec-orient",
+      "role": "orient",
+      "title": "Orientation",
+      "objective_ids": ["obj-tour"],
+      "blocks": [
+        {
+          "kind": "heading",
+          "id": "sec-orient-block-1",
+          "level": 3,
+          "spans": [
+            {
+              "kind": "text",
+              "value": "Hva du skal øve på"
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "id": "sec-orient-block-2",
+          "spans": [
+            {
+              "kind": "text",
+              "value": "Jeg jobber i dag."
+            }
+          ]
+        },
+        {
+          "kind": "list",
+          "id": "sec-orient-block-3",
+          "ordered": true,
+          "items": [
+            [
+              {
+                "kind": "text",
+                "value": "én"
+              }
+            ],
+            [
+              {
+                "kind": "text",
+                "value": "to"
+              }
+            ]
+          ]
+        },
+        {
+          "kind": "rule",
+          "id": "sec-orient-block-4",
+          "statement": [
+            {
+              "kind": "text",
+              "value": "Adjektivet følger substantivet."
+            }
+          ]
+        },
+        {
+          "kind": "table",
+          "id": "sec-orient-block-6",
+          "col_langs": ["no", "en"],
+          "headers": [
+            [
+              {
+                "kind": "text",
+                "value": "norsk"
+              }
+            ],
+            [
+              {
+                "kind": "text",
+                "value": "engelsk"
+              }
+            ]
+          ],
+          "rows": [
+            [
+              [
+                {
+                  "kind": "text",
+                  "value": "dag"
+                }
+              ],
+              [
+                {
+                  "kind": "text",
+                  "value": "day"
+                }
+              ]
+            ]
+          ]
+        },
+        {
+          "kind": "callout",
+          "id": "sec-orient-block-7",
+          "level": "tip",
+          "blocks": [
+            {
+              "kind": "paragraph",
+              "id": "sec-orient-block-7-block-1",
+              "spans": [
+                {
+                  "kind": "text",
+                  "value": "Se etter -er endingen."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "section",
+      "id": "sec-model",
+      "role": "model",
+      "title": "A dialogue",
+      "objective_ids": ["obj-dialogue"],
+      "blocks": [
+        {
+          "kind": "reading",
+          "id": "sec-model-block-1",
+          "spans": [
+            {
+              "kind": "text",
+              "value": "Hvor er holdeplassen?"
+            }
+          ],
+          "translation": "Where is the bus stop?",
+          "audio_id": "audio-model",
+          "dialogue_id": "directions-1",
+          "speaker_id": "anna",
+          "speaker_name": "Anna",
+          "turn_index": 1
+        },
+        {
+          "kind": "reading",
+          "id": "sec-model-block-2",
+          "spans": [
+            {
+              "kind": "text",
+              "value": "Holdeplassen er der borte."
+            }
+          ],
+          "translation": "The stop is over there.",
+          "audio_id": "audio-example",
+          "dialogue_id": "directions-1",
+          "speaker_id": "ole",
+          "speaker_name": "Ole",
+          "turn_index": 2
+        },
+        {
+          "kind": "reading",
+          "id": "sec-model-block-3",
+          "spans": [
+            {
+              "kind": "text",
+              "value": "Takk!"
+            }
+          ],
+          "translation": "Thanks!"
+        },
+        {
+          "kind": "example",
+          "id": "sec-model-block-4",
+          "no": [
+            {
+              "kind": "text",
+              "value": "Jeg jobber i dag."
+            }
+          ],
+          "en": [
+            {
+              "kind": "text",
+              "value": "I am working today."
+            }
+          ]
+        },
+        {
+          "kind": "example",
+          "id": "sec-model-block-5-item-1",
+          "no": [
+            {
+              "kind": "text",
+              "value": "Han jobber."
+            }
+          ],
+          "en": [
+            {
+              "kind": "text",
+              "value": "He works."
+            }
+          ],
+          "audio_id": "audio-example"
+        },
+        {
+          "kind": "example",
+          "id": "sec-model-block-5-item-2",
+          "no": [
+            {
+              "kind": "text",
+              "value": "Hun jobber."
+            }
+          ],
+          "en": [
+            {
+              "kind": "text",
+              "value": "She works."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "exercises": [
+    {
+      "kind": "exercise",
+      "id": "tour-choose",
+      "operation": "choose",
+      "objective_id": "obj-tour",
+      "prompt": [
+        {
+          "kind": "text",
+          "value": "Choose the sentence about now."
+        }
+      ],
+      "explanation": null,
+      "payload": {
+        "stem": [
+          {
+            "kind": "text",
+            "value": "Mina jobber hjemme i dag."
+          }
+        ],
+        "options": [
+          {
+            "option_id": "now",
+            "text": "Noe som skjer nå.",
+            "why": "i dag"
+          },
+          {
+            "option_id": "habit",
+            "text": "Noe som skjer regelmessig.",
+            "why": "This is not the matching meaning."
+          }
+        ],
+        "answer_id": "now"
+      }
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-recall-fill",
+      "operation": "recall_fill",
+      "objective_id": "obj-tour",
+      "prompt": [
+        {
+          "kind": "text",
+          "value": "Fullfør setningen."
+        }
+      ],
+      "explanation": [
+        {
+          "kind": "text",
+          "value": "Presens bruker -er."
+        }
+      ],
+      "payload": {
+        "segments": [
+          {
+            "kind": "span",
+            "spans": [
+              {
+                "kind": "text",
+                "value": "Jeg "
+              }
+            ]
+          },
+          {
+            "kind": "blank",
+            "blank_id": "verb",
+            "options": ["jobber", "jobbet"],
+            "answer_index": 0
+          },
+          {
+            "kind": "span",
+            "spans": [
+              {
+                "kind": "text",
+                "value": " i dag."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-match-pairs",
+      "operation": "match_pairs",
+      "objective_id": "obj-tour",
+      "prompt": [
+        {
+          "kind": "text",
+          "value": "Match norsken og engelsken."
+        }
+      ],
+      "explanation": null,
+      "payload": {
+        "left": [
+          {
+            "left_id": "l1",
+            "text": "dag"
+          },
+          {
+            "left_id": "l2",
+            "text": "natt"
+          }
+        ],
+        "right": [
+          {
+            "right_id": "r1",
+            "text": "night"
+          },
+          {
+            "right_id": "r2",
+            "text": "day"
+          }
+        ],
+        "pairs": [
+          {
+            "left_id": "l1",
+            "right_id": "r2"
+          },
+          {
+            "left_id": "l2",
+            "right_id": "r1"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-build",
+      "operation": "build",
+      "objective_id": "obj-tour",
+      "prompt": [
+        {
+          "kind": "text",
+          "value": "Bygg setningen."
+        }
+      ],
+      "explanation": null,
+      "payload": {
+        "tokens": [
+          {
+            "token_id": "jeg",
+            "text": "Jeg",
+            "fixed": true
+          },
+          {
+            "token_id": "jobber",
+            "text": "jobber",
+            "fixed": false
+          },
+          {
+            "token_id": "idag",
+            "text": "i dag",
+            "fixed": false
+          }
+        ],
+        "answer_order": ["jeg", "jobber", "idag"]
+      }
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-judge",
+      "operation": "judge",
+      "objective_id": "obj-tour",
+      "prompt": [
+        {
+          "kind": "text",
+          "value": "Er dette korrekt?"
+        }
+      ],
+      "explanation": null,
+      "payload": {
+        "sentence": [
+          {
+            "kind": "text",
+            "value": "Jeg jobber i går."
+          }
+        ],
+        "is_correct": false,
+        "feedback": "i dag presens, i går preteritum"
+      }
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-find-fix",
+      "operation": "find_fix",
+      "objective_id": "obj-tour",
+      "prompt": [
+        {
+          "kind": "text",
+          "value": "Finn feilen."
+        }
+      ],
+      "explanation": null,
+      "payload": {
+        "tokens": [
+          {
+            "token_id": "jeg",
+            "text": "Jeg"
+          },
+          {
+            "token_id": "jobbet",
+            "text": "jobbet"
+          },
+          {
+            "token_id": "idag",
+            "text": "i dag"
+          }
+        ],
+        "error_token_id": "jobbet",
+        "feedback": "jobber"
+      }
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-categorize",
+      "operation": "categorize",
+      "objective_id": "obj-tour",
+      "prompt": [
+        {
+          "kind": "text",
+          "value": "Sorter verbene."
+        }
+      ],
+      "explanation": null,
+      "payload": {
+        "buckets": [
+          {
+            "bucket_id": "presens",
+            "label": "Presens"
+          },
+          {
+            "bucket_id": "preteritum",
+            "label": "Preteritum"
+          }
+        ],
+        "items": [
+          {
+            "item_id": "a",
+            "text": "jobber",
+            "bucket_id": "presens"
+          },
+          {
+            "item_id": "b",
+            "text": "jobbet",
+            "bucket_id": "preteritum"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-speak",
+      "operation": "speak",
+      "objective_id": "obj-tour",
+      "prompt": [
+        {
+          "kind": "text",
+          "value": "Si setningen høyt."
+        }
+      ],
+      "explanation": null,
+      "payload": {
+        "target": "Jeg jobber i dag."
+      }
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-write",
+      "operation": "write",
+      "objective_id": "obj-tour",
+      "prompt": [
+        {
+          "kind": "text",
+          "value": "Skriv om dagen din."
+        }
+      ],
+      "explanation": null,
+      "payload": {
+        "response_language": "no",
+        "min_words": null,
+        "max_words": null,
+        "judge_prompt": "Judge a short Norwegian paragraph.",
+        "criteria": [
+          {
+            "id": "c1",
+            "instruction": "Bruker presens."
+          }
+        ]
+      }
+    },
+    {
+      "kind": "exercise",
+      "id": "tour-write-bounded",
+      "operation": "write",
+      "objective_id": "obj-dialogue",
+      "prompt": [
+        {
+          "kind": "text",
+          "value": "Skriv to setninger."
+        }
+      ],
+      "explanation": null,
+      "payload": {
+        "response_language": "no",
+        "min_words": 5,
+        "max_words": 40,
+        "judge_prompt": "Judge a short Norwegian paragraph.",
+        "criteria": [
+          {
+            "id": "c1",
+            "instruction": "Nevner en aktivitet."
+          },
+          {
+            "id": "c2",
+            "instruction": "Bruker riktig ordstilling."
+          }
+        ]
+      }
+    }
+  ],
+  "practice_groups": [
+    {
+      "id": "practice-obj-tour",
+      "objective_id": "obj-tour",
+      "exercise_ids": [
+        "tour-choose",
+        "tour-recall-fill",
+        "tour-match-pairs",
+        "tour-build",
+        "tour-judge",
+        "tour-find-fix",
+        "tour-categorize",
+        "tour-speak",
+        "tour-write"
+      ]
+    },
+    {
+      "id": "practice-obj-dialogue",
+      "objective_id": "obj-dialogue",
+      "exercise_ids": ["tour-write-bounded"]
+    }
+  ],
+  "media": {
+    "audio": [
+      {
+        "id": "audio-model",
+        "path": "audio/lessons/operations_tour/00000000-0000-4000-8000-000000000001.wav",
+        "url": "https://media.example.test/audio/lessons/operations_tour/00000000-0000-4000-8000-000000000001.wav",
+        "mime": "audio/wav",
+        "duration_ms": 100,
+        "sha256": "c726d333dd159a31423f3480dbb1c5c4a9dfcd30efe1f7e12ade390dc92e8908",
+        "status": "synthesized"
+      },
+      {
+        "id": "audio-example",
+        "path": "audio/lessons/operations_tour/00000000-0000-4000-8000-000000000002.wav",
+        "url": "https://media.example.test/audio/lessons/operations_tour/00000000-0000-4000-8000-000000000002.wav",
+        "mime": "audio/wav",
+        "duration_ms": 100,
+        "sha256": "c726d333dd159a31423f3480dbb1c5c4a9dfcd30efe1f7e12ade390dc92e8908",
+        "status": "synthesized"
+      }
+    ]
+  }
+}

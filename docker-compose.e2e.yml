@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: flyt_e2e
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d flyt_e2e"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/tests/fixtures/e2e:/app/tests/fixtures/e2e:ro
+    environment: &backend_env
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/flyt_e2e
+      REDIS_URL: redis://redis:6379
+      ENV: e2e
+      ENABLE_E2E_TEST_AUTH: "true"
+      SECRET_KEY: e2e-secret-key-use-a-real-one-only-for-production
+      ADMIN_SESSION_SECRET: e2e-admin-session-secret-use-a-real-one-in-production
+      GOOGLE_CLIENT_ID: e2e-google-client-id
+      GOOGLE_CLIENT_SECRET: e2e-google-client-secret
+      OAUTH_SESSION_SECRET: e2e-oauth-session-secret
+      PROVIDER_CREDENTIAL_ENCRYPTION_KEYS: '["wHSKA4TUDMuFtp8ZSA6JtccDnozP86AbZo9PHvmpVVk="]'
+      FRONTEND_ORIGINS: '["http://127.0.0.1:4173","http://localhost:4173"]'
+      FRONTEND_LOGIN_SUCCESS_URL: http://127.0.0.1:4173/home
+      FRONTEND_LOGIN_FAILURE_URL: http://127.0.0.1:4173/login
+      # Real OpenRouter key sourced from the host environment only — never
+      # hard-coded. The story-generation worker uses this to call the model.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Disable the openrouter provider when the host did not export a key, so
+      # suites that don't exercise generation still boot instead of crashing.
+      # ChatGPT stays offered (locked) so the surface mirrors production.
+      STORY_GENERATION_ENABLED_PROVIDERS: ${STORY_GENERATION_ENABLED_PROVIDERS:-["openrouter","chatgpt"]}
+    ports:
+      - "${FLYT_E2E_API_PORT:-18000}:8000"
+
+  # Imports are enqueued by the API and only reach `ready` once the worker
+  # processes them, so the import journey is untestable without this service.
+  worker:
+    build:
+      context: ./backend
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *backend_env
+      # The API container already ran `alembic upgrade head` on boot.
+      RUN_MIGRATIONS: "false"
+    command: ["arq", "flyt.worker.WorkerSettings"]
+
+volumes:
+  postgres_data:

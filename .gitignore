@@ -1,0 +1,112 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+.cursor/
+.opencode/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Project planning
+plans/
+openspec/
+.superpowers/
+.claude/
+
+# Pipeline debris
+data/unmatched.csv
+
+# Backend (Python)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+# The committed v4 lesson release fixture intentionally uses a dist/ layout.
+!backend/tests/fixtures/e2e/lesson-data/dist/
+!backend/tests/fixtures/e2e/lesson-data/dist/**
+downloads/
+eggs/
+.eggs/
+
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+backend/venv/
+backend/env/
+backend/ENV/
+backend/.venv/
+backend/.uv/
+backend/.coverage
+backend/htmlcov/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/norsk.egg-info/
+
+# Frontend (Node/React)
+node_modules/
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+frontend/build/
+frontend/dist/
+frontend/dist-ssr/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+extension/playwright-report/
+extension/test-results/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+frontend/.vite/
+frontend/storybook-static/
+*.log
+.playwright-mcp/
+
+# debug screenshots (keep local, never commit)
+/*.png
+
+# nested Claude workspace artifacts
+frontend/.claude/
+
+# TanStack Router generated temp files
+frontend/.tanstack/
+
+# Visual-companion runtime markers and state (keep design content tracked)
+.agent-skills/visual-companion/.last-port
+.agent-skills/visual-companion/.last-token
+.agent-skills/visual-companion/*/state/
+.agent-skills/visual-companion/*/state/**
+
+# Spike credentials (never commit)
+openspec/changes/**/artifacts/spike/*.json

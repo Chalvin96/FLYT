@@ -1,0 +1,104 @@
+{
+  "source_article_id": 11072,
+  "lemmas": [
+    {
+      "lemma": "du",
+      "hgno": 0,
+      "pos": "PRON",
+      "source_lemma_id": 12911,
+      "is_sub_article": false,
+      "primary_translation": "you",
+      "word_forms": [
+        {
+          "word_form": "du",
+          "tags_json": [
+            "Prs",
+            "2",
+            "Sing",
+            "Hum",
+            "Nom"
+          ]
+        },
+        {
+          "word_form": "deg",
+          "tags_json": [
+            "Prs",
+            "2",
+            "Sing",
+            "Hum",
+            "Acc"
+          ]
+        }
+      ]
+    }
+  ],
+  "cross_reference": null,
+  "definitions": [
+    {
+      "text": "2. person entall, i tiltale",
+      "translation": "you (used in direct address)",
+      "examples": [
+        {
+          "no": "hallo, er det dudeg)?",
+          "en": "hello, is that you?"
+        },
+        {
+          "no": "kan ikke du hjelpe meg litt?",
+          "en": null
+        },
+        {
+          "no": "jeg er like stor som, større enn dudeg)",
+          "en": null
+        },
+        {
+          "no": "hvis jeg var deg, ville jeg ha ringt først",
+          "en": null
+        },
+        {
+          "no": "dette ligner ikke deg",
+          "en": null
+        },
+        {
+          "no": "si du til hverandre",
+          "en": null
+        },
+        {
+          "no": "du Hellige Ånd, min trøster",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "i utrop:",
+      "translation": "you (used in exclamations)",
+      "examples": [
+        {
+          "no": "du store min!",
+          "en": null
+        },
+        {
+          "no": "du, å du !",
+          "en": null
+        },
+        {
+          "no": "kjære, snille deg!",
+          "en": null
+        },
+        {
+          "no": "du skal akte deg!",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "en, man",
+      "translation": "you (singular, informal)",
+      "examples": [
+        {
+          "no": "du skal ikke stjele",
+          "en": null
+        }
+      ]
+    }
+  ]
+}

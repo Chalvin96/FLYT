@@ -1,0 +1,107 @@
+name: STT
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "stt-svc/**"
+      - ".github/workflows/stt.yml"
+  pull_request:
+    paths:
+      - "stt-svc/**"
+      - ".github/workflows/stt.yml"
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  validate-stt:
+    if: github.event_name == 'pull_request'
+    name: Validate STT image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Resolve image name
+        id: images
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "image=${{ env.REGISTRY }}/$owner/flyt-stt" >> "$GITHUB_OUTPUT"
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.images.outputs.image }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build STT image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./stt-svc
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          build-args: |
+            MODEL_BUNDLE_URL=https://media.umebocchi.my.id/models/nb/nb-whisper-medium-int8.tar.gz
+            MODEL_BUNDLE_SHA256=c079d580abcfec05891c3b751dd1d697cb93abf7f6c1561c2dc8035c0e2894b9
+
+  publish-stt:
+    if: github.event_name == 'push'
+    name: Build & Push STT
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Resolve image name
+        id: images
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "image=${{ env.REGISTRY }}/$owner/flyt-stt" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.images.outputs.image }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: ./stt-svc
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            MODEL_BUNDLE_URL=https://media.umebocchi.my.id/models/nb/nb-whisper-medium-int8.tar.gz
+            MODEL_BUNDLE_SHA256=c079d580abcfec05891c3b751dd1d697cb93abf7f6c1561c2dc8035c0e2894b9

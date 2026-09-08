@@ -1,0 +1,408 @@
+name: CI
+
+# Reusable pipeline shared by pr.yml and master.yml so checks can't drift.
+on:
+  workflow_call:
+
+jobs:
+  openspec-validation:
+    name: OpenSpec Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Validate OpenSpec artifacts
+        run: pnpm spec:validate
+
+  convention-quality-ratchet:
+    name: Repository Convention Ratchet
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check changed repository conventions
+        run: |
+          python3 scripts/test_quality_checkers.py
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+          if git cat-file -e "$base^{commit}" 2>/dev/null && git merge-base --is-ancestor "$base" "${{ github.sha }}"; then
+            python3 scripts/check_conventions.py --range "$base...${{ github.sha }}"
+          else
+            echo "Diff base is unavailable or unrelated after a history rewrite; skipping the changed-line ratchet."
+          fi
+
+  dependency-audits:
+    name: Dependency Audits
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: 3.12
+          enable-cache: true
+      - name: Install backend dependencies
+        run: uv sync --directory backend --locked --group dev
+      - name: Audit Python dependencies
+        run: uv run --directory backend --locked pip-audit --local
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Audit production Node dependencies
+        run: pnpm audit --prod --audit-level high
+
+  backend-test-name-ratchet:
+    name: Backend Test Name Ratchet
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check newly added backend test names
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+          if git cat-file -e "$base^{commit}" 2>/dev/null && git merge-base --is-ancestor "$base" "${{ github.sha }}"; then
+            python3 scripts/check_test_names.py --range "$base...${{ github.sha }}" --scope backend
+          else
+            echo "Diff base is unavailable or unrelated after a history rewrite; skipping the changed-line ratchet."
+          fi
+
+  frontend-test-name-ratchet:
+    name: Frontend Test Name Ratchet
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check newly added frontend test names
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+          if git cat-file -e "$base^{commit}" 2>/dev/null && git merge-base --is-ancestor "$base" "${{ github.sha }}"; then
+            python3 scripts/check_test_names.py --range "$base...${{ github.sha }}" --scope frontend
+          else
+            echo "Diff base is unavailable or unrelated after a history rewrite; skipping the changed-line ratchet."
+          fi
+
+  react-doctor-ratchet:
+    name: React Doctor Ratchet
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check React Doctor findings against baseline
+        run: python3 scripts/check_react_doctor.py
+
+  backend-checks:
+    name: Backend Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: 3.12
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --group dev
+      - name: Run backend checks
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy --config-file pyproject.toml
+      - name: Audit all Ruff rules
+        run: uv run ruff check --select ALL --exit-zero --statistics .
+
+  backend-migrations:
+    name: Backend Migration Drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      SECRET_KEY: test-secret-key-for-ci-checks-only-not-production
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/test_db
+      GOOGLE_CLIENT_ID: test-google-client-id
+      GOOGLE_CLIENT_SECRET: test-google-client-secret
+      OAUTH_SESSION_SECRET: test-oauth-session-secret
+      ADMIN_SESSION_SECRET: test-admin-session-secret-for-ci-checks-only
+      PROVIDER_CREDENTIAL_ENCRYPTION_KEYS: '["75hH1I4ozUK1ujpX7m1rRO74LGBRdW70C508CPxYhVo="]'
+      OPENROUTER_API_KEY: ci-openrouter-key-not-real
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: 3.12
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --group dev
+      - name: Check migration drift
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
+
+  frontend-checks:
+    name: Frontend Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: 3.12
+          enable-cache: true
+      - name: Run frontend checks
+        run: |
+          pnpm api:types:check
+          pnpm lint
+          pnpm type-check
+          pnpm format:check
+          pnpm format:check:packages
+          pnpm build
+
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d test_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      SECRET_KEY: ci-test-secret-key-use-a-real-one-in-production
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/test_db
+      TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/test_db
+      GOOGLE_CLIENT_ID: test-google-client-id
+      GOOGLE_CLIENT_SECRET: test-google-client-secret
+      OAUTH_SESSION_SECRET: test-oauth-session-secret
+      ADMIN_SESSION_SECRET: ci-admin-session-secret-use-a-real-one-in-production
+      PROVIDER_CREDENTIAL_ENCRYPTION_KEYS: '["75hH1I4ozUK1ujpX7m1rRO74LGBRdW70C508CPxYhVo="]'
+      REDIS_URL: redis://localhost:6379/0
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: 3.12
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --group dev
+      - name: Run tests
+        run: uv run pytest --cov=flyt --cov-report=term-missing
+
+  morph-svc-tests:
+    name: Morph Service Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: morph-svc
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: 3.12
+      - name: Run checks
+        run: |
+          uv run --no-project --with 'ruff==0.15.18' ruff check .
+          uv run --no-project --with 'ruff==0.15.18' ruff format --check .
+          uv run --no-project --with 'mypy==2.1.0' python -m mypy .
+      - name: Run tests
+        run: uv run --no-project --with 'pytest>=8.0.0' python -m pytest -q
+
+  stt-svc-tests:
+    name: STT Service Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: stt-svc
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: 3.12
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked --group dev
+      - name: Run checks
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run pytest -q
+
+  extension-checks:
+    name: Extension Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run extension checks
+        run: |
+          pnpm --filter @flyt/extension type-check
+          pnpm --filter @flyt/extension test
+          pnpm --filter @flyt/extension build
+
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Install Playwright browser (for Storybook play-tests)
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run unit tests
+        run: pnpm test
+      - name: Run Storybook play-tests
+        env:
+          STORYBOOK_DISABLE_TELEMETRY: "1"
+        run: pnpm test:storybook
+
+  security-scan:
+    name: Security Scan (Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Trivy repo scan (vulns, misconfig, secrets)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"

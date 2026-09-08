@@ -1,0 +1,22 @@
+[
+  {
+    "reading_group_key": "everyday",
+    "reading_group_title": "Everyday Norwegian",
+    "reading_group_order": 1,
+    "slug": "e2e-morning-book",
+    "title": "Morgen med boka",
+    "cefr_level": "A1",
+    "content": "Jeg har en bok. Boka er liten og god.\n\nDu kan se boka. Vi snakker om mat.",
+    "is_ready": true
+  },
+  {
+    "reading_group_key": "everyday",
+    "reading_group_title": "Everyday Norwegian",
+    "reading_group_order": 1,
+    "slug": "e2e-walk-to-food",
+    "title": "Vi går til mat",
+    "cefr_level": "A1",
+    "content": "Jeg går. Du kommer. Vi har mat og en stor bok.",
+    "is_ready": true
+  }
+]

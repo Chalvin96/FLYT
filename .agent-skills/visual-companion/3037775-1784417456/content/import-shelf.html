@@ -1,0 +1,124 @@
+<h2>Imports on the reading home — faithful to your shelf cards</h2>
+<p class="subtitle">Same <code>AppCard</code> shelf as a theme section (280px cards, cover band, Outfit title, status chip top-right). The real problem: imports have <strong>no CEFR level</strong>, so the CEFR cover band doesn't apply. Two cover treatments below — pick one. Curated card (A2, right) shown for comparison.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Preview A — imports keep the cover band (source-tinted)</div>
+  <div class="mockup-body">
+    <div class="flyt">
+      <div class="shelf-head">
+        <div class="type-title">Your imports</div>
+        <span class="link">+ Import text</span>
+      </div>
+      <div class="shelf">
+
+        <!-- processing -->
+        <div class="card">
+          <span class="chip chip-processing"><span class="dot dot-pulse"></span>Processing…</span>
+          <div class="cover cover-busy"></div>
+          <div class="card-body">
+            <div class="card-title" style="color:var(--muted-foreground)">Klimaendringene i Arktis</div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <div class="skel" style="width:90%"></div>
+              <div class="skel" style="width:72%"></div>
+            </div>
+            <div class="meta-row">Auto-updates when ready</div>
+          </div>
+        </div>
+
+        <!-- ready -->
+        <div class="card ready">
+          <span class="chip chip-ready">✓ Ready</span>
+          <div class="cover cover-import">nrk.no</div>
+          <div class="card-body">
+            <div class="card-title">Historien om Norge</div>
+            <div class="card-preview">Norge har en lang historie som strekker seg tilbake til vikingtiden og videre…</div>
+            <div class="meta-row">1 240 words · 6 pages</div>
+          </div>
+        </div>
+
+        <!-- failed -->
+        <div class="card">
+          <span class="chip chip-failed">! Failed</span>
+          <div class="cover cover-import" style="background:linear-gradient(135deg,var(--destructive-70),var(--warning-60))">Import failed</div>
+          <div class="card-body">
+            <div class="card-title">Uklar tekst fra blogg</div>
+            <div class="card-preview">Couldn't process this text — it may be too short or not Norwegian.</div>
+            <div class="meta-row" style="gap:8px;margin-top:auto">
+              <button class="btn btn-primary">Retry</button>
+              <button class="btn btn-outline">Delete</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- curated reference -->
+        <div class="card ready" style="opacity:.85">
+          <div class="cover cover-A2">A2</div>
+          <div class="card-body">
+            <div class="card-title">En dag på skolen</div>
+            <div class="card-preview">Curated story for comparison — CEFR cover + level badge.</div>
+            <div class="meta-row">Jul 12 · 480 words</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup" style="margin-top:22px">
+  <div class="mockup-header">Preview B — no cover band, text-forward (imports read as "yours", not curated)</div>
+  <div class="mockup-body">
+    <div class="flyt">
+      <div class="shelf-head">
+        <div class="type-title">Your imports</div>
+        <span class="link">+ Import text</span>
+      </div>
+      <div class="shelf">
+
+        <div class="card-flat">
+          <span class="chip chip-processing" style="position:static;align-self:flex-start"><span class="dot dot-pulse"></span>Processing…</span>
+          <div class="card-title" style="color:var(--muted-foreground)">Klimaendringene i Arktis</div>
+          <div class="skel" style="width:88%"></div>
+          <div class="skel" style="width:64%"></div>
+          <div class="meta-row">Auto-updates when ready</div>
+        </div>
+
+        <div class="card-flat ready" style="cursor:pointer">
+          <span class="chip chip-ready" style="position:static;align-self:flex-start">✓ Ready</span>
+          <div class="card-title">Historien om Norge</div>
+          <div class="card-preview">Norge har en lang historie som strekker seg tilbake til vikingtiden…</div>
+          <div class="meta-row">1 240 words · 6 pages · nrk.no</div>
+        </div>
+
+        <div class="card-flat">
+          <span class="chip chip-failed" style="position:static;align-self:flex-start">! Failed</span>
+          <div class="card-title">Uklar tekst fra blogg</div>
+          <div class="card-preview">Couldn't process this text — it may be too short or not Norwegian.</div>
+          <div class="meta-row" style="gap:8px">
+            <button class="btn btn-primary">Retry</button>
+            <button class="btn btn-outline">Delete</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">Which cover treatment for import cards?</h3>
+<div class="options">
+  <div class="option" data-choice="cover" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Keep the cover band (source-tinted)</h3>
+      <p>Imports match curated shelf rhythm; cover shows source domain / "Pasted" instead of a CEFR level. Consistent, but visually similar to curated content.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="flat" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>No cover band, text-forward</h3>
+      <p>Imports look deliberately different from curated — signals "your private text, not an official lesson." Lighter to build, no cover asset to design.</p>
+    </div>
+  </div>
+</div>

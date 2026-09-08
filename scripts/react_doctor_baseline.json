@@ -1,0 +1,31 @@
+{
+  "version": "0.9.13",
+  "scan_args": [
+    "--no-dead-code",
+    "--no-supply-chain"
+  ],
+  "max_errors": 0,
+  "max_warnings_by_rule": {
+    "exhaustive-deps": 0,
+    "js-combine-iterations": 8,
+    "js-flatmap-filter": 0,
+    "no-adjust-state-on-prop-change": 1,
+    "no-array-index-as-key": 6,
+    "no-cascading-set-state": 0,
+    "no-effect-chain": 0,
+    "no-effect-event-handler": 1,
+    "no-giant-component": 3,
+    "no-high-complexity-react-function": 21,
+    "no-many-boolean-props": 2,
+    "no-pass-live-state-to-parent": 2,
+    "no-placeholder-only-field": 0,
+    "no-prop-callback-in-effect": 0,
+    "no-reset-all-state-on-prop-change": 0,
+    "no-spread-accumulator-in-reduce": 0,
+    "no-transition-all": 0,
+    "only-export-components": 4,
+    "prefer-html-dialog": 0,
+    "prefer-tag-over-role": 1,
+    "use-lazy-motion": 8
+  }
+}

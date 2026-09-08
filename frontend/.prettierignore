@@ -1,0 +1,8 @@
+dist
+node_modules
+storybook-static
+*.yaml
+src/routeTree.gen.ts
+src/types/api.generated.ts
+test-results
+playwright-report

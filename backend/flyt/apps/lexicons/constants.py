@@ -1,0 +1,15 @@
+K_LEXICON_SEARCH_QUERY_MIN_LENGTH = 1
+K_LEXICON_SUGGEST_QUERY_MIN_LENGTH = 2
+K_LEXICON_BROWSE_QUERY_MIN_LENGTH = 2
+K_LEXICON_QUERY_MAX_LENGTH = 50
+K_LEXICON_SUGGESTIONS_LIMIT = 8
+
+K_LEXICON_MATCH_KIND_EXACT = 0
+# Wordform-exact ranks above prefix-headword: "leser" -> "lese" is the same word
+# inflected, whereas "leserbrev" merely shares a prefix.
+K_LEXICON_MATCH_KIND_WORDFORM_EXACT = 1
+K_LEXICON_MATCH_KIND_PREFIX = 2
+K_LEXICON_MATCH_KIND_WORDFORM_PREFIX = 3
+
+K_LEXICON_INVALID_QUERY_MESSAGE = "Query contains invalid characters"
+K_LEXICON_BROWSE_NOT_FOUND_MESSAGE = "No headword found for query"

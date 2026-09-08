@@ -1,0 +1,434 @@
+{
+  "source_article_id": 20435,
+  "lemmas": [
+    {
+      "lemma": "god",
+      "hgno": 0,
+      "pos": "ADJ",
+      "source_lemma_id": 23867,
+      "is_sub_article": false,
+      "primary_translation": "good / fine / skilled / healthy / pleasant / ample / simple / justified / respectable / kind / well",
+      "word_forms": [
+        {
+          "word_form": "god",
+          "tags_json": [
+            "a1",
+            "Pos",
+            "Masc/Fem",
+            "Ind",
+            "Sing"
+          ]
+        },
+        {
+          "word_form": "gode",
+          "tags_json": [
+            "a1",
+            "Pos",
+            "Plur",
+            "Def",
+            "Sing"
+          ]
+        },
+        {
+          "word_form": "godt",
+          "tags_json": [
+            "a1",
+            "Pos",
+            "Neuter",
+            "Ind",
+            "Sing"
+          ]
+        },
+        {
+          "word_form": "bedre",
+          "tags_json": [
+            "a1",
+            "Cmp"
+          ]
+        },
+        {
+          "word_form": "best",
+          "tags_json": [
+            "a1",
+            "Sup",
+            "Ind"
+          ]
+        },
+        {
+          "word_form": "beste",
+          "tags_json": [
+            "a1",
+            "Sup",
+            "Def"
+          ]
+        }
+      ]
+    }
+  ],
+  "cross_reference": null,
+  "definitions": [
+    {
+      "text": "av høy kvalitet",
+      "translation": "of high quality",
+      "examples": []
+    },
+    {
+      "text": "bra, fin, utmerket",
+      "translation": "fine, excellent",
+      "examples": []
+    },
+    {
+      "text": "tilfredsstillende, gagnlig, tjenlig",
+      "translation": "satisfactory, beneficial, suitable",
+      "examples": [
+        {
+          "no": "en god kniv",
+          "en": "a good knife"
+        },
+        {
+          "no": "et godt fotografi",
+          "en": null
+        },
+        {
+          "no": "gode veier",
+          "en": null
+        },
+        {
+          "no": "se en god film",
+          "en": null
+        },
+        {
+          "no": "få godt vær",
+          "en": null
+        },
+        {
+          "no": "gjøre en god handel",
+          "en": null
+        },
+        {
+          "no": "ha god helse",
+          "en": null
+        },
+        {
+          "no": "et godt spørsmål",
+          "en": null
+        },
+        {
+          "no": "ha gode intensjoner",
+          "en": null
+        },
+        {
+          "no": "det var gode tider",
+          "en": null
+        },
+        {
+          "no": "få gode nyheter",
+          "en": null
+        },
+        {
+          "no": "et godt tegn",
+          "en": null
+        },
+        {
+          "no": "i gode, gamle dager",
+          "en": null
+        },
+        {
+          "no": "godt gjort!",
+          "en": null
+        },
+        {
+          "no": "gjøre så godt en kan",
+          "en": null
+        },
+        {
+          "no": "komme godt overens",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "om person: flink, dyktig, dugende",
+      "translation": "about a person: skilled, capable, competent",
+      "examples": [
+        {
+          "no": "en god lærer",
+          "en": null
+        },
+        {
+          "no": "en god snekker",
+          "en": null
+        },
+        {
+          "no": "være god i tysk og matematikk",
+          "en": null
+        },
+        {
+          "no": "hun var god på ski",
+          "en": null
+        },
+        {
+          "no": "han er god til å danse",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "om person eller kroppsfunksjon: frisk, bra",
+      "translation": "about a person or bodily function: healthy, well",
+      "examples": [
+        {
+          "no": "hun er fortsatt ikke god i magen",
+          "en": null
+        },
+        {
+          "no": "bli god i ryggen igjen",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "som gir velvære",
+      "translation": "providing well-being",
+      "examples": []
+    },
+    {
+      "text": "som en nyter",
+      "translation": "that one enjoys",
+      "examples": []
+    },
+    {
+      "text": "velsmakende, velluktende",
+      "translation": "tasty, fragrant",
+      "examples": []
+    },
+    {
+      "text": "behagelig",
+      "translation": "pleasant",
+      "examples": [
+        {
+          "no": "spise god mat",
+          "en": null
+        },
+        {
+          "no": "drikke godt øl",
+          "en": null
+        },
+        {
+          "no": "sitte i en god sofa",
+          "en": null
+        },
+        {
+          "no": "maten smaker godt",
+          "en": null
+        },
+        {
+          "no": "sitter du godt?",
+          "en": null
+        },
+        {
+          "no": "ha det godt",
+          "en": null
+        },
+        {
+          "no": "leve godt",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "stor, romslig",
+      "translation": "large, spacious",
+      "examples": [
+        {
+          "no": "ha god plass",
+          "en": null
+        },
+        {
+          "no": "ha god råd",
+          "en": null
+        },
+        {
+          "no": "ha god tid",
+          "en": null
+        },
+        {
+          "no": "holde god fart",
+          "en": null
+        },
+        {
+          "no": "ha god hjelp av noen",
+          "en": null
+        },
+        {
+          "no": "hytta ligger en god mil fra veien",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "brukt som adverb: i høy grad",
+      "translation": "used as: to a high degree",
+      "examples": [
+        {
+          "no": "da han hørte det, ble han godt forbannet",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "enkel, lett, grei",
+      "translation": "simple, easy, straightforward",
+      "examples": [
+        {
+          "no": "det er ikke så godt å vite",
+          "en": null
+        },
+        {
+          "no": "han er ikke så god å tukte",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "fullverdig, fullgod",
+      "translation": "full-fledged, fully adequate",
+      "examples": [
+        {
+          "no": "ha godt håp om noe",
+          "en": null
+        },
+        {
+          "no": "ha gode grunner for noe",
+          "en": null
+        },
+        {
+          "no": "være i sin gode rett",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "gjev, respektabel",
+      "translation": "distinguished, respectable",
+      "examples": [
+        {
+          "no": "være av god familie",
+          "en": null
+        },
+        {
+          "no": "gode borgere",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "med moralsk ønskverdige egenskaper",
+      "translation": "with morally desirable qualities",
+      "examples": []
+    },
+    {
+      "text": "som vil eller gjør det rette",
+      "translation": "that wants or does what is right",
+      "examples": []
+    },
+    {
+      "text": "rettferdig, edel",
+      "translation": "righteous, noble",
+      "examples": []
+    },
+    {
+      "text": "snill, vennlig, velgjørende",
+      "translation": "kind, friendly, benevolent",
+      "examples": [
+        {
+          "no": "et godt menneske",
+          "en": null
+        },
+        {
+          "no": "være god mot noen",
+          "en": null
+        },
+        {
+          "no": "være snill og god",
+          "en": null
+        },
+        {
+          "no": "hun har mange gode sider",
+          "en": null
+        },
+        {
+          "no": "gode gjerninger",
+          "en": null
+        },
+        {
+          "no": "ha et godt hjerte",
+          "en": null
+        },
+        {
+          "no": "tro for godt om noen",
+          "en": null
+        },
+        {
+          "no": "gjøre det gode",
+          "en": null
+        },
+        {
+          "no": "vite forskjellen på godt og ondt",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "brukt i utrop",
+      "translation": "used in exclamation",
+      "examples": [
+        {
+          "no": "gode Gud!",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "brukt som adverb: vel",
+      "translation": "used as: well",
+      "examples": [
+        {
+          "no": "det vet du godt",
+          "en": null
+        },
+        {
+          "no": "det kan godt hende",
+          "en": null
+        },
+        {
+          "no": "du kan godt være med",
+          "en": null
+        },
+        {
+          "no": "det går godt an",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "brukt i hilsen eller ønske",
+      "translation": "used in greeting or wish",
+      "examples": []
+    },
+    {
+      "text": "jamfør god dag, god kveld, god morgen og god natt",
+      "translation": "good day, good evening, good morning, and good night",
+      "examples": [
+        {
+          "no": "godt nyttår!",
+          "en": null
+        },
+        {
+          "no": "god jul!",
+          "en": null
+        }
+      ]
+    }
+  ]
+}

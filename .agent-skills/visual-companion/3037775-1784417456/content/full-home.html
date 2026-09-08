@@ -1,0 +1,137 @@
+<h2>Reading home — full page with imports integrated</h2>
+<p class="subtitle">Top to bottom: today's story hero (curated, unchanged) → new "Your imports" section → curated theme shelves (unchanged). Imports sit between the hero and curated themes. Scroll the shelves horizontally.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Preview: /reading — logged-in learner with 3 imports</div>
+  <div class="mockup-body" style="padding:0">
+    <div class="flyt">
+      <div class="home">
+
+        <!-- HERO (curated, unchanged) -->
+        <div class="hero">
+          <div class="deco"></div>
+          <div class="label">Today's story</div>
+          <span class="pill">Reading</span>
+          <h1>En dag på fjellet</h1>
+          <div class="sub">Følg Maria på en tur i de norske fjellene, der været skifter raskt og naturen tar pusten fra deg.</div>
+          <div class="meta">
+            <span class="cefr">A2</span>
+            <span style="color:rgba(255,255,255,.72);font-size:.85rem">Friluftsliv</span>
+          </div>
+          <button class="start">Start reading</button>
+        </div>
+
+        <!-- YOUR IMPORTS (new) -->
+        <section>
+          <div class="shelf-head">
+            <div class="type-title">Your imports</div>
+            <button class="import-btn">+ Import text</button>
+          </div>
+          <div class="shelf">
+
+            <div class="card">
+              <span class="chip chip-processing"><span class="dot dot-pulse"></span>Processing…</span>
+              <div class="cover cover-busy"></div>
+              <div class="card-body">
+                <div class="card-title" style="color:var(--muted-foreground)">Klimaendringene i Arktis</div>
+                <div style="display:flex;flex-direction:column;gap:7px">
+                  <div class="skel" style="width:90%"></div>
+                  <div class="skel" style="width:70%"></div>
+                </div>
+                <div class="meta-row" style="margin-top:auto">Auto-updates when ready</div>
+              </div>
+            </div>
+
+            <div class="card ready">
+              <span class="chip chip-ready">✓ Ready</span>
+              <div class="cover cover-import">nrk.no</div>
+              <div class="card-body">
+                <div class="card-title">Historien om Norge</div>
+                <div class="card-preview">Norge har en lang historie som strekker seg tilbake til vikingtiden og videre gjennom…</div>
+                <div class="meta-row" style="margin-top:auto">1 240 words · 6 pages</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <span class="chip chip-failed">! Failed</span>
+              <div class="cover" style="background:linear-gradient(135deg,var(--destructive-70),var(--warning-60));color:#fff;display:flex;align-items:flex-end;padding:12px;font-weight:600;font-size:.85rem">Import failed</div>
+              <div class="card-body">
+                <div class="card-title">Uklar tekst fra blogg</div>
+                <div class="card-preview">Couldn't process this text — it may be too short or not Norwegian.</div>
+                <div class="meta-row" style="gap:8px;margin-top:auto">
+                  <button class="btn btn-primary">Retry</button>
+                  <button class="btn btn-outline">Delete</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card ready">
+              <span class="chip chip-ready">✓ Ready</span>
+              <div class="cover cover-import" style="background:linear-gradient(135deg,var(--secondary-60),var(--secondary-80))">Pasted</div>
+              <div class="card-body">
+                <div class="card-title">Pasta-oppskrift</div>
+                <div class="card-preview">Kok opp vann med salt. Tilsett pastaen og rør av og til til den er al dente…</div>
+                <div class="meta-row" style="margin-top:auto">320 words · 2 pages</div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- CURATED THEME SHELF (unchanged) -->
+        <section>
+          <div class="shelf-head">
+            <div class="type-title">Friluftsliv</div>
+            <span class="view-all">View all →</span>
+          </div>
+          <div class="shelf">
+            <div class="card ready">
+              <div class="cover cover-A1">A1</div>
+              <div class="card-body">
+                <div class="card-title">Turen til skogen</div>
+                <div class="card-preview">En enkel historie om en tur i skogen en fin høstdag.</div>
+                <div class="meta-row" style="margin-top:auto">Jul 12 · 210 words</div>
+              </div>
+            </div>
+            <div class="card ready">
+              <div class="cover cover-A2">A2</div>
+              <div class="card-body">
+                <div class="card-title">En dag på fjellet</div>
+                <div class="card-preview">Følg Maria på en tur i de norske fjellene.</div>
+                <div class="meta-row" style="margin-top:auto">Jul 10 · 480 words</div>
+              </div>
+            </div>
+            <div class="card ready">
+              <div class="cover cover-B1">B1</div>
+              <div class="card-body">
+                <div class="card-title">Fjordene i vest</div>
+                <div class="card-preview">Om de dramatiske fjordene og livet langs kysten.</div>
+                <div class="meta-row" style="margin-top:auto">Jul 8 · 720 words</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:22px">Does the whole-page composition work?</h3>
+<div class="options">
+  <div class="option" data-choice="ok" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content"><h3>Yes — imports between hero and curated themes</h3>
+      <p>Imports get prominence right under the hero, above curated shelves.</p></div>
+  </div>
+  <div class="option" data-choice="below" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content"><h3>Move imports below curated themes</h3>
+      <p>Curated content leads; "Your imports" sits at the bottom of the home.</p></div>
+  </div>
+  <div class="option" data-choice="tweak" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content"><h3>Something else</h3>
+      <p>Different placement, empty-state, or hierarchy. Tell me.</p></div>
+  </div>
+</div>

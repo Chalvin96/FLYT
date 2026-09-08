@@ -1,0 +1,427 @@
+{
+  "source_article_id": 69211,
+  "lemmas": [
+    {
+      "lemma": "være",
+      "hgno": 2,
+      "pos": "VERB",
+      "source_lemma_id": 80034,
+      "is_sub_article": false,
+      "primary_translation": "to be / exist / live / stay / occur / mean / have (auxiliary)",
+      "word_forms": [
+        {
+          "word_form": "være",
+          "tags_json": [
+            "verb",
+            "Inf"
+          ]
+        },
+        {
+          "word_form": "er",
+          "tags_json": [
+            "verb",
+            "Pres"
+          ]
+        },
+        {
+          "word_form": "var",
+          "tags_json": [
+            "verb",
+            "Past"
+          ]
+        },
+        {
+          "word_form": "vært",
+          "tags_json": [
+            "verb",
+            "<PerfPart>",
+            "Adj",
+            "Neuter",
+            "Ind",
+            "Sing"
+          ]
+        },
+        {
+          "word_form": "værende",
+          "tags_json": [
+            "verb",
+            "Adj",
+            "<PresPart>"
+          ]
+        },
+        {
+          "word_form": "vær",
+          "tags_json": [
+            "verb",
+            "Imp"
+          ]
+        }
+      ]
+    }
+  ],
+  "cross_reference": null,
+  "definitions": [
+    {
+      "text": "finnes, eksistere",
+      "translation": "to exist, to be",
+      "examples": []
+    },
+    {
+      "text": "om person: leve",
+      "translation": "concerning a person: to live",
+      "examples": [
+        {
+          "no": "det er ikke mer mat i kjøleskapet",
+          "en": "there is no more food in the fridge"
+        },
+        {
+          "no": "det var en gang en konge",
+          "en": null
+        },
+        {
+          "no": "det var ingenting å finne",
+          "en": null
+        },
+        {
+          "no": "hadde det ikke vært for alt søppelet, ville området vært en perle",
+          "en": null
+        },
+        {
+          "no": "han er ikke mer",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "holde til på et sted",
+      "translation": "to be located in a place",
+      "examples": []
+    },
+    {
+      "text": "oppholde seg",
+      "translation": "to stay",
+      "examples": []
+    },
+    {
+      "text": "komme",
+      "translation": "to come",
+      "examples": [
+        {
+          "no": "ha et sted å være",
+          "en": null
+        },
+        {
+          "no": "de er i utlandet",
+          "en": null
+        },
+        {
+          "no": "jeg skal være der hele dagen",
+          "en": null
+        },
+        {
+          "no": "bli værende lenge et sted",
+          "en": null
+        },
+        {
+          "no": "sommeren er her",
+          "en": null
+        },
+        {
+          "no": "hun er ute og går",
+          "en": null
+        },
+        {
+          "no": "han var ute et øyeblikk",
+          "en": null
+        },
+        {
+          "no": "de har vært på tur",
+          "en": null
+        },
+        {
+          "no": "jeg er straks tilbake",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "foregå, finne sted",
+      "translation": "to take place, to occur",
+      "examples": [
+        {
+          "no": "når skal møtet være?",
+          "en": null
+        },
+        {
+          "no": "de hadde meldt kulde i uka som var",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "befinne seg i en bestemt situasjon eller tilstand, på et bestemt nivå, trinn eller lignende",
+      "translation": "to be in a specific situation or state, at a specific level, step",
+      "examples": [
+        {
+          "no": "være sammen om noe",
+          "en": null
+        },
+        {
+          "no": "være i sekstiårsalderen",
+          "en": null
+        },
+        {
+          "no": "de var i samme situasjon",
+          "en": null
+        },
+        {
+          "no": "hvilken side i boka er du på?",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "(opprinnelig) høre hjemme",
+      "translation": "to belong (originally)",
+      "examples": []
+    },
+    {
+      "text": "komme fra",
+      "translation": "to come from",
+      "examples": [
+        {
+          "no": "de er fra Førde",
+          "en": null
+        },
+        {
+          "no": "huset var fra 1800-tallet",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "bli i samme posisjon eller tilstand over en viss tid",
+      "translation": "to remain in the same position or state over a period of time",
+      "examples": []
+    },
+    {
+      "text": "ikke bli rørt eller gjort noe med",
+      "translation": "not to be touched or interfered with",
+      "examples": [
+        {
+          "no": "det kan være til i morgen",
+          "en": null
+        },
+        {
+          "no": "la dem være i fred!",
+          "en": null
+        },
+        {
+          "no": "det får heller være",
+          "en": null
+        },
+        {
+          "no": "fred være med deg!",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "te seg, arte seg",
+      "translation": "to behave, to act",
+      "examples": []
+    },
+    {
+      "text": "forholde seg",
+      "translation": "to relate",
+      "examples": [
+        {
+          "no": "en god måte å være på",
+          "en": null
+        },
+        {
+          "no": "hvordan er det med deg?",
+          "en": null
+        },
+        {
+          "no": "det er som jeg sier",
+          "en": null
+        },
+        {
+          "no": "være for en sak",
+          "en": null
+        },
+        {
+          "no": "være imot et forslag",
+          "en": null
+        },
+        {
+          "no": "være med på noe",
+          "en": null
+        },
+        {
+          "no": "vær så snill!",
+          "en": null
+        },
+        {
+          "no": "noe slikt har aldri hendt, det være seg i Norge eller i utlandet",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "ville si",
+      "translation": "to mean",
+      "examples": []
+    },
+    {
+      "text": "føre med seg",
+      "translation": "to entail",
+      "examples": [
+        {
+          "no": "de vet virkelig hva arbeid er",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "brukt i uttrykk med gjentatt subjekt, for å understreke en vanlig forestilling knyttet til dette ordet",
+      "translation": "used in expressions with a repeated subject, to emphasize a common notion associated with that word",
+      "examples": [
+        {
+          "no": "et ord er et ord",
+          "en": null
+        },
+        {
+          "no": "krig er krig",
+          "en": null
+        },
+        {
+          "no": "fjelluft er nå fjelluft, da",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "brukt som kopula: kunne klassifiseres eller beskrives som",
+      "translation": "used as a copula: to be classifiable or describable as",
+      "examples": [
+        {
+          "no": "være lærer",
+          "en": null
+        },
+        {
+          "no": "hun var flyger",
+          "en": null
+        },
+        {
+          "no": "alle har vært barn en gang",
+          "en": null
+        },
+        {
+          "no": "være frisk",
+          "en": null
+        },
+        {
+          "no": "alle var glade",
+          "en": null
+        },
+        {
+          "no": "jeg er heldig",
+          "en": null
+        },
+        {
+          "no": "han er 40 år",
+          "en": null
+        },
+        {
+          "no": "sykkelen er ny",
+          "en": null
+        },
+        {
+          "no": "boka er lettlest",
+          "en": null
+        },
+        {
+          "no": "dette var godt!",
+          "en": null
+        },
+        {
+          "no": "genseren er av ull",
+          "en": null
+        },
+        {
+          "no": "butikken er åpen",
+          "en": null
+        },
+        {
+          "no": "to og to er fire",
+          "en": null
+        },
+        {
+          "no": "klokka var fire",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "brukt i setning med ‘det’ som formelt subjekt (presenteringssetning)",
+      "translation": "used in a sentence with 'det' as a formal subject (presentational sentence)",
+      "examples": [
+        {
+          "no": "det var du som sa det",
+          "en": null
+        },
+        {
+          "no": "hva er det som står på?",
+          "en": null
+        },
+        {
+          "no": "det er i morgen de kommer",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "brukt som hjelpeverb (i presens eller preteritum perfektum) ved intransitive verb som betegner bevegelse eller overgang til et nytt sted eller en ny tilstand",
+      "translation": "used as an auxiliary verb (in present or perfect past tense) with intransitive verbs denoting movement or transition to a new place or state",
+      "examples": []
+    },
+    {
+      "text": "jamfør ha",
+      "translation": "to have",
+      "examples": [
+        {
+          "no": "hun er forsvunnet",
+          "en": null
+        },
+        {
+          "no": "de var gått",
+          "en": null
+        },
+        {
+          "no": "han er blitt syk",
+          "en": null
+        },
+        {
+          "no": "opplysningene var kommet fram",
+          "en": null
+        }
+      ]
+    },
+    {
+      "text": "brukt som hjelpeverb i passiv",
+      "translation": "used as an auxiliary verb in",
+      "examples": [
+        {
+          "no": "hun er sett",
+          "en": null
+        },
+        {
+          "no": "de var tatt for tyveri",
+          "en": null
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+@import 'tailwindcss';
+@import '@flyt/ui/styles/tokens.css';
+@import "../src/popup/popup.css";
+
+@source "../src/**/*.{ts,tsx}";
+@source "../../packages/ui/src/**/*.{ts,tsx}";
+@source "../../packages/lexicon/src/**/*.{ts,tsx}";
