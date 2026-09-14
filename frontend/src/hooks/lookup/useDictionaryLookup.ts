@@ -1,13 +1,16 @@
+import {
+  hasValidNorwegianChars,
+  normalizeLookupQuery,
+} from '@flyt/lexicon/grammar';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { K_LEXICON_SUGGEST_QUERY_MIN_LENGTH } from '@/api/lexicon.constants';
 import { useLookupContext } from '@/components/lookup/useLookupContext';
 import { useBrowseSuggestions } from '@/hooks/lexicon/queries';
 import { useDebouncedValue } from '@/hooks/ui/useDebouncedValue';
-import { hasValidNorwegianChars } from '@/utils/validation';
 
 const INVALID_QUERY_MESSAGE =
-  'Please use letters only. Norwegian letters like ae, oe, and aa are supported.';
+  'Use letters, numbers, spaces, and dictionary punctuation (maximum 80 characters).';
 const LISTBOX_ID = 'search-suggestions-listbox';
 
 export function useDictionaryLookup() {
@@ -18,10 +21,10 @@ export function useDictionaryLookup() {
   const [hoveredIndex, setHoveredIndex] = useState(-1);
   const [preferKeyboardHighlight, setPreferKeyboardHighlight] = useState(false);
 
-  const normalizedQuery = searchQuery.trim();
+  const normalizedQuery = normalizeLookupQuery(searchQuery);
+  const isEmptyQuery = searchQuery.length === 0;
   const debouncedQuery = useDebouncedValue(normalizedQuery, 250);
-  const isQueryValid =
-    normalizedQuery.length === 0 || hasValidNorwegianChars(normalizedQuery);
+  const isQueryValid = isEmptyQuery || normalizedQuery.length > 0;
   const canShowSuggestions =
     isQueryValid &&
     normalizedQuery.length >= K_LEXICON_SUGGEST_QUERY_MIN_LENGTH;
@@ -85,7 +88,9 @@ export function useDictionaryLookup() {
     (nextValue: string) => {
       setSearchQuery(nextValue);
       setIsSuggestionsOpen(
-        nextValue.trim().length >= K_LEXICON_SUGGEST_QUERY_MIN_LENGTH,
+        hasValidNorwegianChars(nextValue) &&
+          normalizeLookupQuery(nextValue).length >=
+            K_LEXICON_SUGGEST_QUERY_MIN_LENGTH,
       );
       setHoveredIndex(-1);
       setPreferKeyboardHighlight(false);

@@ -4,8 +4,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flyt.apps.lexicons.models import Definition
+from flyt.apps.lexicons.models import Lemma
+from flyt.apps.lexicons.models import LemmaAlias
 from flyt.apps.lexicons.models import WordForm
 from tests.factories import DefinitionFactory
+from tests.factories import LemmaAliasFactory
 from tests.factories import LemmaFactory
 from tests.factories import WordFormFactory
 
@@ -44,6 +47,58 @@ async def test_cascade_delete_lemma_deletes_definitions(db: AsyncSession) -> Non
         .all()
     )
     assert len(definitions) == 0
+
+
+async def test_lemma_given_delete_expect_expression_aliases_cascaded(
+    db: AsyncSession,
+) -> None:
+    lemma = await LemmaFactory.create(pos="expression")
+    await LemmaAliasFactory.create(lemma=lemma, alias="ta opp")
+    await LemmaAliasFactory.create(lemma=lemma, alias="ta ned", ordinal=1)
+
+    lemma_id = lemma.id
+    await db.delete(lemma)
+    await db.flush()
+
+    aliases = (
+        await db.scalars(select(LemmaAlias).where(LemmaAlias.lemma_id == lemma_id))
+    ).all()
+    assert aliases == []
+
+
+async def test_lemma_given_fresh_load_delete_expect_aliases_cascaded(
+    db: AsyncSession,
+) -> None:
+    lemma = await LemmaFactory.create(pos="expression")
+    await LemmaAliasFactory.create(lemma=lemma, alias="fresh delete")
+    await db.flush()
+
+    lemma_id = lemma.id
+    db.expire_all()
+    loaded = await db.scalar(select(Lemma).where(Lemma.id == lemma_id))
+    assert loaded is not None
+    await db.delete(loaded)
+    await db.flush()
+
+    assert (
+        await db.scalar(select(LemmaAlias.id).where(LemmaAlias.lemma_id == lemma_id))
+        is None
+    )
+
+
+def test_expression_alias_indexes_and_constraint_given_model_metadata_expect_declared() -> (
+    None
+):
+    index_names = {idx.name for idx in LemmaAlias.__table__.indexes}
+    assert index_names == {
+        "ix_lexicon_lemma_aliases_lemma_id",
+        "ix_lexicon_lemma_aliases_normalized_exact",
+        "ix_lexicon_lemma_aliases_normalized_pattern",
+    }
+    constraint_names = {
+        constraint.name for constraint in LemmaAlias.__table__.constraints
+    }
+    assert "uq_lexicon_lemma_alias_lemma_normalized" in constraint_names
 
 
 async def test_definition_translation_column_given_valid_creation_expect_saved(

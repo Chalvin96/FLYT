@@ -118,6 +118,7 @@ async def db(setup_database: None) -> AsyncGenerator[AsyncSession, None]:
     from tests.factories import ReadingGroupFactory
     from tests.factories import UserLessonProgressFactory
     from tests.factories import LemmaFactory
+    from tests.factories import LemmaAliasFactory
     from tests.factories import SeeAlsoFactory
     from tests.factories import StoryFactory
     from tests.factories import UserCardFactory
@@ -135,6 +136,7 @@ async def db(setup_database: None) -> AsyncGenerator[AsyncSession, None]:
         ChatGPTLinkFactory,
         UserFactory,
         LemmaFactory,
+        LemmaAliasFactory,
         DefinitionFactory,
         WordFormFactory,
         SeeAlsoFactory,

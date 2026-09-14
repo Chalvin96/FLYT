@@ -9,6 +9,7 @@ from flyt.apps.lessons.models import LessonRelease
 from flyt.apps.lessons.models import UserLessonProgress
 from flyt.apps.lexicons.models import Definition
 from flyt.apps.lexicons.models import Lemma
+from flyt.apps.lexicons.models import LemmaAlias
 from flyt.apps.lexicons.models import SeeAlso
 from flyt.apps.lexicons.models import WordForm
 from flyt.apps.reading.models import Story
@@ -32,6 +33,7 @@ DEFAULT_ADMIN_MODELS = (
 K_RELATED_ADMIN_MODELS = (
     UserLessonProgress,
     CardPool,
+    LemmaAlias,
     ReadingGroup,
     StoryPage,
     UserStory,

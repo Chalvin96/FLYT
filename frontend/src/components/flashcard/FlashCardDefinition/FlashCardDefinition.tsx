@@ -1,5 +1,10 @@
-import { m } from 'motion/react';
-import { useCallback, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 
 import { Button } from '@/components/common/Button/Button';
 import { FlashcardActionFooter } from '@/components/flashcard/FlashcardActionFooter';
@@ -47,9 +52,14 @@ export const FlashCardDefinition = ({
 }: FlashCardDefinitionProps) => {
   const context = contextProp ?? card.context ?? null;
   const [isFlipped, setIsFlipped] = useState(false);
+  const backHeadingRef = useRef<HTMLHeadingElement>(null);
   const view = buildDefinitionCardView(card, wordForms);
 
   const handleFlip = () => setIsFlipped(true);
+
+  useEffect(() => {
+    if (isFlipped) backHeadingRef.current?.focus();
+  }, [isFlipped]);
 
   const handleRate = useCallback(
     (rating: 1 | 2 | 3 | 4) => {
@@ -72,25 +82,26 @@ export const FlashCardDefinition = ({
         <div className="relative min-h-0 w-full self-stretch">
           <DefinitionFrontLayer
             audioUrl={view.audioUrl}
-            formattedPos={view.formattedPos}
-            ipaApproximate={view.ipaApproximate}
             isFlipped={isFlipped}
             isSubmitting={isSubmitting}
             senseCue={view.senseCue}
-            word={view.word}
+            word={view.primaryDisplayForm ?? view.word}
             onFlip={handleFlip}
           />
 
-          <m.div
-            animate={{ opacity: isFlipped ? 1 : 0 }}
+          <div
             aria-hidden={!isFlipped}
+            data-testid="flashcard-answer-face"
             className={cn(
               flashCardPanelClassName,
-              'absolute inset-0 overflow-hidden',
+              '@container absolute inset-0 overflow-hidden transition-opacity duration-[250ms] ease-in-out motion-reduce:transition-none',
               !isFlipped && 'pointer-events-none',
             )}
-            initial={false}
-            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            inert={!isFlipped}
+            style={{
+              opacity: isFlipped ? 1 : 0,
+              visibility: isFlipped ? 'visible' : 'hidden',
+            }}
           >
             <DefinitionBackLayer
               audioUrl={view.audioUrl}
@@ -108,10 +119,13 @@ export const FlashCardDefinition = ({
               onRate={handleRate}
               pos={view.pos}
               primaryTranslation={view.primaryTranslation}
+              primaryDisplayForm={view.primaryDisplayForm}
+              alternativeForms={view.alternativeForms}
               word={view.word}
               wordForms={wordForms}
+              headingRef={backHeadingRef}
             />
-          </m.div>
+          </div>
         </div>
       </div>
     </div>
@@ -120,8 +134,6 @@ export const FlashCardDefinition = ({
 
 function DefinitionFrontLayer({
   audioUrl,
-  formattedPos,
-  ipaApproximate,
   isFlipped,
   isSubmitting,
   senseCue,
@@ -129,8 +141,6 @@ function DefinitionFrontLayer({
   onFlip,
 }: {
   audioUrl: string | null;
-  formattedPos: string | null;
-  ipaApproximate: boolean;
   isFlipped: boolean;
   isSubmitting: boolean;
   senseCue: string | null | undefined;
@@ -138,22 +148,23 @@ function DefinitionFrontLayer({
   onFlip: () => void;
 }) {
   return (
-    <m.div
-      animate={{ opacity: isFlipped ? 0 : 1 }}
+    <div
       aria-hidden={isFlipped}
+      data-testid="flashcard-question-face"
       className={cn(
         flashCardPanelClassName,
-        'absolute inset-0 overflow-hidden',
+        'absolute inset-0 overflow-hidden transition-opacity duration-[250ms] ease-in-out motion-reduce:transition-none',
         isFlipped && 'pointer-events-none',
       )}
-      initial={false}
-      transition={{ duration: 0.25, ease: 'easeInOut' }}
+      inert={isFlipped}
+      style={{
+        opacity: isFlipped ? 0 : 1,
+        visibility: isFlipped ? 'hidden' : 'visible',
+      }}
     >
       <div className="flex min-h-0 flex-1 flex-col">
         <FlashCardDefinitionFront
           audioUrl={audioUrl}
-          formattedPos={formattedPos}
-          ipaApproximate={ipaApproximate}
           senseCue={senseCue}
           word={word}
         />
@@ -171,7 +182,7 @@ function DefinitionFrontLayer({
           </FlashcardActionFooter>
         </div>
       </div>
-    </m.div>
+    </div>
   );
 }
 
@@ -191,8 +202,11 @@ function DefinitionBackLayer({
   onRate,
   pos,
   primaryTranslation,
+  primaryDisplayForm,
+  alternativeForms,
   word,
   wordForms,
+  headingRef,
 }: {
   audioUrl: string | null;
   card: FlashCardRenderable;
@@ -209,8 +223,11 @@ function DefinitionBackLayer({
   onRate: (rating: 1 | 2 | 3 | 4) => void;
   pos: LemmaPos | undefined;
   primaryTranslation: string;
+  primaryDisplayForm: string | null;
+  alternativeForms: string[];
   word: string;
   wordForms: WordFormRead[];
+  headingRef: RefObject<HTMLHeadingElement | null>;
 }) {
   return (
     <>
@@ -227,8 +244,11 @@ function DefinitionBackLayer({
           isVerb={isVerb}
           pos={pos}
           primaryTranslation={primaryTranslation}
+          primaryDisplayForm={primaryDisplayForm}
+          alternativeForms={alternativeForms}
           word={word}
           wordForms={wordForms}
+          headingRef={headingRef}
         />
       </div>
       {onFinished ? (

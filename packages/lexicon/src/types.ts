@@ -13,6 +13,7 @@ export type LemmaPos =
   | 'determiner'
   | 'interjection'
   | 'numeral'
+  | 'expression'
   | 'unknown';
 
 /**
@@ -50,6 +51,8 @@ export interface LemmaCardData {
   word: string;
   pos: LemmaPos;
   primary_translation?: string | null;
+  primary_display_form?: string | null;
+  alternative_forms?: string[] | null;
   ipa?: string | null;
   intonation?: string | null;
   ipa_approximate?: boolean;

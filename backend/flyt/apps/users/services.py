@@ -9,6 +9,7 @@ from pydantic import EmailStr
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from flyt.apps.flashcards.constants import K_DEFAULT_STUDY_LIMIT
 from flyt.apps.flashcards.models import CardState
@@ -278,6 +279,7 @@ class UserVocabularyQueries:
                 select(Lemma, UserLemma.is_mastered)
                 .join(UserLemma, UserLemma.lemma_id == Lemma.id)
                 .where(UserLemma.user_id == user_id)
+                .options(selectinload(Lemma.aliases))
             )
         ).all()
         return [

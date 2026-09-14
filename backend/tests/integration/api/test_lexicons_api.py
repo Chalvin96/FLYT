@@ -12,6 +12,7 @@ from flyt.apps.users.models import UserLemma
 from tests.factories import CardPoolFactory
 from tests.factories import DefinitionFactory
 from tests.factories import LemmaFactory
+from tests.factories import LemmaAliasFactory
 from tests.factories import SeeAlsoFactory
 from tests.factories import UserCardFactory
 from tests.factories import UserFactory
@@ -91,13 +92,13 @@ async def test_search_given_query_too_long_expect_validation_error(
         "/lexicons/search",
         params={"query": "a" * (K_LEXICON_QUERY_MAX_LENGTH + 1)},
     )
-    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
 async def test_search_given_invalid_characters_expect_validation_error(
     client: AsyncClient,
 ) -> None:
-    response = await client.get("/lexicons/search", params={"query": "test123"})
+    response = await client.get("/lexicons/search", params={"query": "test@"})
     assert response.status_code == HTTPStatus.BAD_REQUEST
     error = response.json()["detail"]
     assert error["code"] == "VALIDATION_ERROR"
@@ -181,6 +182,35 @@ async def test_search_given_lemma_with_word_forms_and_translation_expect_full_pa
     ]
 
 
+async def test_search_given_expression_alias_expect_display_forms_and_owner(
+    client: AsyncClient,
+) -> None:
+    lemma = await LemmaFactory.create(
+        word="få [stelle|lage] i stand", pos="expression", hgno=1
+    )
+    await LemmaAliasFactory.create(
+        lemma=lemma,
+        alias="få i stand",
+        normalized_alias="få i stand",
+        is_primary=True,
+    )
+    await LemmaAliasFactory.create(
+        lemma=lemma,
+        alias="få til",
+        normalized_alias="få til",
+        ordinal=1,
+    )
+
+    response = await client.get("/lexicons/search", params={"query": "FÅ I STAND"})
+
+    assert response.status_code == HTTPStatus.OK
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["word"] == "få [stelle|lage] i stand"
+    assert data[0]["primary_display_form"] == "få i stand"
+    assert data[0]["alternative_forms"] == ["få til"]
+
+
 # --- /lexicons/suggestions ---
 
 
@@ -209,6 +239,72 @@ async def test_suggestions_given_prefix_match_expect_suggestions_returned(
     assert data["suggestions"][0]["label"] == "hunden"
 
 
+async def test_suggestions_given_expression_alias_expect_readable_label(
+    client: AsyncClient,
+) -> None:
+    lemma = await LemmaFactory.create(
+        word="få [stelle|lage] i stand", pos="expression", hgno=1
+    )
+    await LemmaAliasFactory.create(
+        lemma=lemma,
+        alias="få i stand",
+        normalized_alias="få i stand",
+        is_primary=True,
+    )
+    await LemmaAliasFactory.create(
+        lemma=lemma,
+        alias="stelle i stand",
+        normalized_alias="stelle i stand",
+        ordinal=1,
+    )
+    await LemmaAliasFactory.create(
+        lemma=lemma,
+        alias="lage i stand",
+        normalized_alias="lage i stand",
+        ordinal=2,
+    )
+
+    response = await client.get("/lexicons/suggestions", params={"query": "få i"})
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["suggestions"] == [
+        {
+            "label": "få i stand",
+            "alternative_forms": ["stelle i stand", "lage i stand"],
+        }
+    ]
+
+    response = await client.get("/lexicons/suggestions", params={"query": "få"})
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["suggestions"] == [
+        {
+            "label": "få i stand",
+            "alternative_forms": ["stelle i stand", "lage i stand"],
+        }
+    ]
+
+
+async def test_suggestions_given_aliased_expression_word_form_expect_no_canonical_label(
+    client: AsyncClient,
+) -> None:
+    lemma = await LemmaFactory.create(
+        word="få [stelle|lage] i stand", pos="expression", hgno=1
+    )
+    await LemmaAliasFactory.create(
+        lemma=lemma,
+        alias="få i stand",
+        normalized_alias="få i stand",
+        is_primary=True,
+    )
+    await WordFormFactory.create(form="fått", lemma=lemma)
+
+    response = await client.get("/lexicons/suggestions", params={"query": "fått"})
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["suggestions"] == []
+
+
 async def test_suggestions_given_no_results_expect_empty_suggestions(
     client: AsyncClient,
 ) -> None:
@@ -235,7 +331,7 @@ async def test_suggestions_given_empty_query_expect_422(
 async def test_suggestions_given_invalid_characters_expect_400(
     client: AsyncClient,
 ) -> None:
-    response = await client.get("/lexicons/suggestions", params={"query": "test123"})
+    response = await client.get("/lexicons/suggestions", params={"query": "test@"})
     assert response.status_code == HTTPStatus.BAD_REQUEST
     error = response.json()["detail"]
     assert error["code"] == "VALIDATION_ERROR"
@@ -281,14 +377,14 @@ async def test_suggestions_given_norwegian_letters_expect_suggestions(
     assert data["suggestions"][0]["label"] == "været"
 
 
-async def test_suggestions_given_query_too_long_expect_422(
+async def test_suggestions_given_query_too_long_expect_400(
     client: AsyncClient,
 ) -> None:
     response = await client.get(
         "/lexicons/suggestions",
         params={"query": "a" * (K_LEXICON_QUERY_MAX_LENGTH + 1)},
     )
-    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
 async def test_suggestions_given_existing_search_still_works(
@@ -340,6 +436,29 @@ async def test_suggestions_given_word_form_match_ranks_above_headword_prefix_mat
 
 
 # --- /lexicons/browse ---
+
+
+async def test_browse_given_canonical_alias_collision_expect_both_owners(
+    client: AsyncClient,
+) -> None:
+    canonical = await LemmaFactory.create(word="få i stand", hgno=1)
+    expression = await LemmaFactory.create(
+        word="få [stelle|lage] i stand", pos="expression", hgno=2
+    )
+    await LemmaAliasFactory.create(
+        lemma=expression,
+        alias="få i stand",
+        normalized_alias="få i stand",
+        is_primary=True,
+    )
+
+    response = await client.get("/lexicons/browse", params={"q": "få i stand"})
+
+    assert response.status_code == HTTPStatus.OK
+    assert {entry["uuid"] for entry in response.json()["entries"]} == {
+        str(canonical.uuid),
+        str(expression.uuid),
+    }
 
 
 async def test_browse_given_exact_headword_expect_200_with_entries(
@@ -427,7 +546,7 @@ async def test_browse_given_query_too_short_expect_422(
 async def test_browse_given_invalid_characters_expect_400(
     client: AsyncClient,
 ) -> None:
-    response = await client.get("/lexicons/browse", params={"q": "test123"})
+    response = await client.get("/lexicons/browse", params={"q": "test@"})
     assert response.status_code == HTTPStatus.BAD_REQUEST
     error = response.json()["detail"]
     assert error["code"] == "VALIDATION_ERROR"
@@ -472,6 +591,104 @@ async def test_resolve_given_single_lemma_expect_one_candidate(
     assert candidate["definitions"][0]["translation"] == "gå"
     assert sorted(candidate["definitions"][0].keys()) == ["definition", "translation"]
     assert "state" not in candidate
+
+
+async def test_resolve_given_expression_without_word_forms_expect_canonical_match(
+    client: AsyncClient,
+) -> None:
+    lemma = await LemmaFactory.create(
+        word="få [stelle|lage] i stand",
+        pos="expression",
+        hgno=1,
+    )
+    await DefinitionFactory.create(
+        lemma=lemma,
+        definition="to arrange something",
+        translation="arrange",
+    )
+
+    response = await client.get(
+        "/lexicons/resolve",
+        params={"word": "få [stelle|lage] i stand"},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    data = response.json()
+    assert len(data["candidates"]) == 1
+    assert data["candidates"][0]["lemma_uuid"] == str(lemma.uuid)
+    assert data["candidates"][0]["word"] == "få [stelle|lage] i stand"
+
+
+async def test_resolve_given_expression_alias_expect_display_forms(
+    client: AsyncClient,
+) -> None:
+    lemma = await LemmaFactory.create(
+        word="få [stelle|lage] i stand", pos="expression", hgno=1
+    )
+    await LemmaAliasFactory.create(
+        lemma=lemma,
+        alias="få i stand",
+        normalized_alias="få i stand",
+        is_primary=True,
+    )
+    await LemmaAliasFactory.create(
+        lemma=lemma,
+        alias="få til",
+        normalized_alias="få til",
+        ordinal=1,
+    )
+
+    response = await client.get("/lexicons/resolve", params={"word": "få til"})
+
+    assert response.status_code == HTTPStatus.OK
+    candidate = response.json()["candidates"][0]
+    assert candidate["lemma_uuid"] == str(lemma.uuid)
+    assert candidate["primary_display_form"] == "få i stand"
+    assert candidate["alternative_forms"] == ["få til"]
+
+
+async def test_definitions_given_expression_alias_expect_natural_lemma_summary(
+    client: AsyncClient,
+) -> None:
+    lemma = await LemmaFactory.create(
+        word="få [stelle|lage] i stand", pos="expression", hgno=1
+    )
+    await LemmaAliasFactory.create(
+        lemma=lemma,
+        alias="få i stand",
+        normalized_alias="få i stand",
+        is_primary=True,
+    )
+    await LemmaAliasFactory.create(
+        lemma=lemma,
+        alias="få til",
+        normalized_alias="få til",
+        ordinal=1,
+    )
+    await DefinitionFactory.create(lemma=lemma)
+
+    response = await client.get(f"/lexicons/lemmas/{lemma.uuid}/definitions")
+
+    assert response.status_code == HTTPStatus.OK
+    summary = response.json()["lemma"]
+    assert summary["word"] == "få [stelle|lage] i stand"
+    assert summary["primary_display_form"] == "få i stand"
+    assert summary["alternative_forms"] == ["få til"]
+
+
+async def test_resolve_given_raw_query_over_limit_but_nfc_at_limit_expect_match(
+    client: AsyncClient,
+) -> None:
+    canonical = "é" * K_LEXICON_QUERY_MAX_LENGTH
+    decomposed = "e\N{COMBINING ACUTE ACCENT}" * K_LEXICON_QUERY_MAX_LENGTH
+    lemma = await LemmaFactory.create(word=canonical, pos="expression")
+
+    response = await client.get("/lexicons/resolve", params={"word": decomposed})
+
+    assert response.status_code == HTTPStatus.OK
+    data = response.json()
+    assert len(data["candidates"]) == 1
+    assert data["candidates"][0]["lemma_uuid"] == str(lemma.uuid)
 
 
 async def test_resolve_given_homographs_expect_ordered_by_frequency_then_hgno(
@@ -534,7 +751,7 @@ async def test_resolve_given_lowercase_query_expect_uppercase_form_match(
 async def test_resolve_given_invalid_characters_expect_400(
     client: AsyncClient,
 ) -> None:
-    response = await client.get("/lexicons/resolve", params={"word": "test123"})
+    response = await client.get("/lexicons/resolve", params={"word": "test@"})
     assert response.status_code == HTTPStatus.BAD_REQUEST
     error = response.json()["detail"]
     assert error["code"] == "VALIDATION_ERROR"

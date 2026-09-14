@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from pydantic import BaseModel
+from pydantic import Field
 from pydantic import field_validator
 
 from flyt.apps.lexicons.models import LemmaPos
@@ -80,6 +81,14 @@ class LemmaRead(BaseModel):
     hgno: int
     is_sub_article: bool
     primary_translation: str | None = None
+    primary_display_form: str | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    alternative_forms: list[str] | None = Field(
+        default=None,
+        exclude_if=lambda value: not value,
+    )
     cross_reference_article_id: int | None = None
     word_forms: list[WordFormRead]
     definitions: list[DefinitionRead]
@@ -115,6 +124,14 @@ class LemmaSummaryRead(BaseModel):
     word: str
     pos: LemmaPos
     primary_translation: str | None = None
+    primary_display_form: str | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    alternative_forms: list[str] | None = Field(
+        default=None,
+        exclude_if=lambda value: not value,
+    )
     source_article_id: int | None = None
     source_lemma_id: int | None = None
     hgno: int | None = None
@@ -137,6 +154,14 @@ class UserLemmaRead(BaseModel):
     word: str
     pos: LemmaPos
     primary_translation: str | None = None
+    primary_display_form: str | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    alternative_forms: list[str] | None = Field(
+        default=None,
+        exclude_if=lambda value: not value,
+    )
     state: UserLemmaState
 
 
@@ -148,6 +173,10 @@ class UserLemmasResponse(BaseModel):
 
 class BrowseSuggestion(BaseModel):
     label: str
+    alternative_forms: list[str] = Field(
+        default_factory=list,
+        exclude_if=lambda value: not value,
+    )
 
 
 class BrowseSuggestionsResponse(BaseModel):
@@ -179,6 +208,14 @@ class ResolveCandidate(BaseModel):
     hgno: int
     is_compound: bool = False
     definitions: list[ResolveDefinition]
+    primary_display_form: str | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    alternative_forms: list[str] | None = Field(
+        default=None,
+        exclude_if=lambda value: not value,
+    )
     see_also: list[SeeAlsoRead] = []
     ipa: str | None = None
     intonation: str | None = None

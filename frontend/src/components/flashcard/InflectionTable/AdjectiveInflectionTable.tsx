@@ -8,9 +8,19 @@ import {
 } from '@/components/ui/table';
 import type { WordFormRead } from '@/types/api';
 
+import {
+  buildDesktopClassName,
+  buildMobileClassName,
+  dataCellCls,
+  headerCellCls,
+  panelCls,
+  sectionLabelCls,
+  tdCls,
+  tdMutedCls,
+  thCls,
+  type InflectionLayout,
+} from './inflectionStyles';
 import { shortenInflectionLabel } from './utils';
-
-type InflectionLayout = 'auto' | 'horizontal' | 'vertical';
 
 type AdjectiveFormKey =
   | 'pos_masc_fem'
@@ -20,35 +30,6 @@ type AdjectiveFormKey =
   | 'cmp'
   | 'sup_def'
   | 'sup_ind';
-
-const thCls =
-  'border border-border bg-secondary-10 px-3 py-2 text-center type-caption-sm font-semibold text-muted-foreground';
-const tdCls =
-  'border border-border px-3 py-2 text-left type-caption font-semibold text-foreground';
-const tdMutedCls = 'text-muted-foreground italic type-caption-sm';
-
-const desktopPanel =
-  'radius-section overflow-hidden border border-border bg-card';
-const headerCell =
-  'type-label-xs flex w-32 shrink-0 items-center bg-secondary-10 p-2.5 text-muted-foreground';
-const dataCell =
-  'flex min-w-0 flex-1 items-center p-2.5 type-caption font-medium text-foreground';
-const sectionLabel =
-  'type-label-xs bg-secondary-10 p-2 text-center uppercase text-muted-foreground';
-
-function desktopCls(layout: InflectionLayout): string {
-  if (layout === 'auto') return 'hidden lg:block';
-  if (layout === 'horizontal') return 'block';
-  return 'hidden';
-}
-
-const mobileBase =
-  'radius-section overflow-hidden border border-border bg-card';
-function mobileCls(layout: InflectionLayout): string {
-  if (layout === 'horizontal') return 'hidden';
-  if (layout === 'auto') return `block lg:hidden ${mobileBase}`;
-  return mobileBase;
-}
 
 /** Map a word form's Giella tags onto the adjective table's slot key. */
 function adjectiveFormKey(tags: string[]): AdjectiveFormKey | '' {
@@ -89,13 +70,14 @@ export function AdjectiveInflectionTable({
 
   return (
     <div className="w-full type-caption">
-      {/* DESKTOP VIEW — ordbokene style */}
-      <div className={desktopCls(layout)}>
+      <div className={buildDesktopClassName(layout)}>
         <AdjectiveDesktopTable forms={forms} />
       </div>
 
-      {/* MOBILE VIEW */}
-      <div className={mobileCls(layout)} data-testid="inflection-mobile">
+      <div
+        className={buildMobileClassName(layout)}
+        data-testid="inflection-mobile"
+      >
         <AdjectiveMobileList forms={forms} />
       </div>
     </div>
@@ -108,7 +90,7 @@ function AdjectiveDesktopTable({
   forms: Partial<Record<AdjectiveFormKey, string>>;
 }) {
   return (
-    <div className={desktopPanel}>
+    <div className={panelCls}>
       <Table className="min-w-max border-collapse">
         <TableHeader className="[&_tr]:border-0">
           <TableRow className="border-0 hover:bg-transparent">
@@ -175,7 +157,7 @@ function ComparisonRow({
   return (
     <TableRow className="border-0 hover:bg-transparent">
       <TableCell className={tdCls} colSpan={4}>
-        <span className={`${tdMutedCls} mr-2`}>{label}</span>
+        <span className={`${tdMutedCls} mr-2 inline-block w-24`}>{label}</span>
         {value}
       </TableCell>
     </TableRow>
@@ -196,47 +178,40 @@ function AdjectiveMobileList({
     },
   ];
 
+  const gradeRows = [
+    { label: 'komparativ', value: forms['cmp'] },
+    { label: 'superlativ ubestemt', value: forms['sup_ind'] },
+    { label: 'superlativ bestemt', value: forms['sup_def'] },
+  ].filter((row): row is { label: string; value: string } =>
+    Boolean(row.value),
+  );
+
   return (
     <>
-      <div className={`${sectionLabel} border-b border-border`}>positiv</div>
+      <div className={`${sectionLabelCls} border-b border-border`}>positiv</div>
       <div className="divide-y divide-border">
         {positiveRows.map(({ label, value }) => (
-          <div className="flex border-b border-border" key={label}>
-            <div className={headerCell}>{shortenInflectionLabel(label)}</div>
-            <div className={dataCell}>{value ?? '—'}</div>
+          <div className="flex" key={label}>
+            <div className={headerCellCls}>{shortenInflectionLabel(label)}</div>
+            <div className={dataCellCls}>{value ?? '—'}</div>
           </div>
         ))}
       </div>
 
-      {forms['cmp'] ? (
+      {gradeRows.length > 0 ? (
         <>
-          <div className={`${sectionLabel} border-y border-border`}>
-            komparativ
-          </div>
-          <div className={dataCell}>{forms['cmp']}</div>
-        </>
-      ) : null}
-
-      {forms['sup_ind'] || forms['sup_def'] ? (
-        <>
-          <div className={`${sectionLabel} border-y border-border`}>
-            superlativ
+          <div className={`${sectionLabelCls} border-y border-border`}>
+            gradbøying
           </div>
           <div className="divide-y divide-border">
-            {forms['sup_ind'] ? (
-              <div className="flex border-b border-border last:border-b-0">
-                <div className={headerCell}>
-                  {shortenInflectionLabel('ubestemt form')}
+            {gradeRows.map(({ label, value }) => (
+              <div className="flex" key={label}>
+                <div className={headerCellCls}>
+                  {shortenInflectionLabel(label)}
                 </div>
-                <div className={dataCell}>{forms['sup_ind']}</div>
+                <div className={dataCellCls}>{value}</div>
               </div>
-            ) : null}
-            {forms['sup_def'] ? (
-              <div className="flex border-b border-border last:border-b-0">
-                <div className={headerCell}>bestemt form</div>
-                <div className={dataCell}>{forms['sup_def']}</div>
-              </div>
-            ) : null}
+            ))}
           </div>
         </>
       ) : null}

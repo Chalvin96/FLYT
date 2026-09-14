@@ -10,11 +10,15 @@ const meta = {
   tags: ['autodocs'],
   decorators: [
     (Story) => (
+      // Mirrors the review session page container so stories show the width
+      // the card actually gets in the app.
       <div
-        className="flex flex-col px-4 pb-0 pt-4"
+        className="flex flex-col px-4 pb-4 pt-4 lg:px-6"
         style={{ height: '100dvh' }}
       >
-        <Story />
+        <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
+          <Story />
+        </div>
       </div>
     ),
   ],
@@ -54,11 +58,14 @@ function makeDefinitionCard(
 const nounCard = makeDefinitionCard(1, {
   word: 'hund',
   pos: 'noun',
+  ipa: 'hʉnː',
+  intonation: '1',
+  audio_url: 'data:audio/wav;base64,UklGRg==',
   primary_translation: 'A dog (animal with four legs that barks)',
   definitions: [
     {
       uuid: 'def-hund-1',
-      definition: 'dog (animal with four legs that barks)',
+      definition: 'firbeint husdyr som bjeffer og ofte holdes som kjæledyr',
       translation: 'A dog (animal with four legs that barks)',
       examples_json: [
         { no: 'Jeg har en liten hund.', en: 'I have a small dog.' },
@@ -106,13 +113,22 @@ const nounWordForms = [
 const verbCard = makeDefinitionCard(2, {
   word: 'kaste',
   pos: 'verb',
+  ipa: 'ˈkɑstə',
+  intonation: '2',
+  audio_url: 'data:audio/wav;base64,UklGRg==',
   primary_translation: 'throw; cast',
   definitions: [
     {
       uuid: 'def-kaste-1',
-      definition: 'throw; cast',
+      definition: 'slynge noe av sted med hånda eller med et redskap',
       translation: 'throw; cast',
       examples_json: [{ no: 'Han kastet ballen til meg.', en: null }],
+    },
+    {
+      uuid: 'def-kaste-2',
+      definition: 'kvitte seg med noe man ikke vil ha lenger',
+      translation: 'throw away; discard',
+      examples_json: [{ no: 'Kast de gamle avisene.', en: null }],
     },
   ],
 });
@@ -163,11 +179,15 @@ const verbWordForms = [
 const adjectiveCard = makeDefinitionCard(3, {
   word: 'usaklig',
   pos: 'adjective',
+  ipa: 'ˈʉːsɑːklɪ',
+  ipa_approximate: true,
+  intonation: '2',
+  audio_url: 'data:audio/wav;base64,UklGRg==',
   primary_translation: 'unreasonable; not based on facts or logic',
   definitions: [
     {
       uuid: 'def-usaklig-1',
-      definition: 'unreasonable; not based on facts or logic',
+      definition: 'som ikke bygger på fakta eller fornuftige grunner',
       translation: 'unreasonable; not based on facts or logic',
       examples_json: [{ no: 'Det var en usaklig kommentar.', en: null }],
     },
@@ -232,6 +252,32 @@ const adjectiveWordForms = [
     ipa_approximate: false,
   },
 ];
+
+const expressionCard = {
+  ...makeDefinitionCard(5, {
+    word: 'få [noe] i stand',
+    pos: 'expression',
+    primary_display_form: 'få i stand',
+    alternative_forms: ['stelle i stand', 'lage i stand'],
+    ipa: 'foː iː stɑn',
+    ipa_approximate: true,
+    intonation: '2',
+    audio_url: 'data:audio/wav;base64,UklGRg==',
+    primary_translation: 'get something ready; put something in order',
+    definitions: [
+      {
+        uuid: 'def-expression-1',
+        definition: 'gjøre noe klart eller ordne det slik at det kan brukes',
+        translation: 'get something ready; put something in order',
+        examples_json: [],
+      },
+    ],
+  }),
+  context: {
+    source_sentence: 'Vi må få alt i stand før gjestene kommer.',
+    source_title: 'NRK – Nyheter',
+  },
+};
 
 export const Default: Story = {
   args: {
@@ -338,5 +384,105 @@ export const FlashcardAdjective: Story = {
   },
   parameters: {
     viewport: { defaultViewport: 'desktop' },
+  },
+};
+
+export const FlashcardExpression: Story = {
+  name: 'Flashcard: Expression',
+  args: {
+    card: expressionCard,
+    onFinished: () => undefined,
+  },
+  parameters: {
+    viewport: { defaultViewport: 'desktop' },
+  },
+};
+
+export const TenMeanings: Story = {
+  name: 'Stress: 10 meanings + saved context',
+  args: {
+    card: {
+      ...makeDefinitionCard(10, {
+        word: 'ta',
+        pos: 'verb',
+        ipa: 'tɑː',
+        intonation: '1',
+        audio_url: 'data:audio/wav;base64,UklGRg==',
+        primary_translation: 'take; get; bring',
+        definitions: [
+          [
+            'gripe, holde eller overta noe fysisk eller abstrakt, ofte på en måte som innebærer at personen får kontroll over det, flytter det fra ett sted til et annet eller påtar seg ansvaret for det i en større sammenheng',
+            'take or hold something',
+            'Etter at møtet hadde vart mye lenger enn planlagt, tok hun den tunge mappen med alle kontraktene, notatene og vedleggene fra det overfylte konferansebordet og bar den forsiktig tilbake til kontoret sitt.',
+            'After the meeting had lasted much longer than planned, she took the heavy folder containing all the contracts, notes, and attachments from the crowded conference table and carefully carried it back to her office.',
+          ],
+          [
+            'flytte noe med seg',
+            'bring something along',
+            'Kan du ta med boka?',
+            'Can you bring the book?',
+          ],
+          [
+            'velge eller bruke noe',
+            'choose or use something',
+            'Jeg tar den blå jakken.',
+            'I’ll take the blue jacket.',
+          ],
+          [
+            'motta noe',
+            'receive something',
+            'Hun tok imot pakken.',
+            'She received the package.',
+          ],
+          [
+            'reise med et transportmiddel',
+            'travel by a form of transport',
+            'Vi tar toget til Bergen.',
+            'We’re taking the train to Bergen.',
+          ],
+          [
+            'kreve en viss tid',
+            'require a certain amount of time',
+            'Det tar omtrent ti minutter.',
+            'It takes about ten minutes.',
+          ],
+          [
+            'fotografere eller filme',
+            'photograph or film',
+            'Han tok et bilde av utsikten.',
+            'He took a picture of the view.',
+          ],
+          [
+            'forstå eller oppfatte',
+            'understand or perceive',
+            'Jeg tok poenget med en gang.',
+            'I understood the point immediately.',
+          ],
+          [
+            'vinne eller beseire',
+            'win or defeat',
+            'Laget tok seieren til slutt.',
+            'The team secured the victory in the end.',
+          ],
+          [
+            'håndtere eller ordne',
+            'handle or arrange something',
+            'Kan du ta saken videre?',
+            'Can you take the matter further?',
+          ],
+        ].map(([definition, translation, no, en], index) => ({
+          uuid: `def-ta-${index + 1}`,
+          definition,
+          translation,
+          examples_json: [{ no, en }],
+        })),
+      }),
+      context: {
+        source_sentence:
+          'Da prosjektgruppen oppdaget at flere av de viktigste dokumentene fortsatt lå igjen på hovedkontoret, spurte lederen om noen kunne ta med både den oppdaterte kontrakten, de håndskrevne møtenotatene og den eksterne harddisken når de kom til arbeidsseminaret neste morgen, slik at teamet kunne fortsette gjennomgangen uten enda en forsinkelse.',
+        source_title: 'Saved reading · Project planning notes',
+      },
+    },
+    onFinished: () => undefined,
   },
 };

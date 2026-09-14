@@ -9,6 +9,19 @@ import {
 import type { WordFormRead } from '@/types/api';
 
 import {
+  buildDesktopClassName,
+  buildMobileClassName,
+  dataCellCls,
+  dividerCls,
+  headerCellCls,
+  panelCls,
+  sectionLabelCls,
+  tdCls,
+  tdMutedCls,
+  thCls,
+  type InflectionLayout,
+} from './inflectionStyles';
+import {
   buildNounTableModel,
   getGenderArticle,
   getNounForm,
@@ -16,38 +29,6 @@ import {
   shortenInflectionLabel,
   translateGenderNo,
 } from './utils';
-
-type InflectionLayout = 'auto' | 'horizontal' | 'vertical';
-
-const thCls =
-  'border border-border bg-secondary-10 px-3 py-2 text-center type-caption-sm font-semibold text-muted-foreground';
-const tdCls =
-  'border border-border px-3 py-2 text-left type-caption font-semibold text-foreground';
-const tdMutedCls = 'text-muted-foreground italic type-caption-sm';
-
-const desktopPanel =
-  'radius-section overflow-hidden border border-border bg-card';
-const headerCell =
-  'type-label-xs flex w-32 shrink-0 items-center bg-secondary-10 p-2.5 text-muted-foreground';
-const dataCell =
-  'flex min-w-0 flex-1 items-center p-2.5 type-caption font-medium text-foreground';
-const divider = 'divide-y divide-border';
-const sectionLabel =
-  'type-label-xs bg-secondary-10 p-2 text-center uppercase text-muted-foreground';
-
-function desktopCls(layout: InflectionLayout): string {
-  if (layout === 'auto') return 'hidden lg:block';
-  if (layout === 'horizontal') return 'block';
-  return 'hidden';
-}
-
-const mobileBase =
-  'radius-section overflow-hidden border border-border bg-card';
-function mobileCls(layout: InflectionLayout): string {
-  if (layout === 'horizontal') return 'hidden';
-  if (layout === 'auto') return `block lg:hidden ${mobileBase}`;
-  return mobileBase;
-}
 
 export function NounInflectionTable({
   wordForms,
@@ -60,9 +41,8 @@ export function NounInflectionTable({
 
   return (
     <div className="w-full type-caption">
-      {/* DESKTOP VIEW — ordbokene style */}
-      <div className={desktopCls(layout)}>
-        <div className={desktopPanel}>
+      <div className={buildDesktopClassName(layout)}>
+        <div className={panelCls}>
           <Table className="min-w-max border-collapse">
             <TableHeader className="[&_tr]:border-0">
               <TableRow className="border-0 hover:bg-transparent">
@@ -137,8 +117,10 @@ export function NounInflectionTable({
         </div>
       </div>
 
-      {/* MOBILE VIEW — stacked sections */}
-      <div data-testid="inflection-mobile" className={mobileCls(layout)}>
+      <div
+        data-testid="inflection-mobile"
+        className={buildMobileClassName(layout)}
+      >
         {sortedGenders.length > 1 && (
           <div className="flex border-b border-border bg-secondary-10">
             <div className="w-32 shrink-0 p-2" />
@@ -146,7 +128,7 @@ export function NounInflectionTable({
               {sortedGenders.map((g) => (
                 <div
                   key={g}
-                  className="type-label-xs min-w-0 flex-1 truncate border-l border-border p-2 text-center text-muted-foreground first:border-l-0"
+                  className="type-label-xs min-w-0 flex-1 truncate border-l border-border px-3 py-2 text-center text-secondary-80 first:border-l-0"
                   title={translateGenderNo(g)}
                 >
                   {translateGenderNo(g)}
@@ -155,14 +137,13 @@ export function NounInflectionTable({
             </div>
           </div>
         )}
-        <div className={`${sectionLabel} border-b border-border`}>entall</div>
-        <div className={divider}>
+        <div className={`${sectionLabelCls} border-b border-border`}>
+          entall
+        </div>
+        <div className={dividerCls}>
           {(['Indefinite', 'Definite'] as const).map((def) => (
-            <div
-              key={def}
-              className="flex border-b border-border last:border-b-0"
-            >
-              <div className={headerCell}>
+            <div key={def} className="flex">
+              <div className={headerCellCls}>
                 {shortenInflectionLabel(
                   def === 'Indefinite' ? 'ubestemt form' : 'bestemt form',
                 )}
@@ -171,10 +152,10 @@ export function NounInflectionTable({
                 {sortedGenders.map((g, idx) => (
                   <div
                     key={g}
-                    className={`${dataCell}${idx > 0 ? ' border-l border-border' : ''}`}
+                    className={`${dataCellCls}${idx > 0 ? ' border-l border-border' : ''}`}
                   >
                     {def === 'Indefinite' && (
-                      <span className="text-muted-foreground italic type-caption-sm">
+                      <span className="mr-1 type-caption-sm italic text-muted-foreground">
                         {getGenderArticle(g)}
                       </span>
                     )}
@@ -185,8 +166,10 @@ export function NounInflectionTable({
             </div>
           ))}
         </div>
-        <div className={`${sectionLabel} border-y border-border`}>flertall</div>
-        <div className={divider}>
+        <div className={`${sectionLabelCls} border-y border-border`}>
+          flertall
+        </div>
+        <div className={dividerCls}>
           {(['Indefinite', 'Definite'] as const).map((def) => {
             const cells: { gender: string; form: string; span: number }[] = [];
             let i = 0;
@@ -210,11 +193,8 @@ export function NounInflectionTable({
               i += span;
             }
             return (
-              <div
-                key={def}
-                className="flex border-b border-border last:border-b-0"
-              >
-                <div className={headerCell}>
+              <div key={def} className="flex">
+                <div className={headerCellCls}>
                   {shortenInflectionLabel(
                     def === 'Indefinite' ? 'ubestemt form' : 'bestemt form',
                   )}
@@ -223,7 +203,7 @@ export function NounInflectionTable({
                   {cells.map((cell, cellIdx) => (
                     <div
                       key={`${cell.gender}-${cellIdx}`}
-                      className={`${dataCell}${cellIdx > 0 ? ' border-l border-border' : ''}`}
+                      className={`${dataCellCls}${cellIdx > 0 ? ' border-l border-border' : ''}`}
                       style={{ flex: `${cell.span} 1 0` }}
                     >
                       {cell.form}

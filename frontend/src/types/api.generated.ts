@@ -962,6 +962,8 @@ export interface components {
         BrowseSuggestion: {
             /** Label */
             label: string;
+            /** Alternative Forms */
+            alternative_forms?: string[];
         };
         /** BrowseSuggestionsResponse */
         BrowseSuggestionsResponse: {
@@ -1147,6 +1149,10 @@ export interface components {
             pos: components["schemas"]["LemmaPos"];
             /** Primary Translation */
             primary_translation?: string | null;
+            /** Primary Display Form */
+            primary_display_form?: string | null;
+            /** Alternative Forms */
+            alternative_forms?: string[] | null;
             /**
              * Definitions
              * @default []
@@ -1476,7 +1482,7 @@ export interface components {
          * LemmaPos
          * @enum {string}
          */
-        LemmaPos: "noun" | "adjective" | "verb" | "adverb" | "preposition" | "conjunction" | "pronoun" | "determiner" | "interjection" | "numeral" | "unknown";
+        LemmaPos: "noun" | "adjective" | "verb" | "adverb" | "preposition" | "conjunction" | "pronoun" | "determiner" | "interjection" | "numeral" | "expression" | "unknown";
         /** LemmaRead */
         LemmaRead: {
             /**
@@ -1499,6 +1505,10 @@ export interface components {
             is_sub_article: boolean;
             /** Primary Translation */
             primary_translation?: string | null;
+            /** Primary Display Form */
+            primary_display_form?: string | null;
+            /** Alternative Forms */
+            alternative_forms?: string[] | null;
             /** Cross Reference Article Id */
             cross_reference_article_id?: number | null;
             /** Word Forms */
@@ -1518,6 +1528,10 @@ export interface components {
             pos: components["schemas"]["LemmaPos"];
             /** Primary Translation */
             primary_translation?: string | null;
+            /** Primary Display Form */
+            primary_display_form?: string | null;
+            /** Alternative Forms */
+            alternative_forms?: string[] | null;
             /** Source Article Id */
             source_article_id?: number | null;
             /** Source Lemma Id */
@@ -1801,6 +1815,10 @@ export interface components {
             is_compound: boolean;
             /** Definitions */
             definitions: components["schemas"]["ResolveDefinition"][];
+            /** Primary Display Form */
+            primary_display_form?: string | null;
+            /** Alternative Forms */
+            alternative_forms?: string[] | null;
             /**
              * See Also
              * @default []
@@ -2206,6 +2224,10 @@ export interface components {
             pos: components["schemas"]["LemmaPos"];
             /** Primary Translation */
             primary_translation?: string | null;
+            /** Primary Display Form */
+            primary_display_form?: string | null;
+            /** Alternative Forms */
+            alternative_forms?: string[] | null;
             state: components["schemas"]["UserLemmaState"];
         };
         /** @enum {string} */

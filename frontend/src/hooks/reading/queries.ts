@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import {
   keepPreviousData,
   useInfiniteQuery,
@@ -44,8 +45,15 @@ export function useReadingHome() {
   });
 }
 
-/** Refetch cadence used while a reader URL is in the not-ready (409) state. */
 export const NOT_READY_POLL_INTERVAL_MS = 3000;
+
+export function readingStoryPageQueryOptions(uuid: string, page?: number) {
+  return {
+    queryKey: readingKeys.storyPage(uuid, page),
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      getReadingStory(uuid, page, signal),
+  };
+}
 
 export function useReadingStory(
   uuid: string,
@@ -54,8 +62,7 @@ export function useReadingStory(
 ) {
   const { pollWhileNotReady = true } = options;
   return useQuery({
-    queryKey: readingKeys.storyPage(uuid, page),
-    queryFn: () => getReadingStory(uuid, page),
+    ...readingStoryPageQueryOptions(uuid, page),
     enabled: Boolean(uuid),
     placeholderData: keepPreviousData,
     refetchInterval: (query) => {
@@ -70,6 +77,25 @@ export function useReadingStory(
       return false;
     },
   });
+}
+
+export function usePrefetchAdjacentStoryPages(
+  uuid: string,
+  pageIndex: number | undefined,
+  totalPages: number | undefined,
+) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!uuid || pageIndex === undefined || totalPages === undefined) return;
+
+    for (const adjacent of [pageIndex - 1, pageIndex + 1]) {
+      if (adjacent < 0 || adjacent >= totalPages) continue;
+      void queryClient.prefetchQuery(
+        readingStoryPageQueryOptions(uuid, adjacent),
+      );
+    }
+  }, [pageIndex, queryClient, totalPages, uuid]);
 }
 
 export function useReadingStoryRecommendations(uuid: string) {

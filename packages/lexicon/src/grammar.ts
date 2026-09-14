@@ -18,6 +18,7 @@ const POS_MAP: Record<LemmaPos, string> = {
   determiner: 'determiner',
   interjection: 'interjection',
   numeral: 'numeral',
+  expression: 'expression',
   unknown: 'unknown',
 };
 
@@ -35,6 +36,7 @@ const POS_EN_BADGE: Record<LemmaPos, string> = {
   interjection: 'INTERJ',
   determiner: 'DET',
   numeral: 'NUM',
+  expression: 'Expression',
   unknown: 'UNKNOWN',
 };
 
@@ -126,7 +128,52 @@ export function getLemmaGrammarTag(
   return null;
 }
 
+export const LOOKUP_QUERY_MAX_LENGTH = 80;
+
+const K_LOOKUP_PUNCTUATION = new Set([
+  '-',
+  '–',
+  "'",
+  '[',
+  ']',
+  '|',
+  '(',
+  ')',
+  '/',
+  ',',
+  '.',
+  '…',
+  '!',
+  '?',
+]);
+
+export function normalizeLookupQuery(text: string): string {
+  const normalized = text
+    .normalize('NFC')
+    .replace(/^ +| +$/g, '')
+    .replace(/ +/g, ' ');
+  if (normalized.length === 0 || normalized.length > LOOKUP_QUERY_MAX_LENGTH) {
+    return '';
+  }
+
+  let hasLetterOrDigit = false;
+  for (const char of normalized) {
+    if (/^[\p{L}\p{M}\p{N}]$/u.test(char)) {
+      hasLetterOrDigit = true;
+    } else if (char !== ' ' && !K_LOOKUP_PUNCTUATION.has(char)) {
+      return '';
+    }
+  }
+  return hasLetterOrDigit ? normalized : '';
+}
+
+export function formatLookupLabel(text: string): string {
+  return text
+    .replace(/\[[^\]]+\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function hasValidNorwegianChars(text: string): boolean {
-  const norwegianRegex = /^[a-zA-ZæøåÆØÅ\s-]+$/;
-  return norwegianRegex.test(text);
+  return normalizeLookupQuery(text).length > 0;
 }

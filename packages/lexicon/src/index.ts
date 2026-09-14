@@ -15,6 +15,7 @@ export { SearchBar } from './SearchBar';
 export type { SearchBarProps } from './SearchBar';
 export { WordFormChip } from './WordFormChip';
 export type { WordFormChipProps } from './WordFormChip';
+export { formatLookupLabel, normalizeLookupQuery } from './grammar';
 export type {
   DefinitionRead,
   ExamplePair,

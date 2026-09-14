@@ -52,11 +52,16 @@ export const RatingButtons = ({
   }, []);
 
   return (
-    <div className={cn('space-y-2', className)} ref={scopeRef}>
+    <div
+      className={cn('mx-auto w-full max-w-[30rem] space-y-2', className)}
+      ref={scopeRef}
+      role="group"
+      aria-label="Rate this card"
+    >
       <p className="sr-only" id={descriptionId}>
         Rate this card from 1 for Again to 4 for Easy.
       </p>
-      <div className="flex w-full flex-col gap-2 sm:flex-row">
+      <div className="flex w-full gap-2">
         {RATINGS.map(({ rating, label, key }) => (
           <Button
             key={rating}
@@ -65,9 +70,9 @@ export const RatingButtons = ({
             aria-describedby={descriptionId}
             aria-label={previews ? `${label}, next in ${previews[key]}` : label}
             className={cn(
-              'flex h-auto w-full flex-1 flex-col gap-0.5 px-0 py-2 type-caption shadow-none hover:translate-y-0',
-              rating === 1 &&
-                'hover:border-destructive-30 hover:bg-destructive-10 hover:text-destructive-90',
+              'flex h-12 min-w-0 flex-1 flex-col gap-0.5 px-1.5 py-1.5 type-caption shadow-none transition-colors hover:translate-y-0 active:translate-y-px focus-visible:z-10 max-[359px]:h-11',
+              key === 'again' &&
+                'mr-1 border-destructive-20 text-destructive-90 hover:border-destructive-30 hover:bg-destructive-0 hover:text-destructive-90 sm:mr-2',
             )}
             onClick={() => onRate(rating)}
             disabled={disabled}

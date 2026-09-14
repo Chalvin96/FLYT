@@ -1,5 +1,6 @@
 import { useRef, useState, type Ref } from "react";
 import { SearchBar } from "@flyt/lexicon";
+import { formatLookupLabel } from "@flyt/lexicon/grammar";
 
 import { MSG_KIND, MSG_RESULT_KIND, sendMessage } from "../lib/messages";
 
@@ -61,8 +62,9 @@ export function SearchView({
                 type="button"
                 className="flyt-suggestion"
                 onClick={() => onResolveWord(label)}
+                aria-label={label}
               >
-                {label}
+                {formatLookupLabel(label)}
               </button>
             </li>
           ))}

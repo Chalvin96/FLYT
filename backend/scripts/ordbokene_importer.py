@@ -5,14 +5,20 @@ truth for the wire format. This module only does direct DB inserts from the
 lemma JSON shape.
 """
 
+from dataclasses import dataclass
 import logging
+import re
+import unicodedata
 from urllib.parse import urlparse
 
+from sqlalchemy import delete
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import set_committed_value
 
 from flyt.apps.lexicons.models import Definition
 from flyt.apps.lexicons.models import Lemma
+from flyt.apps.lexicons.models import LemmaAlias
 from flyt.apps.lexicons.models import LemmaPos
 from flyt.apps.lexicons.models import SeeAlso
 from flyt.apps.lexicons.models import WordForm
@@ -32,7 +38,108 @@ POS_MAP = {
     "DET": "determiner",
     "INTERJ": "interjection",
     "NUM": "numeral",
+    "EXPR": "expression",
 }
+
+_EXPRESSION_FORM_PUNCTUATION = frozenset("-–'()/,.…!?")  # noqa: RUF001
+_EXPRESSION_FORM_MAX_LENGTH = 80
+
+
+@dataclass(frozen=True)
+class ExpressionPresentation:
+    """Validated producer contract for an expression's learner-facing forms."""
+
+    primary_display_form: str
+    alternative_forms: tuple[str, ...]
+
+
+def normalize_expression_form(value: object) -> str:
+    """Normalize one complete expression form from a producer artifact.
+
+    Structured forms must already be complete phrases. Bracket and pipe
+    notation belongs to the canonical source headword and is deliberately
+    rejected here instead of being interpreted by the importer.
+    """
+    if not isinstance(value, str):
+        raise TypeError(
+            f"expression display forms must be strings, got {type(value).__name__}"
+        )
+    normalized = unicodedata.normalize("NFC", value).strip(" ")
+    normalized = re.sub(r" +", " ", normalized)
+    if (
+        not normalized
+        or len(normalized) > _EXPRESSION_FORM_MAX_LENGTH
+        or len(normalized.casefold()) > _EXPRESSION_FORM_MAX_LENGTH
+    ):
+        raise ValueError("expression display form is empty or exceeds 80 characters")
+    if any(char in normalized for char in "[]|"):
+        raise ValueError(
+            "expression display forms must be complete phrases without bracket "
+            "or pipe notation"
+        )
+
+    has_letter_or_digit = False
+    for char in normalized:
+        category = unicodedata.category(char)
+        if category[0] in {"L", "M", "N"}:
+            has_letter_or_digit = True
+            continue
+        if char == " " or char in _EXPRESSION_FORM_PUNCTUATION:
+            continue
+        raise ValueError(
+            "expression display forms must contain letters, numbers, spaces, "
+            "and safe dictionary punctuation"
+        )
+    if not has_letter_or_digit:
+        raise ValueError(
+            "expression display forms must be complete phrases without bracket "
+            "or pipe notation"
+        )
+    return normalized
+
+
+def parse_expression_presentation(ld: dict) -> ExpressionPresentation | None:
+    """Validate optional producer presentation fields for one lemma payload.
+
+    The external producer has not yet released this contract in this
+    repository. Only the agreed field names are accepted here; unknown or
+    draft producer keys remain unavailable and therefore use the fallback.
+    """
+    raw_pos = ld.get("pos")
+    if (
+        not isinstance(raw_pos, str)
+        or POS_MAP.get(raw_pos, "unknown") != LemmaPos.EXPRESSION.value
+    ):
+        return None
+
+    if "primary_display_form" not in ld and "alternative_forms" not in ld:
+        return None
+
+    raw_primary = ld.get("primary_display_form")
+    raw_alternatives = ld.get("alternative_forms", [])
+    if raw_primary is None:
+        if raw_alternatives in (None, []):
+            return None
+        raise ValueError("expression alternative forms require primary_display_form")
+    if raw_alternatives is None:
+        raw_alternatives = []
+    if not isinstance(raw_alternatives, (list, tuple)):
+        raise TypeError("expression alternative forms must be a list")
+
+    normalized_primary = normalize_expression_form(raw_primary)
+    normalized_alternatives: list[str] = []
+    seen = {normalized_primary.casefold()}
+    for raw_form in raw_alternatives:
+        normalized = normalize_expression_form(raw_form)
+        key = normalized.casefold()
+        if key not in seen:
+            seen.add(key)
+            normalized_alternatives.append(normalized)
+
+    return ExpressionPresentation(
+        primary_display_form=normalized_primary,
+        alternative_forms=tuple(normalized_alternatives),
+    )
 
 
 async def get_article_lemmas(db: AsyncSession, article_id: int) -> list[Lemma]:
@@ -237,7 +344,50 @@ def _add_see_also(db: AsyncSession, lemma: Lemma, see_also_list: list[dict]) -> 
         )
 
 
-async def import_article(db: AsyncSession, data: dict) -> list[Lemma]:
+def _add_expression_aliases(
+    db: AsyncSession,
+    lemma: Lemma,
+    presentation: ExpressionPresentation | None,
+) -> None:
+    # Import/update callers may inspect the returned ORM object before the
+    # transaction is committed. Initialise the select-in relationship without
+    # triggering async lazy IO, then keep it in sync with the rows being added.
+    if "aliases" not in lemma.__dict__:
+        set_committed_value(lemma, "aliases", [])
+    if presentation is None:
+        return
+    forms = (presentation.primary_display_form, *presentation.alternative_forms)
+    for ordinal, form in enumerate(forms):
+        alias = LemmaAlias(
+            lemma_id=lemma.id,
+            alias=form,
+            normalized_alias=form.casefold(),
+            is_primary=ordinal == 0,
+            ordinal=ordinal,
+        )
+        lemma.aliases.append(alias)
+        db.add(alias)
+
+
+def _validate_expression_presentations(
+    lemma_data: list[dict],
+    *,
+    has_translated_def: bool,
+) -> dict[object, ExpressionPresentation | None]:
+    """Validate structured forms for all importable lemmas before writes."""
+    presentations: dict[object, ExpressionPresentation | None] = {}
+    for ld in lemma_data:
+        key = _dedup_key(ld)
+        if key in presentations:
+            continue
+        if _lemma_is_importable(ld, has_translated_def=has_translated_def):
+            presentations[key] = parse_expression_presentation(ld)
+    return presentations
+
+
+async def import_article(  # ume-ignore: UME-PY003
+    db: AsyncSession, data: dict
+) -> list[Lemma]:
     article_id = data["source_article_id"]
     if not data.get("lemmas"):
         return []
@@ -250,6 +400,11 @@ async def import_article(db: AsyncSession, data: dict) -> list[Lemma]:
     lemmas: list[Lemma] = []
     seen: set[object] = set()
     skipped = 0
+
+    presentations = _validate_expression_presentations(
+        data["lemmas"],
+        has_translated_def=has_translated_def,
+    )
 
     for ld in data["lemmas"]:
         key = _dedup_key(ld)
@@ -272,6 +427,7 @@ async def import_article(db: AsyncSession, data: dict) -> list[Lemma]:
         _add_word_forms(db, lemma, ld)
         _add_definitions(db, lemma, good_defs)
         _add_see_also(db, lemma, see_also)
+        _add_expression_aliases(db, lemma, presentations.get(key))
         lemmas.append(lemma)
 
     if skipped:
@@ -285,7 +441,7 @@ async def import_article(db: AsyncSession, data: dict) -> list[Lemma]:
     return lemmas
 
 
-async def update_article(
+async def update_article(  # ume-ignore: UME-PY003
     db: AsyncSession,
     data: dict,
     existing_lemmas: list[Lemma],
@@ -312,6 +468,11 @@ async def update_article(
     seen: set[object] = set()
     skipped = 0
 
+    presentations = _validate_expression_presentations(
+        data["lemmas"],
+        has_translated_def=has_translated_def,
+    )
+
     for ld in data["lemmas"]:
         key = _dedup_key(ld)
         if key in seen:
@@ -322,8 +483,7 @@ async def update_article(
         if not _lemma_is_importable(ld, has_translated_def=has_translated_def):
             skipped += 1
             continue
-        source_lemma_id = ld.get("source_lemma_id")
-        existing = by_source_id.get(source_lemma_id)
+        existing = by_source_id.get(ld.get("source_lemma_id"))
 
         if existing:
             _apply_lemma_fields(
@@ -339,7 +499,11 @@ async def update_article(
                 await db.delete(defn)
             for sa in list(existing.see_also):
                 await db.delete(sa)
+            await db.execute(
+                delete(LemmaAlias).where(LemmaAlias.lemma_id == existing.id)
+            )
             await db.flush()
+            set_committed_value(existing, "aliases", [])
             lemma = existing
         else:
             lemma = Lemma(source_article_id=article_id)
@@ -356,6 +520,7 @@ async def update_article(
         _add_word_forms(db, lemma, ld)
         _add_definitions(db, lemma, good_defs)
         _add_see_also(db, lemma, see_also)
+        _add_expression_aliases(db, lemma, presentations.get(key))
         updated.append(lemma)
 
     if skipped:

@@ -40,10 +40,12 @@ export async function getReadingStories(
 export async function getReadingStory(
   uuid: string,
   page?: number,
+  signal?: AbortSignal,
 ): Promise<ReadingStoryPageResponse> {
   return (
     await client.get<ReadingStoryPageResponse>(`/reading/stories/${uuid}`, {
       params: { page },
+      signal,
     })
   ).data;
 }

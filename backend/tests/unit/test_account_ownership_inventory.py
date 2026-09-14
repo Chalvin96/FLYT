@@ -32,6 +32,7 @@ CLASSIFIED_TABLES = frozenset(
         "lesson_releases",
         "lesson_lessons",
         "lexicon_lemmas",
+        "lexicon_lemma_aliases",
         "lexicon_word_forms",
         "lexicon_definitions",
         "lexicon_lemma_see_also",

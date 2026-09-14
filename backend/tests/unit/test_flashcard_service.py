@@ -34,6 +34,7 @@ from flyt.apps.flashcards.user_cards_service import derive_mastery_bucket
 from flyt.apps.flashcards.user_cards_service import mastery_bucket_sql_case
 from flyt.apps.lexicons.models import Lemma
 from flyt.apps.lexicons.models import LemmaPos
+from flyt.apps.lexicons.services import LexiconService
 from flyt.apps.stats.queries import StatsQueryService
 from flyt.apps.stats.services import StatsService
 from flyt.apps.users.models import User
@@ -46,6 +47,7 @@ from tests.factories import DeckFactory
 from tests.factories import DefinitionFactory
 from tests.factories import FlashCardFactory
 from tests.factories import LemmaFactory
+from tests.factories import LemmaAliasFactory
 from tests.factories import LessonFactory
 from tests.factories import UserCardFactory
 from tests.factories import UserFactory
@@ -1103,6 +1105,62 @@ async def test_find_or_create_lemma_pool_with_definition_card_given_missing_pool
     assert card.is_addable is True
     assert card.payload_json["lemma_uuid"] == str(lemma.uuid)
     assert card.payload_json["primary_translation"] == "fish"
+
+
+@pytest.mark.anyio
+async def test_expression_alias_given_enrollment_through_two_forms_expect_one_pool_and_snapshot(  # ume-ignore: UME-PY003
+    async_session: AsyncSession,
+) -> None:
+    lemma = await LemmaFactory.create(
+        word="få [stelle|lage] i stand",
+        pos=LemmaPos.EXPRESSION,
+        primary_translation="arrange",
+    )
+    await LemmaAliasFactory.create(
+        lemma=lemma,
+        alias="få i stand",
+        normalized_alias="få i stand",
+        is_primary=True,
+    )
+    await LemmaAliasFactory.create(
+        lemma=lemma,
+        alias="få til",
+        normalized_alias="få til",
+        ordinal=1,
+    )
+    await DefinitionFactory.create(
+        lemma=lemma,
+        definition="ordne",
+        translation="arrange",
+    )
+    service = card_service(async_session)
+    lexicon_service = LexiconService(
+        async_session, user_lemma_service=UserLemmaService(async_session)
+    )
+    primary_lemma = (await lexicon_service.resolve_word("få i stand")).lemmas[0]
+    alternative_lemma = (await lexicon_service.resolve_word("få til")).lemmas[0]
+
+    pool_from_primary = await service.find_or_create_lemma_pool_with_definition_card(
+        primary_lemma
+    )
+    pool_from_alias = await service.find_or_create_lemma_pool_with_definition_card(
+        alternative_lemma
+    )
+
+    assert pool_from_primary.id == pool_from_alias.id
+    card = await async_session.scalar(
+        select(FlashCard).where(FlashCard.pool_id == pool_from_primary.id)
+    )
+    assert card is not None
+    assert card.payload_json["word"] == "få [stelle|lage] i stand"
+    assert card.payload_json["primary_display_form"] == "få i stand"
+    assert card.payload_json["alternative_forms"] == ["få til"]
+    assert (
+        await async_session.scalar(
+            select(func.count(CardPool.id)).where(CardPool.lemma_id == lemma.id)
+        )
+        == 1
+    )
 
 
 @pytest.mark.anyio

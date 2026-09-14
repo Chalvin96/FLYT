@@ -181,7 +181,7 @@ class FlashcardCardService:
     ) -> CardPool:
         """Find or create the vocabulary CardPool and one DEFINITION card.
 
-        Reloads the lemma with ``selectinload(Lemma.definitions)`` internally
+        Reloads the lemma with definitions and expression aliases internally
         so the caller does not need to preload the relationship. If the pool
         or card already exist they are returned as-is (existing snapshots are
         never refreshed by this builder).
@@ -189,6 +189,7 @@ class FlashcardCardService:
         loaded_lemma = await self.db.scalar(
             select(Lemma)
             .options(selectinload(Lemma.definitions))
+            .options(selectinload(Lemma.aliases))
             .where(Lemma.id == lemma.id)
         )
         if loaded_lemma is None:
@@ -442,6 +443,8 @@ class FlashcardCardService:
             word=lemma.word,
             pos=lemma.pos,
             primary_translation=lemma.primary_translation,
+            primary_display_form=lemma.primary_display_form,
+            alternative_forms=lemma.alternative_forms or None,
             ipa=lemma.ipa,
             intonation=lemma.intonation,
             ipa_approximate=lemma.ipa_approximate,

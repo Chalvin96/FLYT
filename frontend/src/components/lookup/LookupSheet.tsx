@@ -1,3 +1,4 @@
+import { formatLookupLabel } from '@flyt/lexicon/grammar';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Search, X } from 'lucide-react';
 import { useCallback, useEffect, useRef } from 'react';
@@ -12,7 +13,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useBrowseHeadword } from '@/hooks/lexicon/queries';
+import {
+  useBrowseHeadword,
+  useLemmaDefinitions,
+} from '@/hooks/lexicon/queries';
 import { useCommandShortcut } from '@/hooks/lookup/useCommandShortcut';
 import { useDictionaryLookup } from '@/hooks/lookup/useDictionaryLookup';
 import { useIsDesktop } from '@/hooks/ui/useIsDesktop';
@@ -25,6 +29,8 @@ interface DropdownEscapeBridge {
   isOpen: boolean;
   close: () => void;
 }
+
+const K_LOOKUP_QUERY_ERROR_ID = 'lookup-query-error';
 
 export function LookupSheet() {
   useCommandShortcut();
@@ -146,6 +152,14 @@ function LemmaSheetContent() {
   const browseQuery = useBrowseHeadword(
     isBrowseMode ? (lemmaTarget?.wordText ?? '') : '',
   );
+  const detailQuery = useLemmaDefinitions(
+    isBrowseMode ? null : (lemmaTarget?.lemmaUuid ?? null),
+  );
+  const learnerWord =
+    detailQuery.data?.lemma.primary_display_form ??
+    browseQuery.data?.entries[0]?.label ??
+    lemmaTarget?.wordText ??
+    '';
 
   const isBrowseFailed =
     isBrowseMode &&
@@ -162,14 +176,14 @@ function LemmaSheetContent() {
       ref={containerRef}
       tabIndex={-1}
       data-testid="lemma-content"
-      aria-label={`Dictionary entry for ${lemmaTarget.wordText}`}
+      aria-label={`Dictionary entry for ${learnerWord}`}
       className="flex flex-col min-h-0 outline-none"
     >
       <LemmaSheetHeader onBack={handleBack} priorQuery={priorQuery} />
 
-      <DialogTitle className="sr-only">{lemmaTarget.wordText}</DialogTitle>
+      <DialogTitle className="sr-only">{learnerWord}</DialogTitle>
       <DialogDescription className="sr-only">
-        Dictionary entry for {lemmaTarget.wordText}
+        Dictionary entry for {learnerWord}
       </DialogDescription>
 
       <div
@@ -296,6 +310,14 @@ function SearchSheetContent({
             onChange={(e) => search.handleInputChange(e.target.value)}
             onFocus={search.handleInputFocus}
             onKeyDown={search.handleKeyDown}
+            aria-invalid={
+              search.query.length > 0 && !search.isQueryValid ? true : undefined
+            }
+            aria-describedby={
+              search.query.length > 0 && !search.isQueryValid
+                ? K_LOOKUP_QUERY_ERROR_ID
+                : undefined
+            }
             className={cn(
               'h-full w-full bg-transparent pl-10 pr-9 type-caption outline-none placeholder:text-muted-foreground',
               'focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent-40',
@@ -317,8 +339,12 @@ function SearchSheetContent({
           )}
         </div>
 
-        {!search.isQueryValid && search.normalizedQuery.length > 0 && (
-          <p className="type-caption-sm text-destructive-60 mt-2">
+        {!search.isQueryValid && search.query.length > 0 && (
+          <p
+            id={K_LOOKUP_QUERY_ERROR_ID}
+            role="alert"
+            className="type-caption-sm text-destructive-60 mt-2"
+          >
             {search.INVALID_QUERY_MESSAGE}
           </p>
         )}
@@ -353,7 +379,7 @@ function SearchSheetContent({
                   aria-selected={isHighlighted}
                   ref={isHighlighted ? highlightedOptionRef : undefined}
                   className={cn(
-                    'flex w-full items-center px-4 h-10 text-left type-caption transition-colors radius-sm',
+                    'flex min-h-10 w-full flex-col items-start justify-center px-4 py-2 text-left type-caption transition-colors radius-sm',
                     isHighlighted
                       ? 'bg-secondary-10 text-foreground'
                       : 'text-muted-foreground hover:bg-secondary-10 hover:text-foreground',
@@ -367,10 +393,18 @@ function SearchSheetContent({
                     search.setHoveredIndex(-1);
                   }}
                   onClick={() => search.commitSelection(suggestion.label)}
+                  aria-label={suggestion.label}
                 >
-                  {renderMatchedPrefix(
-                    suggestion.label,
-                    search.normalizedQuery,
+                  <span>
+                    {renderMatchedPrefix(
+                      formatLookupLabel(suggestion.label),
+                      formatLookupLabel(search.normalizedQuery),
+                    )}
+                  </span>
+                  {(suggestion.alternative_forms?.length ?? 0) > 0 && (
+                    <span className="type-caption-sm text-secondary-60">
+                      {suggestion.alternative_forms?.join(' · ')}
+                    </span>
                   )}
                 </button>
               );

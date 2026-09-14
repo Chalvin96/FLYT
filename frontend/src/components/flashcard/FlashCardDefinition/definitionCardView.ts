@@ -1,8 +1,4 @@
-import {
-  formatPos,
-  getGenderFromTags,
-  getLemmaGrammarTag,
-} from '@flyt/lexicon/grammar';
+import { getGenderFromTags, getLemmaGrammarTag } from '@flyt/lexicon/grammar';
 
 import { detectInflectionKind } from '@/components/flashcard/InflectionTable/utils';
 import {
@@ -16,6 +12,8 @@ import {
 
 export interface DefinitionCardView {
   word: string;
+  primaryDisplayForm: string | null;
+  alternativeForms: string[];
   senseCue: string | null | undefined;
   definitions: DefinitionRead[];
   primaryTranslation: string;
@@ -23,7 +21,6 @@ export interface DefinitionCardView {
   inflectionClass: string | null;
   isVerb: boolean;
   gender: string | null;
-  formattedPos: string | null;
   ipa: string | null;
   intonation: string | null;
   ipaApproximate: boolean;
@@ -72,6 +69,8 @@ export function buildDefinitionCardView(
 
   return {
     word: definitionPayload.word,
+    primaryDisplayForm: definitionPayload.primary_display_form ?? null,
+    alternativeForms: definitionPayload.alternative_forms ?? [],
     senseCue: definitionPayload.sense_cue,
     definitions,
     primaryTranslation: definitionPayload.primary_translation ?? '',
@@ -82,12 +81,13 @@ export function buildDefinitionCardView(
     isVerb,
     gender:
       isNoun && wordForms[0] ? getGenderFromTags(wordForms[0].tags_json) : null,
-    formattedPos: definitionPayload.pos
-      ? formatPos(definitionPayload.pos)
-      : null,
     ipa: definitionPayload.ipa ?? null,
     intonation: definitionPayload.intonation ?? null,
     ipaApproximate: definitionPayload.ipa_approximate ?? false,
-    audioUrl: definitionPayload.audio_url ?? wordForms[0]?.audio_url ?? null,
+    audioUrl:
+      definitionPayload.audio_url ??
+      (definitionPayload.pos === 'expression'
+        ? null
+        : (wordForms[0]?.audio_url ?? null)),
   };
 }

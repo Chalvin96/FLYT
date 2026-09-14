@@ -313,6 +313,34 @@ describe('LookupSheet — search mode', () => {
     expect(option2).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('test_suggestions_given_expression_expect_alternatives_beneath_primary', async () => {
+    vi.spyOn(lexiconApi, 'getSuggestions').mockResolvedValue({
+      suggestions: [
+        {
+          label: 'få i stand',
+          alternative_forms: ['stelle i stand', 'lage i stand'],
+        },
+      ],
+    });
+
+    renderSearchSheet();
+    await userEvent.click(screen.getByText('open search'));
+    await userEvent.type(
+      screen.getByPlaceholderText('Search a Norwegian word'),
+      'få',
+    );
+
+    expect(
+      await screen.findByText('stelle i stand · lage i stand'),
+    ).toBeVisible();
+    const option = screen.getByRole('option', { name: 'få i stand' });
+    expect(option).toBeVisible();
+
+    await userEvent.click(option);
+
+    expect(screen.getByRole('button', { name: '← "få"' })).toBeVisible();
+  });
+
   it('Enter commits selection on highlighted suggestion', async () => {
     vi.spyOn(lexiconApi, 'getSuggestions').mockResolvedValue({
       suggestions: [{ label: 'test' }],
@@ -339,20 +367,19 @@ describe('LookupSheet — search mode', () => {
     expect(screen.getByText('test')).toBeInTheDocument();
   });
 
-  it('shows error for invalid characters', async () => {
+  it('test_lookup_input_given_invalid_characters_expect_associated_alert', async () => {
     renderSearchSheet();
     await userEvent.click(screen.getByText('open search'));
     const input = screen.getByPlaceholderText('Search a Norwegian word');
 
-    await userEvent.type(input, 'hello123');
+    await userEvent.type(input, 'hello%');
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          'Please use letters only. Norwegian letters like ae, oe, and aa are supported.',
-        ),
-      ).toBeInTheDocument();
-    });
+    const error = await screen.findByRole('alert');
+    expect(error).toHaveTextContent(
+      'Use letters, numbers, spaces, and dictionary punctuation (maximum 80 characters).',
+    );
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAttribute('aria-describedby', error.id);
   });
 
   it('has proper ARIA attributes', async () => {

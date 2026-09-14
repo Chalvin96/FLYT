@@ -64,6 +64,8 @@ export function LemmaCardView({
         <LemmaHeader
           word={lemma.word}
           pos={lemma.pos}
+          primaryDisplayForm={lemma.primary_display_form}
+          alternativeForms={lemma.alternative_forms}
           ipa={lemma.ipa ?? null}
           ipaApproximate={lemma.ipa_approximate ?? false}
           intonation={lemma.intonation ?? null}

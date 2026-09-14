@@ -59,8 +59,12 @@ export function buildLookupKey(state: VisiblePopupState): string {
 
 export function buildPopupAriaLabel(state: VisiblePopupState): string {
   switch (state.kind) {
-    case "result":
-      return "Definition of " + state.res.query;
+    case "result": {
+      const displayForm = state.res.candidates.find(
+        (candidate) => candidate.primary_display_form,
+      )?.primary_display_form;
+      return "Definition of " + (displayForm ?? state.res.query);
+    }
     case "loading":
       return "Looking up " + state.word;
     case "selection":

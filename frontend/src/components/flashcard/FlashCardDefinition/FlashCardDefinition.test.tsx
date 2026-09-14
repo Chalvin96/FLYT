@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -50,6 +50,40 @@ describe('FlashCardDefinition', () => {
       .getAllByText('hund')
       .find((el) => el.tagName === 'H2');
     expect(frontWord).toBeInTheDocument();
+    expect(frontWord).toHaveClass('font-display');
+  });
+
+  it('test_expression_card_given_snapshot_forms_expect_primary_front_and_alternatives_on_answer', async () => {
+    const expressionCard = {
+      ...mockCard,
+      card: {
+        ...mockCard.card,
+        payload: {
+          ...(mockCard.card.payload as DefinitionPayload),
+          word: 'få [stelle|lage] i stand',
+          pos: 'expression' as const,
+          primary_display_form: 'få i stand',
+          alternative_forms: ['stelle i stand'],
+        },
+      },
+    } as UserCard;
+
+    render(<FlashCardDefinition card={expressionCard} />);
+    expect(
+      screen
+        .getAllByText('få i stand')
+        .some((element) => element.tagName === 'H2'),
+    ).toBe(true);
+    expect(screen.queryByText('få [stelle|lage] i stand')).toBeNull();
+
+    await flipCard();
+
+    const otherFormsLabel = screen.getByText('Other forms');
+    expect(otherFormsLabel).toBeInTheDocument();
+    expect(screen.getByTestId('flashcard-answer-header')).not.toHaveTextContent(
+      'Other forms',
+    );
+    expect(screen.getByText('stelle i stand')).toBeInTheDocument();
   });
 
   const makeDefinitionCard = (payload: Partial<DefinitionPayload>): UserCard =>
@@ -98,7 +132,14 @@ describe('FlashCardDefinition', () => {
 
     await flipCard();
 
-    expect(screen.getByText('From this sentence')).toBeInTheDocument();
+    const contextDisclosure = screen.getByText('Saved context');
+    expect(contextDisclosure).toBeInTheDocument();
+    const answerBody = screen.getByTestId('flashcard-answer-body');
+    expect(answerBody.textContent?.indexOf('dog (animal')).toBeLessThan(
+      answerBody.textContent?.indexOf('Saved context') ?? -1,
+    );
+    expect(screen.queryByText('Jeg lærer norsk hver dag.')).not.toBeVisible();
+    await userEvent.click(contextDisclosure);
     expect(screen.getByText('Jeg lærer norsk hver dag.')).toBeInTheDocument();
     expect(screen.getByText('A Norwegian lesson')).toBeInTheDocument();
   });
@@ -115,20 +156,235 @@ describe('FlashCardDefinition', () => {
   it('shows definition on back when flipped', async () => {
     render(<FlashCardDefinition card={mockCard} />);
     await flipCard();
-    // The back renders the primary translation boldly and the top meanings as
-    // English translations, each with its Norwegian gloss beneath — each
-    // meaning is a list item.
-    const meaningItems = screen.getAllByRole('listitem');
+    // Sense 1 restates the headline translation, so the answer absorbs it: the
+    // English shows once and the Norwegian gloss sits beneath it.
+    const answerBody = screen.getByTestId('flashcard-answer-body');
+    expect(answerBody).toHaveTextContent(
+      'dog (animal with four legs that barks)',
+    );
+    expect(answerBody).toHaveTextContent('dyr med fire ben som bjeff');
+    expect(screen.queryAllByRole('listitem')).toHaveLength(0);
+  });
+
+  it('test_answer_face_given_translation_matching_first_sense_expect_english_rendered_once', async () => {
+    render(<FlashCardDefinition card={mockCard} />);
+    await flipCard();
+
+    const answerBody = screen.getByTestId('flashcard-answer-body');
+    const occurrences = answerBody.textContent?.split(
+      'dog (animal with four legs that barks)',
+    ).length;
+    expect(occurrences).toBe(2); // one split point => one occurrence
+  });
+
+  it('test_answer_face_given_first_sense_absorbed_expect_its_example_visible', async () => {
+    const card = makeDefinitionCard({
+      primary_translation: 'dog',
+      definitions: [
+        {
+          uuid: 'def-1',
+          definition: 'et kjæledyr',
+          translation: 'dog',
+          examples_json: [
+            { no: 'Jeg har en liten hund.', en: 'I have a small dog.' },
+          ],
+        },
+      ],
+    });
+
+    render(<FlashCardDefinition card={card} />);
+    await flipCard();
+
+    expect(screen.getByText('Jeg har en liten hund.')).toBeVisible();
+    expect(screen.getByText('I have a small dog.')).toBeVisible();
+    expect(screen.queryAllByRole('listitem')).toHaveLength(0);
+  });
+
+  it('test_answer_face_given_extra_senses_expect_remaining_meanings_numbered_from_two', async () => {
+    const card = makeDefinitionCard({
+      primary_translation: 'dog (animal with four legs that barks)',
+      definitions: [
+        {
+          uuid: 'def-1',
+          definition: 'dyr med fire ben som bjeff',
+          translation: 'dog (animal with four legs that barks)',
+          examples_json: [],
+        },
+        {
+          uuid: 'def-2',
+          definition: 'usympatisk person',
+          translation: 'scoundrel',
+          examples_json: [],
+        },
+      ],
+    });
+
+    render(<FlashCardDefinition card={card} />);
+    await flipCard();
+
     expect(
-      meaningItems.some((li) =>
-        li.textContent?.includes('dog (animal with four legs that barks)'),
+      screen.getByRole('heading', { name: 'Other meanings' }),
+    ).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Other meanings' })).toHaveClass(
+      'type-label-sm',
+    );
+    const list = screen.getByRole('list');
+    expect(list).toHaveAttribute('start', '2');
+    expect(screen.getAllByRole('listitem')).toHaveLength(1);
+    expect(screen.getByText('scoundrel')).toBeInTheDocument();
+  });
+
+  it('test_additional_meanings_given_more_than_three_definitions_expect_show_more_reveals_all', async () => {
+    const card = makeDefinitionCard({
+      definitions: [1, 2, 3, 4].map((index) => ({
+        uuid: `def-${index}`,
+        definition: `Norwegian gloss ${index}`,
+        translation: `meaning ${index}`,
+        examples_json: [],
+      })),
+    });
+
+    render(<FlashCardDefinition card={card} />);
+    await flipCard();
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(3);
+    const showMore = screen.getByRole('button', {
+      name: 'Show 1 more meaning',
+    });
+    expect(screen.queryByText('meaning 4')).toBeNull();
+    await userEvent.click(showMore);
+    expect(screen.getAllByRole('listitem')).toHaveLength(4);
+    expect(screen.getByText('meaning 4')).toBeInTheDocument();
+  });
+
+  it('test_option_c_header_given_pronunciation_metadata_expect_ordered_accessible_marker', async () => {
+    const card = makeDefinitionCard({
+      word: 'gå',
+      pos: 'verb',
+      ipa: 'ɡoː',
+      ipa_approximate: true,
+      intonation: '2',
+      audio_url: 'https://example.com/gå.mp3',
+    });
+
+    render(<FlashCardDefinition card={card} />);
+    await flipCard();
+
+    const header = screen.getByTestId('flashcard-answer-header');
+    expect(header).toHaveTextContent('verb');
+    const heading = screen.getByRole('heading', { name: 'gå' });
+    expect(header).toContainElement(heading);
+    const audioButton = screen.getByRole('button', {
+      name: /play pronunciation/i,
+    });
+    expect(audioButton).toBeInTheDocument();
+    const ipaText = screen.getByText('/ɡoː/');
+    expect(ipaText).toBeInTheDocument();
+    const approximationMarker = screen.getByRole('img', {
+      name: 'Pronunciation generated automatically.',
+    });
+    const toneChip = screen.getByRole('img', { name: 'Tone 2' });
+    expect(
+      Boolean(
+        ipaText.compareDocumentPosition(approximationMarker) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
       ),
     ).toBe(true);
     expect(
-      meaningItems.some((li) =>
-        li.textContent?.includes('dyr med fire ben som bjeff'),
+      Boolean(
+        approximationMarker.compareDocumentPosition(toneChip) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
       ),
     ).toBe(true);
+    expect(
+      Boolean(
+        toneChip.compareDocumentPosition(audioButton) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    ).toBe(true);
+  });
+
+  it('test_eyebrow_given_noun_gender_word_forms_expect_pos_and_gender_metadata', async () => {
+    const card = makeDefinitionCard({
+      word: 'hus',
+      pos: 'noun',
+      ipa: 'hʉːs',
+      intonation: '1',
+      audio_url: 'https://example.com/hus.mp3',
+    });
+
+    render(
+      <FlashCardDefinition
+        card={card}
+        wordForms={[
+          {
+            id: 1,
+            form: 'hus',
+            tags_json: ['Neuter', 'Sing', 'Ind'],
+            ipa: null,
+            audio_url: null,
+            ipa_approximate: false,
+          },
+        ]}
+      />,
+    );
+    await flipCard();
+
+    const eyebrow = screen.getByTestId('flashcard-answer-eyebrow');
+    expect(eyebrow).toHaveTextContent('noun');
+    expect(eyebrow).toHaveTextContent('Neuter');
+    const ipaText = screen.getByText('/hʉːs/');
+    const toneBadge = screen.getByRole('img', { name: 'Tone 1' });
+    expect(eyebrow).not.toContainElement(toneBadge);
+    expect(
+      Boolean(
+        ipaText.compareDocumentPosition(toneBadge) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    ).toBe(true);
+  });
+
+  it('test_expression_card_given_word_form_audio_expect_no_inferred_pronunciation', async () => {
+    const expressionCard = makeDefinitionCard({
+      word: 'ta vare på',
+      pos: 'expression',
+      alternative_forms: ['passe på'],
+    });
+
+    render(
+      <FlashCardDefinition
+        card={expressionCard}
+        wordForms={[
+          {
+            id: 99,
+            form: 'ta vare på',
+            tags_json: [],
+            ipa: 'taː',
+            audio_url: 'https://example.com/expression.mp3',
+            ipa_approximate: false,
+          },
+        ]}
+      />,
+    );
+    await flipCard();
+
+    expect(screen.getByText('Other forms')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /play pronunciation/i }),
+    ).toBeNull();
+    expect(screen.queryByText('/taː/')).toBeNull();
+  });
+
+  it('test_answer_face_given_question_revealed_expect_focus_moves_and_question_inert', async () => {
+    render(<FlashCardDefinition card={mockCard} />);
+    await flipCard();
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'hund' })).toHaveFocus(),
+    );
+    expect(screen.getByTestId('flashcard-question-face')).toHaveAttribute(
+      'inert',
+    );
   });
 
   it('reveals back only when check button is pressed', async () => {
@@ -170,6 +426,56 @@ describe('FlashCardDefinition', () => {
     await flipCard();
     await clickCardRating('good');
     expect(onFinished).toHaveBeenCalledWith(3);
+  });
+
+  it('test_answer_body_given_inflection_word_forms_expect_reference_rail', async () => {
+    render(
+      <FlashCardDefinition
+        card={makeDefinitionCard({ word: 'hus', pos: 'noun' })}
+        wordForms={[
+          {
+            id: 1,
+            form: 'hus',
+            tags_json: ['Neuter', 'Sing', 'Ind'],
+            ipa: null,
+            audio_url: null,
+            ipa_approximate: false,
+          },
+          {
+            id: 2,
+            form: 'huset',
+            tags_json: ['Neuter', 'Sing', 'Def'],
+            ipa: null,
+            audio_url: null,
+            ipa_approximate: false,
+          },
+        ]}
+      />,
+    );
+    await flipCard();
+
+    const reference = screen.getByTestId('flashcard-answer-reference');
+    expect(reference).toContainElement(screen.getByText('Bøying'));
+  });
+
+  it('test_answer_body_given_no_reference_material_expect_no_rail', async () => {
+    render(
+      <FlashCardDefinition
+        card={{
+          ...makeDefinitionCard({ word: 'ta', pos: 'verb' }),
+          context: {
+            source_sentence: 'Kan du ta med boka?',
+            source_title: 'Saved reading',
+          },
+        }}
+      />,
+    );
+    await flipCard();
+
+    expect(
+      screen.queryByTestId('flashcard-answer-reference'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('saved-context-disclosure')).toBeInTheDocument();
   });
 
   it('renders nothing for non-definition card payload', () => {
