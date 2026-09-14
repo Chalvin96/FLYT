@@ -2,14 +2,17 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from flyt.apps.lexicons.models import Definition
 from flyt.apps.lexicons.models import Lemma
+from flyt.apps.lexicons.models import LemmaAlias
 from flyt.apps.lexicons.models import LemmaPos
 from flyt.apps.lexicons.models import SeeAlso
 from flyt.apps.lexicons.models import WordForm
 from scripts.ordbokene_importer import get_article_lemmas
 from scripts.ordbokene_importer import import_article
+from scripts.ordbokene_importer import parse_expression_presentation
 from scripts.ordbokene_importer import update_article
 
 EXPECTED_IMPORTED_LEMMA_COUNT = 2
@@ -26,6 +29,7 @@ NOUN_ARTICLE_ID = 900004
 EXAMPLE_ARTICLE_ID = 900044
 NUMERAL_ARTICLE_ID = 900007
 UNKNOWN_POS_ARTICLE_ID = 900011
+AMBIGUOUS_EXPRESSION_ARTICLE_ID = 900052
 FIRST_SEE_ALSO_ARTICLE_ID = 111
 SECOND_SEE_ALSO_ARTICLE_ID = 222
 REDIRECT_ARTICLE_ID = 910003
@@ -33,6 +37,144 @@ UPDATED_SEE_ALSO_ARTICLE_ID = 501
 EXPECTED_FREQUENCY_RANK = 5
 ORIGINAL_FREQUENCY_RANK = 10
 UPDATED_FREQUENCY_RANK = 2
+
+
+@pytest.mark.anyio
+async def test_import_article_given_expression_pos_expect_multiword_lemma_preserved(
+    db: AsyncSession,
+) -> None:
+    payload = _build_lemma_payload(
+        article_id=900050,
+        lemmas=[
+            {
+                "lemma": "kaste inn håndkleet",
+                "hgno": 1,
+                "pos": "EXPR",
+                "source_lemma_id": 1,
+                "is_sub_article": False,
+                "primary_translation": "give up",
+                "word_forms": [],
+            }
+        ],
+        definitions=[
+            {
+                "text": "gi opp",
+                "translation": "give up",
+                "examples": [],
+            }
+        ],
+    )
+
+    lemmas = await import_article(db, payload)
+
+    assert len(lemmas) == 1
+    assert lemmas[0].word == "kaste inn håndkleet"
+    assert lemmas[0].pos == LemmaPos.EXPRESSION
+    assert lemmas[0].primary_translation == "give up"
+    assert lemmas[0].primary_display_form is None
+    assert lemmas[0].alternative_forms == []
+    assert (
+        await db.scalar(select(LemmaAlias).where(LemmaAlias.lemma_id == lemmas[0].id))
+        is None
+    )
+
+
+def test_parse_expression_presentation_given_undocumented_keys_expect_fallback() -> (
+    None
+):
+    assert (
+        parse_expression_presentation(
+            {
+                "pos": "EXPR",
+                "primary_form": "få i stand",
+                "alternatives": ["stelle i stand"],
+            }
+        )
+        is None
+    )
+
+
+@pytest.mark.anyio
+async def test_import_article_given_verified_expression_forms_expect_aliases_normalized(
+    db: AsyncSession,
+) -> None:
+    payload = _build_lemma_payload(
+        article_id=900051,
+        lemmas=[
+            {
+                "lemma": "få [stelle|lage] i stand",
+                "hgno": 1,
+                "pos": "EXPR",
+                "source_lemma_id": 1,
+                "is_sub_article": False,
+                "primary_translation": "arrange",
+                "primary_display_form": "  Få i  stand ",
+                "alternative_forms": ["få til", "FÅ I STAND", "få til"],
+                "word_forms": [],
+            }
+        ],
+        definitions=[{"text": "ordne", "translation": "arrange", "examples": []}],
+    )
+
+    lemmas = await import_article(db, payload)
+
+    assert lemmas[0].primary_display_form == "Få i stand"
+    assert lemmas[0].alternative_forms == ["få til"]
+    aliases = (
+        await db.scalars(
+            select(LemmaAlias)
+            .where(LemmaAlias.lemma_id == lemmas[0].id)
+            .order_by(LemmaAlias.ordinal)
+        )
+    ).all()
+    assert [
+        (alias.alias, alias.normalized_alias, alias.is_primary) for alias in aliases
+    ] == [
+        ("Få i stand", "få i stand", True),
+        ("få til", "få til", False),
+    ]
+    loaded = await db.scalar(
+        select(Lemma)
+        .where(Lemma.id == lemmas[0].id)
+        .options(selectinload(Lemma.aliases))
+    )
+    assert loaded is not None
+    assert loaded.primary_display_form == "Få i stand"
+    assert loaded.alternative_forms == ["få til"]
+
+
+@pytest.mark.anyio
+async def test_import_article_given_ambiguous_expression_form_expect_failure_before_write(
+    db: AsyncSession,
+) -> None:
+    payload = _build_lemma_payload(
+        article_id=900052,
+        lemmas=[
+            {
+                "lemma": "få [stelle|lage] i stand",
+                "hgno": 1,
+                "pos": "EXPR",
+                "source_lemma_id": 1,
+                "is_sub_article": False,
+                "primary_translation": "arrange",
+                "primary_display_form": "få [stelle|lage] i stand",
+                "word_forms": [],
+            }
+        ],
+        definitions=[{"text": "ordne", "translation": "arrange", "examples": []}],
+    )
+
+    with pytest.raises(ValueError, match="without bracket or pipe notation"):
+        await import_article(db, payload)
+
+    assert (
+        await db.scalar(
+            select(Lemma).where(
+                Lemma.source_article_id == AMBIGUOUS_EXPRESSION_ARTICLE_ID
+            )
+        )
+        is None
+    )
 
 
 def _build_lemma_payload(article_id: int, **overrides) -> dict:
@@ -716,6 +858,62 @@ async def test_update_article_refreshes_fields_and_children_preserving_pk(
     assert len(defn_list) == 1
     assert defn_list[0].definition == "new def"
     assert defn_list[0].translation == "new"
+
+
+@pytest.mark.anyio
+async def test_expression_article_given_force_update_expect_aliases_replaced_and_lemma_pk_preserved(  # ume-ignore: UME-PY003
+    db: AsyncSession,
+) -> None:
+    original = _single_lemma_payload(
+        article_id=810002,
+        lemmas=[
+            {
+                "lemma": "ta [opp|ned]",
+                "hgno": 1,
+                "pos": "EXPR",
+                "source_lemma_id": 42,
+                "is_sub_article": False,
+                "primary_translation": "take up/down",
+                "primary_display_form": "ta opp",
+                "alternative_forms": ["ta ned"],
+                "word_forms": [],
+            }
+        ],
+    )
+    imported = await import_article(db, original)
+    lemma_id = imported[0].id
+
+    updated = _single_lemma_payload(
+        article_id=810002,
+        lemmas=[
+            {
+                "lemma": "ta [opp|ned]",
+                "hgno": 1,
+                "pos": "EXPR",
+                "source_lemma_id": 42,
+                "is_sub_article": False,
+                "primary_translation": "take up/down",
+                "primary_display_form": "ta opp",
+                "alternative_forms": ["ta bort", "ta med"],
+                "word_forms": [],
+            }
+        ],
+    )
+    updated_lemmas = await update_article(
+        db, updated, await get_article_lemmas(db, 810002)
+    )
+
+    assert updated_lemmas[0].primary_display_form == "ta opp"
+    assert updated_lemmas[0].alternative_forms == ["ta bort", "ta med"]
+    aliases = (
+        await db.scalars(
+            select(LemmaAlias)
+            .where(LemmaAlias.lemma_id == lemma_id)
+            .order_by(LemmaAlias.ordinal)
+        )
+    ).all()
+    assert [alias.alias for alias in aliases] == ["ta opp", "ta bort", "ta med"]
+    assert (await db.get(Lemma, lemma_id)).id == lemma_id
 
 
 # ── see_also cross-references ────────────────────────────────────────────────

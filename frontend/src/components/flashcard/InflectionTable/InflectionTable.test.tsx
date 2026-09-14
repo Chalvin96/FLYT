@@ -56,6 +56,10 @@ describe('InflectionTable', () => {
     // Verify labels
     expect(container.textContent).toContain('entall');
     expect(container.textContent).toContain('flertall');
+
+    const labelCells = screen.getAllByRole('columnheader');
+    expect(labelCells.length).toBeGreaterThan(0);
+    labelCells.forEach((cell) => expect(cell).toHaveClass('bg-secondary-10'));
   });
 
   it('should display dual-gender noun correctly', () => {

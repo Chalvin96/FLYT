@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flyt.apps.lexicons.constants import K_LEXICON_SUGGESTIONS_LIMIT
+from flyt.apps.lexicons.models import LemmaPos
 from flyt.apps.lexicons.services import LexiconService
 from flyt.apps.users.services import UserLemmaService
 from flyt.core.config import settings
@@ -10,6 +11,7 @@ from flyt.core.exceptions import ValidationError
 from tests.factories import CardPoolFactory
 from tests.factories import DefinitionFactory
 from tests.factories import LemmaFactory
+from tests.factories import LemmaAliasFactory
 from tests.factories import UserFactory
 from tests.factories import UserLemmaFactory
 from tests.factories import WordFormFactory
@@ -148,7 +150,7 @@ async def test_search_lemmas_given_invalid_characters_expect_error(
         async_session, user_lemma_service=UserLemmaService(async_session)
     )
     with pytest.raises(ValidationError, match="Query contains invalid characters"):
-        await service.search_lemmas("test123")
+        await service.search_lemmas("test@")
 
 
 @pytest.mark.anyio
@@ -406,7 +408,7 @@ async def test_get_suggestions_given_invalid_characters_expect_error(
         async_session, user_lemma_service=UserLemmaService(async_session)
     )
     with pytest.raises(ValidationError, match="Query contains invalid characters"):
-        await service.get_suggestions("test123")
+        await service.get_suggestions("test@")
 
 
 @pytest.mark.anyio
@@ -421,6 +423,52 @@ async def test_get_suggestions_given_norwegian_letters_expect_match(
     result = await service.get_suggestions("væ")
 
     assert result == ["været"]
+
+
+@pytest.mark.anyio
+async def test_get_suggestions_given_expression_alias_expect_learner_form(
+    async_session: AsyncSession,
+) -> None:
+    lemma = await LemmaFactory.create(
+        word="få [stelle|lage] i stand",
+        pos=LemmaPos.EXPRESSION,
+        frequency_rank=12,
+    )
+    await LemmaAliasFactory.create(
+        lemma=lemma,
+        alias="få i stand",
+        normalized_alias="få i stand",
+        is_primary=True,
+    )
+    service = LexiconService(
+        async_session, user_lemma_service=UserLemmaService(async_session)
+    )
+
+    assert await service.get_suggestions("få i") == ["få i stand"]
+    assert await service.get_suggestions("få") == ["få i stand"]
+
+
+@pytest.mark.anyio
+async def test_resolve_word_given_expression_alias_expect_owning_lemma(
+    async_session: AsyncSession,
+) -> None:
+    lemma = await LemmaFactory.create(
+        word="få [stelle|lage] i stand", pos=LemmaPos.EXPRESSION, hgno=1
+    )
+    await LemmaAliasFactory.create(
+        lemma=lemma,
+        alias="få i stand",
+        normalized_alias="få i stand",
+        is_primary=True,
+    )
+    service = LexiconService(
+        async_session, user_lemma_service=UserLemmaService(async_session)
+    )
+
+    result = await service.resolve_word("FÅ I STAND")
+
+    assert [resolved.id for resolved in result.lemmas] == [lemma.id]
+    assert result.lemmas[0].primary_display_form == "få i stand"
 
 
 # --- resolve_headword tests ---
@@ -439,6 +487,31 @@ async def test_resolve_headword_given_exact_headword_expect_resolved(
 
     assert result is not None
     assert result.headword == "gå"
+
+
+@pytest.mark.anyio
+async def test_resolve_headword_given_expression_alias_expect_alias_group(
+    async_session: AsyncSession,
+) -> None:
+    lemma = await LemmaFactory.create(
+        word="få [stelle|lage] i stand", pos=LemmaPos.EXPRESSION, hgno=1
+    )
+    await LemmaAliasFactory.create(
+        lemma=lemma,
+        alias="få i stand",
+        normalized_alias="få i stand",
+        is_primary=True,
+    )
+    service = LexiconService(
+        async_session, user_lemma_service=UserLemmaService(async_session)
+    )
+
+    result = await service.resolve_headword("få i stand")
+
+    assert result is not None
+    assert result.headword == "få i stand"
+    assert result.entries[0].label == "få i stand"
+    assert result.selected_lemma_uuid == lemma.uuid
     assert result.is_fallback is False
     assert len(result.entries) == 1
     assert result.entries[0].hgno == 1
@@ -539,7 +612,7 @@ async def test_resolve_headword_given_invalid_characters_expect_error(
         async_session, user_lemma_service=UserLemmaService(async_session)
     )
     with pytest.raises(ValidationError, match="Query contains invalid characters"):
-        await service.resolve_headword("test123")
+        await service.resolve_headword("test@")
 
 
 @pytest.mark.anyio

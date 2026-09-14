@@ -15,6 +15,7 @@ export interface AudioPlayButtonProps {
   errorLabel?: string;
   unavailableLabel?: string;
   className?: string;
+  compactAppearance?: 'default' | 'quiet';
 }
 
 function useAudioPlayback(src: string | null | undefined) {
@@ -53,17 +54,20 @@ function stateClassName(error: boolean, playing: boolean) {
   return 'text-secondary-70 hover:bg-primary-10 hover:text-primary-70';
 }
 
-function compactStateClassName(
+function buildCompactStateClassName(
   unavailable: boolean,
   error: boolean,
   playing: boolean,
+  appearance: 'default' | 'quiet',
 ) {
   if (unavailable)
     return 'border border-dashed border-secondary-20 text-muted-foreground';
   if (error)
-    return 'border-destructive-30 bg-destructive-10 text-destructive-80 hover:bg-destructive-20';
-  if (playing) return 'border-primary-30 bg-primary-10 text-primary-70';
-  return 'border-secondary-20 bg-secondary-0 text-secondary-70 hover:border-primary-30 hover:bg-primary-10 hover:text-primary-70';
+    return 'border border-destructive-30 bg-destructive-10 text-destructive-80 group-hover:bg-destructive-20';
+  if (playing) return 'border border-primary-30 bg-primary-10 text-primary-70';
+  return appearance === 'quiet'
+    ? 'border border-secondary-40 bg-card text-secondary-70 group-hover:border-primary-40 group-hover:bg-primary-10 group-hover:text-primary-80'
+    : 'border border-secondary-30 bg-card text-secondary-80 group-hover:border-primary-40 group-hover:bg-primary-10 group-hover:text-primary-80';
 }
 
 function AudioIcon({
@@ -140,6 +144,7 @@ export function AudioPlayButton({
   errorLabel = 'Audio failed to play; retry',
   unavailableLabel = 'Audio unavailable',
   className,
+  compactAppearance = 'default',
 }: AudioPlayButtonProps) {
   const unavailable = !src;
   const { error, playing, toggle } = useAudioPlayback(src);
@@ -153,10 +158,11 @@ export function AudioPlayButton({
         : 'idle';
   const compact = tone === 'compact';
   const stateClasses = stateClassName(error, playing);
-  const compactStateClasses = compactStateClassName(
+  const compactStateClasses = buildCompactStateClassName(
     unavailable,
     error,
     playing,
+    compactAppearance,
   );
 
   const controlContent = (
@@ -166,8 +172,9 @@ export function AudioPlayButton({
         'flex items-center justify-center rounded-full transition-colors',
         compact
           ? cn(
-              'pointer-events-none',
-              size === 'sm' ? 'size-5' : 'size-7',
+              // Hit area is the 44px button; the ring tracks the visible dot.
+              'pointer-events-none group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-1',
+              size === 'sm' ? 'size-5' : 'size-[30px]',
               compactStateClasses,
             )
           : 'size-full',
@@ -200,8 +207,10 @@ export function AudioPlayButton({
       data-state={state}
       onClick={toggle}
       className={cn(
-        'flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors',
-        'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
+        'group flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors',
+        'focus-visible:outline-none',
+        !compact &&
+          'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1',
         compact && 'bg-transparent hover:bg-transparent',
         !compact &&
           tone === 'standalone' &&

@@ -8,23 +8,20 @@ import {
 } from '@/components/ui/table';
 import type { WordFormRead } from '@/types/api';
 
+import {
+  buildDesktopClassName,
+  buildMobileClassName,
+  dataCellCls,
+  dividerCls,
+  headerCellCls,
+  panelCls,
+  tdCls,
+  tdMutedCls,
+  thCls,
+  type InflectionLayout,
+} from './inflectionStyles';
 import { shortenInflectionLabel } from './utils';
 
-type InflectionLayout = 'auto' | 'horizontal' | 'vertical';
-
-const thCls =
-  'border border-border bg-secondary-10 px-3 py-2 text-center type-caption-sm font-semibold text-muted-foreground';
-const tdCls =
-  'border border-border px-3 py-2 text-left type-caption font-semibold text-foreground';
-const tdMutedCls = 'text-muted-foreground italic type-caption-sm';
-
-const desktopPanel =
-  'radius-section overflow-hidden border border-border bg-card';
-const headerCell =
-  'type-label-xs flex w-32 shrink-0 items-center bg-secondary-10 p-2.5 text-muted-foreground';
-const dataCell =
-  'flex min-w-0 flex-1 items-center p-2.5 type-caption font-medium text-foreground';
-const divider = 'divide-y divide-border';
 const COLUMNS = [
   { label: 'infinitiv', key: 'inf', prefix: 'å\u00a0' },
   { label: 'presens', key: 'pres', prefix: '' },
@@ -32,20 +29,6 @@ const COLUMNS = [
   { label: 'presens perfektum', key: 'perf_part', prefix: 'har\u00a0' },
   { label: 'imperativ', key: 'imp', prefix: '' },
 ] as const;
-
-function desktopCls(layout: InflectionLayout): string {
-  if (layout === 'auto') return 'hidden lg:block';
-  if (layout === 'horizontal') return 'block';
-  return 'hidden';
-}
-
-const mobileBase =
-  'radius-section overflow-hidden border border-border bg-card';
-function mobileCls(layout: InflectionLayout): string {
-  if (layout === 'horizontal') return 'hidden';
-  if (layout === 'auto') return `block lg:hidden ${mobileBase}`;
-  return mobileBase;
-}
 
 export function VerbInflectionTable({
   wordForms,
@@ -67,9 +50,8 @@ export function VerbInflectionTable({
 
   return (
     <div className="w-full type-caption">
-      {/* DESKTOP VIEW — ordbokene style */}
-      <div className={desktopCls(layout)}>
-        <div className={desktopPanel}>
+      <div className={buildDesktopClassName(layout)}>
+        <div className={panelCls}>
           <Table className="min-w-max border-collapse">
             <TableHeader className="[&_tr]:border-0">
               <TableRow className="border-0 hover:bg-transparent">
@@ -96,20 +78,19 @@ export function VerbInflectionTable({
         </div>
       </div>
 
-      {/* MOBILE VIEW — stacked */}
-      <div data-testid="inflection-mobile" className={mobileCls(layout)}>
-        <div className={divider}>
+      <div
+        data-testid="inflection-mobile"
+        className={buildMobileClassName(layout)}
+      >
+        <div className={dividerCls}>
           {COLUMNS.map(
             (col) =>
               forms[col.key] && (
-                <div
-                  key={col.key}
-                  className="flex border-b border-border last:border-b-0"
-                >
-                  <div className={headerCell}>
+                <div key={col.key} className="flex">
+                  <div className={headerCellCls}>
                     {shortenInflectionLabel(col.label)}
                   </div>
-                  <div className={dataCell}>
+                  <div className={dataCellCls}>
                     {col.prefix && (
                       <span className="mr-0.5 type-caption-sm italic text-muted-foreground">
                         {col.prefix}

@@ -39,6 +39,14 @@ class DefinitionPayload(BaseModel):
     word: str
     pos: LemmaPos
     primary_translation: str | None = None
+    primary_display_form: str | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    alternative_forms: list[str] | None = Field(
+        default=None,
+        exclude_if=lambda value: not value,
+    )
     definitions: list[DefinitionEntry] = []
     ipa: str | None = None
     intonation: str | None = None

@@ -10,4 +10,13 @@ building a queue so resolved cache data cannot reopen as a completed session.
 Initial issuance failures remain visible with an explicit retry action, and leaving
 the session invalidates the due-card summary for the next start.
 
+The story reader owns no page state: the route's `page` search value is the
+single source, validated at the route boundary and corrected there when the
+API resolves a different page. Reader background fetching stays bounded to the
+pages adjacent to the settled one.
+
+During navigation, settled story content remains visible while the requested
+page loads. Abandoned route loads are canceled, and only the latest location
+may correct its URL to the API-resolved page after caching that response.
+
 TanStack route files and generated route trees are framework entrypoints. Tests use MSW at the network boundary, and responsive/accessibility behavior belongs at browser/page boundaries. React Doctor is a ratchet; lower legitimate counts rather than hiding findings.

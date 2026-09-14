@@ -2,10 +2,10 @@ import React, { useEffect, useEffectEvent, useState } from 'react';
 
 import { Button } from '@flyt/ui';
 import { Input } from '@flyt/ui';
-import { hasValidNorwegianChars } from './grammar';
+import { hasValidNorwegianChars, normalizeLookupQuery } from './grammar';
 
 const INVALID_QUERY_MESSAGE =
-  'Please use letters only. Norwegian letters like ae, oe, and aa are supported.';
+  'Use letters, numbers, spaces, and dictionary punctuation (maximum 80 characters).';
 
 export interface SearchBarProps {
   value: string;
@@ -36,7 +36,7 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
         if (debouncedQuery !== value) {
           setDebouncedQuery(value);
           if (value.length > 0 && hasValidNorwegianChars(value)) {
-            searchAfterDebounce(value);
+            searchAfterDebounce(normalizeLookupQuery(value));
           }
         }
       }, 300);
@@ -51,7 +51,7 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Enter' && hasValidNorwegianChars(value)) {
-        onSearch(value);
+        onSearch(normalizeLookupQuery(value));
       }
       if (e.key === 'Escape') {
         handleClear();
@@ -113,6 +113,12 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
             onKeyDown={handleKeyDown}
             placeholder={isLoading ? 'Loading...' : placeholder}
             disabled={isLoading}
+            aria-invalid={value.length > 0 && !hasValidNorwegianChars(value)}
+            aria-describedby={
+              value.length > 0 && !hasValidNorwegianChars(value)
+                ? 'search-query-error'
+                : undefined
+            }
             className={value.length > 0 ? 'pl-9 pr-12' : 'pl-9'}
           />
           {value.length > 0 && (
@@ -122,7 +128,11 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
           )}
         </div>
         {!hasValidNorwegianChars(value) && value.length > 0 && (
-          <p className="mt-1.5 type-caption-sm text-destructive-60">
+          <p
+            id="search-query-error"
+            role="alert"
+            className="mt-1.5 type-caption-sm text-destructive-60"
+          >
             {INVALID_QUERY_MESSAGE}
           </p>
         )}

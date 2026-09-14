@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flyt.apps.lexicons.constants import K_LEXICON_BROWSE_NOT_FOUND_MESSAGE
 from flyt.apps.lexicons.constants import K_LEXICON_BROWSE_QUERY_MIN_LENGTH
-from flyt.apps.lexicons.constants import K_LEXICON_QUERY_MAX_LENGTH
 from flyt.apps.lexicons.constants import K_LEXICON_SEARCH_QUERY_MIN_LENGTH
 from flyt.apps.lexicons.constants import K_LEXICON_SUGGEST_QUERY_MIN_LENGTH
 from flyt.apps.lexicons.deps import get_lexicon_service
@@ -63,6 +62,8 @@ async def list_my_lemmas(
             word=entry.lemma.word,
             pos=entry.lemma.pos,
             primary_translation=entry.lemma.primary_translation,
+            primary_display_form=entry.lemma.primary_display_form,
+            alternative_forms=entry.lemma.alternative_forms or None,
             state=entry.state,
         )
         for entry in entries
@@ -83,7 +84,6 @@ async def search(
         str,
         Query(
             min_length=K_LEXICON_SEARCH_QUERY_MIN_LENGTH,
-            max_length=K_LEXICON_QUERY_MAX_LENGTH,
         ),
     ],
     lexicon_service: Annotated[LexiconService, Depends(get_lexicon_service)],
@@ -117,7 +117,6 @@ async def resolve(
         str,
         Query(
             min_length=K_LEXICON_SEARCH_QUERY_MIN_LENGTH,
-            max_length=K_LEXICON_QUERY_MAX_LENGTH,
         ),
     ],
     lexicon_service: Annotated[LexiconService, Depends(get_lexicon_service)],
@@ -145,6 +144,8 @@ async def resolve(
                 pos=lemma.pos,
                 hgno=lemma.hgno,
                 is_compound=resolution.is_compound,
+                primary_display_form=lemma.primary_display_form,
+                alternative_forms=lemma.alternative_forms or None,
                 definitions=[
                     ResolveDefinition(
                         definition=d.definition,
@@ -191,7 +192,6 @@ async def suggestions(
         str,
         Query(
             min_length=K_LEXICON_SUGGEST_QUERY_MIN_LENGTH,
-            max_length=K_LEXICON_QUERY_MAX_LENGTH,
         ),
     ],
     lexicon_service: Annotated[LexiconService, Depends(get_lexicon_service)],
@@ -201,13 +201,19 @@ async def suggestions(
         len(query),
     )
     try:
-        suggestions = await lexicon_service.get_suggestions(query)
+        suggestions = await lexicon_service.fetch_suggestion_entries(query)
         logger.info(
             "[lexicons.suggestions] exiting with params result_count=%s",
             len(suggestions),
         )
         return BrowseSuggestionsResponse(
-            suggestions=[BrowseSuggestion(label=headword) for headword in suggestions]
+            suggestions=[
+                BrowseSuggestion(
+                    label=suggestion.label,
+                    alternative_forms=suggestion.alternative_forms,
+                )
+                for suggestion in suggestions
+            ]
         )
     except ValidationError as e:
         logger.info(
@@ -227,7 +233,6 @@ async def browse(
         str,
         Query(
             min_length=K_LEXICON_BROWSE_QUERY_MIN_LENGTH,
-            max_length=K_LEXICON_QUERY_MAX_LENGTH,
         ),
     ],
     lexicon_service: Annotated[LexiconService, Depends(get_lexicon_service)],
@@ -320,6 +325,8 @@ async def get_lemma_definitions(
                 word=lemma.word,
                 pos=lemma.pos,
                 primary_translation=lemma.primary_translation,
+                primary_display_form=lemma.primary_display_form,
+                alternative_forms=lemma.alternative_forms or None,
                 source_article_id=lemma.source_article_id,
                 source_lemma_id=lemma.source_lemma_id,
                 hgno=lemma.hgno,

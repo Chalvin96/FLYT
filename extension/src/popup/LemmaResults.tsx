@@ -1,12 +1,26 @@
 import { useEffect, useRef, useState } from "react";
-import { LemmaCardView, type LemmaAction, type LemmaActionState } from "@flyt/lexicon";
+import {
+  LemmaCardView,
+  type LemmaAction,
+  type LemmaActionState,
+} from "@flyt/lexicon";
+import { posLabel } from "@flyt/lexicon/grammar";
 import { Button } from "@flyt/ui";
 
-import { MSG_KIND, MSG_RESULT_KIND, sendMessage, type LemmaContext } from "../lib/messages";
+import {
+  MSG_KIND,
+  MSG_RESULT_KIND,
+  sendMessage,
+  type LemmaContext,
+} from "../lib/messages";
 import { toLemmaPos } from "../lib/resolve-types";
-import type { LemmaDefinitionsResponse, ResolveCandidate, ResolveResponse } from "../lib/resolve-types";
+import type {
+  LemmaDefinitionsResponse,
+  ResolveCandidate,
+  ResolveResponse,
+} from "../lib/resolve-types";
 
-import { toLemmaCardData } from './lemmaCardData';
+import { buildLemmaCardData } from "./lemmaCardData";
 
 type CandidateStatus = {
   state: LemmaActionState;
@@ -108,7 +122,11 @@ export function CandidateListView({
       const result =
         action === "know"
           ? await sendMessage({ kind: MSG_KIND.KNOW, lemma_uuid: uuid })
-          : await sendMessage({ kind: MSG_KIND.ADD, lemma_uuid: uuid, context });
+          : await sendMessage({
+              kind: MSG_KIND.ADD,
+              lemma_uuid: uuid,
+              context,
+            });
       const success =
         (action === "know" &&
           result.ok &&
@@ -153,7 +171,7 @@ export function CandidateListView({
   const renderCandidate = (candidate: ResolveCandidate) => {
     const detailState = getDetail(candidate.lemma_uuid);
     const status = getStatus(candidate);
-    const card = toLemmaCardData(candidate, detailState?.data);
+    const card = buildLemmaCardData(candidate, detailState?.data);
     return (
       <div className="flyt-entry" key={candidate.lemma_uuid}>
         {detailState?.status === "loading" && (
@@ -209,9 +227,9 @@ export function CandidateListView({
       {rest.map((candidate) => (
         <details className="flyt-homograph" key={candidate.lemma_uuid}>
           <summary>
-            <span>{candidate.word}</span>
+            <span>{candidate.primary_display_form ?? candidate.word}</span>
             <span className="flyt-homograph-meta">
-              {toLemmaPos(candidate.pos) ?? "entry"}
+              {toLemmaPos(candidate.pos) ? posLabel(candidate.pos) : "entry"}
             </span>
           </summary>
           {renderCandidate(candidate)}

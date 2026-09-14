@@ -1,3 +1,4 @@
+import { normalizeLookupQuery } from '@flyt/lexicon/grammar';
 import {
   skipToken,
   useMutation,
@@ -31,7 +32,7 @@ export const lexiconKeys = {
 };
 
 export function useBrowseHeadword(query: string) {
-  const normalizedQuery = query.trim();
+  const normalizedQuery = normalizeLookupQuery(query);
 
   return useQuery({
     queryKey: lexiconKeys.browseHeadword(normalizedQuery),
@@ -41,7 +42,7 @@ export function useBrowseHeadword(query: string) {
 }
 
 export function useBrowseSuggestions(query: string) {
-  const normalizedQuery = query.trim();
+  const normalizedQuery = normalizeLookupQuery(query);
 
   return useQuery({
     queryKey: lexiconKeys.browseSuggestions(normalizedQuery),

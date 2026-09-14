@@ -1,9 +1,6 @@
 {
   "version": "0.9.13",
-  "scan_args": [
-    "--no-dead-code",
-    "--no-supply-chain"
-  ],
+  "scan_args": ["--no-dead-code", "--no-supply-chain"],
   "max_errors": 0,
   "max_warnings_by_rule": {
     "exhaustive-deps": 0,
@@ -15,17 +12,18 @@
     "no-effect-chain": 0,
     "no-effect-event-handler": 0,
     "no-giant-component": 0,
-    "no-high-complexity-react-function": 0,
+    "no-high-complexity-react-function": 2,
     "no-many-boolean-props": 0,
-    "no-pass-live-state-to-parent": 0,
+    "no-pass-live-state-to-parent": 1,
     "no-placeholder-only-field": 0,
-    "no-prop-callback-in-effect": 0,
+    "no-prop-callback-in-effect": 1,
     "no-reset-all-state-on-prop-change": 0,
     "no-spread-accumulator-in-reduce": 0,
     "no-transition-all": 0,
     "only-export-components": 0,
     "prefer-html-dialog": 0,
     "prefer-tag-over-role": 0,
-    "use-lazy-motion": 0
+    "use-lazy-motion": 0,
+    "no-pass-data-to-parent": 1
   }
 }

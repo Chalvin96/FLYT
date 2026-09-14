@@ -3,24 +3,26 @@ import {
   formatGenderSimple,
   getInflectionClassLabel,
 } from '@flyt/lexicon/grammar';
-import { memo, useState } from 'react';
+import { ChevronRight } from 'lucide-react';
+import { memo, useState, type ReactNode, type Ref } from 'react';
 
-import { GrammarTagBadge } from '@/components/common/GrammarTagBadge/GrammarTagBadge';
+import { Button } from '@/components/common/Button/Button';
 import { InflectionTable } from '@/components/flashcard/InflectionTable/InflectionTable';
 import { hasStructuredInflection } from '@/components/flashcard/InflectionTable/utils';
 import { splitTranslation } from '@/lib/translation';
 import { cn } from '@/lib/utils';
 import type {
   DefinitionRead,
+  ExamplePair,
   LemmaContextRead,
   LemmaPos,
   WordFormRead,
 } from '@/types/api';
 
-const MEANING_LIMIT = 3;
-
 interface FlashCardDefinitionBackProps {
   word?: string;
+  primaryDisplayForm?: string | null;
+  alternativeForms?: string[];
   primaryTranslation?: string;
   definitions: DefinitionRead[];
   gender: string | null;
@@ -33,23 +35,54 @@ interface FlashCardDefinitionBackProps {
   intonation?: string | null;
   audioUrl?: string | null;
   context?: LemmaContextRead | null;
+  headingRef?: Ref<HTMLHeadingElement>;
+}
+
+const sectionLabelClassName = 'type-label-sm text-secondary-80';
+
+function AnswerSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <section>
+      <h3 className={sectionLabelClassName}>{label}</h3>
+      <div className="mt-2">{children}</div>
+    </section>
+  );
+}
+
+function MeaningExample({ example }: { example?: ExamplePair | null }) {
+  if (!example?.no) return null;
+
+  return (
+    <span className="mt-1.5 block border-l-2 border-secondary-20 pl-2 text-secondary-80">
+      <span lang="no">{example.no}</span>
+      {example.en ? (
+        <span className="mt-0.5 block text-muted-foreground">{example.en}</span>
+      ) : null}
+    </span>
+  );
 }
 
 function renderMeaning(definition: DefinitionRead) {
-  const noGloss = definition.definition?.trim();
-  const showGloss = noGloss && noGloss !== definition.translation?.trim();
+  const gloss = definition.definition?.trim();
+  const showGloss = gloss && gloss !== definition.translation?.trim();
   return (
     <li
-      className="flex flex-col gap-0.5 type-caption leading-snug text-secondary-80"
+      className="type-caption leading-snug text-secondary-90"
       key={definition.uuid}
     >
-      <span className="flex gap-2">
-        <span className="text-secondary-40">·</span>
-        {definition.translation}
-      </span>
+      {definition.translation}
       {showGloss ? (
-        <span className="pl-4 italic text-muted-foreground">{noGloss}</span>
+        <span className="mt-0.5 block italic text-muted-foreground" lang="no">
+          {gloss}
+        </span>
       ) : null}
+      <MeaningExample example={definition.examples_json?.[0]} />
     </li>
   );
 }
@@ -63,7 +96,9 @@ function DefinitionHeader({
   ipaApproximate,
   isVerb,
   pos,
+  primaryDisplayForm,
   word,
+  headingRef,
 }: {
   audioUrl?: string | null;
   gender: string | null;
@@ -73,118 +108,138 @@ function DefinitionHeader({
   ipaApproximate?: boolean;
   isVerb: boolean;
   pos?: LemmaPos;
+  primaryDisplayForm?: string | null;
   word?: string;
+  headingRef?: Ref<HTMLHeadingElement>;
 }) {
-  const showVerbClass = Boolean(inflectionClass) && isVerb;
+  const grammarMetadata = gender
+    ? formatGenderSimple(gender)
+    : isVerb && inflectionClass
+      ? getInflectionClassLabel(inflectionClass)
+      : null;
   return (
-    <div className="border-b border-border pb-4 text-center">
-      <LemmaHeader
-        audioUrl={audioUrl}
-        headingAs="h2"
-        headingClassName="type-display-lg break-words font-display leading-none text-secondary-90"
-        intonation={intonation}
-        ipa={ipa}
-        ipaApproximate={ipaApproximate}
-        pos={pos ?? 'unknown'}
-        word={word ?? ''}
-      />
-      {gender || showVerbClass ? (
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-          {gender ? (
-            <GrammarTagBadge label={formatGenderSimple(gender)} />
-          ) : null}
-          {showVerbClass && inflectionClass ? (
-            <GrammarTagBadge label={getInflectionClassLabel(inflectionClass)} />
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+    <LemmaHeader
+      audioUrl={audioUrl}
+      headingAs="h2"
+      headingClassName="type-display-lg break-words font-display font-medium text-secondary-90"
+      intonation={intonation}
+      ipa={ipa}
+      ipaApproximate={ipaApproximate}
+      pos={pos ?? 'unknown'}
+      primaryDisplayForm={primaryDisplayForm}
+      word={word ?? ''}
+      presentation="flashcard"
+      grammarMetadata={grammarMetadata}
+      headingRef={headingRef}
+    />
   );
 }
 
-function DefinitionContextAside({ context }: { context: LemmaContextRead }) {
+function DefinitionContextDisclosure({
+  context,
+}: {
+  context: LemmaContextRead;
+}) {
   return (
-    <aside className="mb-4 rounded-lg border border-border bg-secondary-0/45 px-3 py-2 text-left">
-      <p className="type-caption font-semibold text-secondary-70">
-        From this sentence
-      </p>
-      <p
-        className="mt-1 type-caption leading-relaxed text-secondary-90"
-        lang="no"
+    <details className="group" data-testid="saved-context-disclosure">
+      <summary
+        className={cn(
+          sectionLabelClassName,
+          'radius-sm flex w-fit cursor-pointer list-none items-center gap-1.5 py-0.5',
+          'transition-colors hover:text-secondary-90',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          '[&::-webkit-details-marker]:hidden',
+        )}
       >
-        {context.source_sentence}
-      </p>
-      {context.source_title ? (
-        <p className="mt-1 type-caption text-muted-foreground">
-          {context.source_title}
-        </p>
-      ) : null}
-    </aside>
+        Saved context
+        <ChevronRight
+          aria-hidden="true"
+          className="icon-xs shrink-0 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none"
+        />
+      </summary>
+      <figure className="mt-2 border-l-2 border-primary-30 pl-3">
+        <blockquote
+          className="type-caption leading-relaxed text-secondary-90"
+          lang="no"
+        >
+          {context.source_sentence}
+        </blockquote>
+        {context.source_title ? (
+          <figcaption className="mt-1 type-caption-sm text-muted-foreground">
+            {context.source_title}
+          </figcaption>
+        ) : null}
+      </figure>
+    </details>
   );
 }
 
-function PrimaryTranslationBlock({
+function AnswerBlock({
   translation,
+  gloss,
+  example,
 }: {
   translation: NonNullable<ReturnType<typeof splitTranslation>>;
+  gloss: string | null;
+  example?: ExamplePair | null;
 }) {
   return (
-    <div className="mb-4 border-b border-border pb-4 text-center">
-      <p className="type-title font-bold text-foreground">
+    <div>
+      <p className="type-title font-bold leading-tight text-foreground @2xl:type-title-lg">
         {translation.primary}
       </p>
       {translation.alternates.length > 0 ? (
-        <p className="mt-1 type-caption text-secondary-70">
+        <p className="mt-1.5 type-caption text-secondary-70">
           {translation.alternates.join(' · ')}
         </p>
       ) : null}
+      {gloss ? (
+        <p
+          className="mt-3 type-caption italic leading-snug text-muted-foreground"
+          lang="no"
+        >
+          {gloss}
+        </p>
+      ) : null}
+      <MeaningExample example={example} />
     </div>
   );
 }
 
-/**
- * Top-3 meanings as English translations, each with its Norwegian gloss
- * beneath when available (and not identical to the English). No numbers, no
- * examples on the answer face. Skip any definition without a translation —
- * an empty gloss adds nothing on the English answer face (and would render
- * an orphaned bullet). Extra meanings sit behind a "show more" pill.
- */
 function DefinitionMeanings({
-  definitions,
+  meanings,
+  start,
 }: {
-  definitions: DefinitionRead[];
+  meanings: DefinitionRead[];
+  start: number;
 }) {
-  const meanings = definitions.filter((definition) => definition.translation);
-  const topMeanings = meanings.slice(0, MEANING_LIMIT);
-  const restMeanings = meanings.slice(MEANING_LIMIT);
+  const topMeanings = meanings.slice(0, 3);
+  const restMeanings = meanings.slice(3);
   const [showRest, setShowRest] = useState(false);
+  const visible = showRest ? meanings : topMeanings;
 
   return (
     <>
-      {topMeanings.length > 0 ? (
-        <ul className="space-y-1.5" role="list">
-          {topMeanings.map((definition) => renderMeaning(definition))}
-        </ul>
-      ) : null}
-
+      <ol
+        className={cn(
+          'list-decimal space-y-2 pl-5 marker:text-secondary-40',
+          '@xl:columns-2 @xl:gap-x-8 @xl:space-y-0 @xl:[&>li]:mb-4 @xl:[&>li]:break-inside-avoid',
+        )}
+        role="list"
+        start={start}
+      >
+        {visible.map((definition) => renderMeaning(definition))}
+      </ol>
       {restMeanings.length > 0 && !showRest ? (
-        <div className="mt-3 flex justify-center">
-          <button
-            className={cn(
-              'rounded-full border border-primary/40 bg-primary/5 px-4 py-1.5 type-caption font-semibold text-primary transition-colors hover:bg-primary/10',
-            )}
-            onClick={() => setShowRest(true)}
-            type="button"
-          >
-            Show {restMeanings.length} more{' '}
-            {restMeanings.length === 1 ? 'meaning' : 'meanings'}
-          </button>
-        </div>
-      ) : null}
-      {showRest && restMeanings.length > 0 ? (
-        <ul className="mt-3 space-y-1.5" role="list">
-          {restMeanings.map((definition) => renderMeaning(definition))}
-        </ul>
+        <Button
+          className="mt-3 h-auto justify-start whitespace-normal p-0 type-caption font-semibold text-primary-80 underline-offset-4 hover:text-primary-100 hover:underline"
+          onClick={() => setShowRest(true)}
+          type="button"
+          variant="link"
+        >
+          Show {restMeanings.length} more{' '}
+          {restMeanings.length === 1 ? 'meaning' : 'meanings'}
+        </Button>
       ) : null}
     </>
   );
@@ -192,6 +247,8 @@ function DefinitionMeanings({
 
 const FlashCardDefinitionBackComponent = ({
   word,
+  primaryDisplayForm,
+  alternativeForms = [],
   primaryTranslation,
   definitions,
   gender,
@@ -204,11 +261,40 @@ const FlashCardDefinitionBackComponent = ({
   intonation,
   audioUrl,
   context,
+  headingRef,
 }: FlashCardDefinitionBackProps) => {
   const translation = splitTranslation(primaryTranslation);
+  const meanings = definitions.filter((definition) => definition.translation);
+
+  const absorbsFirstSense =
+    meanings[0]?.translation?.trim() === primaryTranslation?.trim();
+  const answerGloss = absorbsFirstSense
+    ? (meanings[0].definition?.trim() ?? null)
+    : null;
+  const remainingMeanings = absorbsFirstSense ? meanings.slice(1) : meanings;
+
+  const referenceItems = [
+    alternativeForms.length > 0 ? (
+      <AnswerSection key="other-forms" label="Other forms">
+        <p className="type-caption text-secondary-90">
+          {alternativeForms.join(' · ')}
+        </p>
+      </AnswerSection>
+    ) : null,
+    hasStructuredInflection(wordForms, pos) ? (
+      <AnswerSection key="inflection" label="Bøying">
+        <InflectionTable layout="vertical" pos={pos} wordForms={wordForms} />
+      </AnswerSection>
+    ) : null,
+  ].filter(Boolean);
+
+  const savedContext = context?.source_sentence?.trim() ? (
+    <DefinitionContextDisclosure context={context} key="context" />
+  ) : null;
+  const hasRail = referenceItems.length > 0;
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden px-4 pb-4 pt-4 text-left sm:px-5 sm:pb-5 sm:pt-5">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden px-4 text-left sm:px-5 @2xl:px-8">
       <DefinitionHeader
         audioUrl={audioUrl}
         gender={gender}
@@ -218,24 +304,58 @@ const FlashCardDefinitionBackComponent = ({
         ipaApproximate={ipaApproximate}
         isVerb={isVerb}
         pos={pos}
+        primaryDisplayForm={primaryDisplayForm}
         word={word}
+        headingRef={headingRef}
       />
 
-      <div className="scrollbar-stable min-h-0 flex-1 overflow-y-auto pt-5 pr-1">
-        {context ? <DefinitionContextAside context={context} /> : null}
+      <div
+        className="scrollbar-stable flex min-h-0 flex-1 flex-col overflow-y-auto pr-1"
+        data-testid="flashcard-answer-body"
+      >
+        <div
+          className={cn(
+            'flex w-full flex-col gap-6 py-5 @2xl:py-7',
+            hasRail &&
+              '@2xl:grid @2xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] @2xl:items-start @2xl:gap-x-8 @2xl:gap-y-0',
+          )}
+        >
+          <div className="@container flex min-w-0 flex-col gap-6 @2xl:gap-7">
+            {translation ? (
+              <AnswerBlock
+                translation={translation}
+                gloss={answerGloss}
+                example={
+                  absorbsFirstSense ? meanings[0].examples_json?.[0] : null
+                }
+              />
+            ) : null}
 
-        {translation ? (
-          <PrimaryTranslationBlock translation={translation} />
-        ) : null}
+            {remainingMeanings.length > 0 ? (
+              <AnswerSection
+                label={absorbsFirstSense ? 'Other meanings' : 'Meanings'}
+              >
+                <DefinitionMeanings
+                  meanings={remainingMeanings}
+                  start={absorbsFirstSense ? 2 : 1}
+                />
+              </AnswerSection>
+            ) : null}
 
-        <DefinitionMeanings definitions={definitions} />
-
-        {/* BØYNING inflection grid with short Norwegian labels */}
-        {hasStructuredInflection(wordForms, pos) ? (
-          <div className="mt-5 pt-4">
-            <InflectionTable layout="auto" pos={pos} wordForms={wordForms} />
+            {hasRail ? null : savedContext}
           </div>
-        ) : null}
+
+          {hasRail ? (
+            <aside
+              aria-label="Reference"
+              className="flex min-w-0 flex-col gap-6 @2xl:border-l @2xl:border-secondary-20 @2xl:pl-8"
+              data-testid="flashcard-answer-reference"
+            >
+              {referenceItems}
+              {savedContext}
+            </aside>
+          ) : null}
+        </div>
       </div>
     </div>
   );

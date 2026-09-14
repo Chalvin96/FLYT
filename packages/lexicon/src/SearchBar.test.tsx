@@ -85,13 +85,11 @@ describe('SearchBar', () => {
     expect(onSearch).toHaveBeenCalledWith('');
   });
 
-  it('shows validation error for invalid Norwegian characters', () => {
-    render(
-      <SearchBar value="hello123" onChange={vi.fn()} onSearch={vi.fn()} />,
-    );
+  it('test_search_bar_given_invalid_dictionary_characters_expect_validation_error', () => {
+    render(<SearchBar value="hello%" onChange={vi.fn()} onSearch={vi.fn()} />);
     expect(
       screen.getByText(
-        /Please use letters only\. Norwegian letters like ae, oe, and aa are supported\./i,
+        /Use letters, numbers, spaces, and dictionary punctuation/i,
       ),
     ).toBeInTheDocument();
   });
@@ -100,8 +98,21 @@ describe('SearchBar', () => {
     render(<SearchBar value="båt" onChange={vi.fn()} onSearch={vi.fn()} />);
     expect(
       screen.queryByText(
-        /Please use letters only\. Norwegian letters like ae, oe, and aa are supported\./i,
+        /Use letters, numbers, spaces, and dictionary punctuation/i,
       ),
     ).not.toBeInTheDocument();
+  });
+
+  it('test_search_bar_given_decomposed_value_at_nfc_limit_expect_allowed', () => {
+    const decomposed = 'e\u0301'.repeat(80);
+    render(
+      <SearchBar value={decomposed} onChange={vi.fn()} onSearch={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('textbox')).not.toHaveAttribute('maxlength');
+    expect(screen.getByRole('textbox')).toHaveAttribute(
+      'aria-invalid',
+      'false',
+    );
   });
 });

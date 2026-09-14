@@ -1,8 +1,14 @@
 import { type DefinitionRead, type LemmaCardData } from "@flyt/lexicon";
 import { toLemmaPos } from "../lib/resolve-types";
-import type { LemmaDefinitionsResponse, ResolveCandidate } from "../lib/resolve-types";
+import type {
+  LemmaDefinitionsResponse,
+  ResolveCandidate,
+} from "../lib/resolve-types";
 
-export function toLemmaCardData(candidate: ResolveCandidate, detail?: LemmaDefinitionsResponse): LemmaCardData {
+export function buildLemmaCardData(
+  candidate: ResolveCandidate,
+  detail?: LemmaDefinitionsResponse,
+): LemmaCardData {
   const definitions: DefinitionRead[] = detail
     ? detail.definitions.map((definition, index) => ({
         uuid: definition.uuid,
@@ -26,9 +32,14 @@ export function toLemmaCardData(candidate: ResolveCandidate, detail?: LemmaDefin
     word: lemma?.word ?? candidate.word,
     pos: toLemmaPos(lemma?.pos ?? candidate.pos) ?? "unknown",
     primary_translation: lemma?.primary_translation ?? null,
+    primary_display_form:
+      lemma?.primary_display_form ?? candidate.primary_display_form ?? null,
+    alternative_forms:
+      lemma?.alternative_forms ?? candidate.alternative_forms ?? null,
     ipa: lemma?.ipa ?? candidate.ipa ?? null,
     intonation: lemma?.intonation ?? candidate.intonation ?? null,
-    ipa_approximate: lemma?.ipa_approximate ?? candidate.ipa_approximate ?? false,
+    ipa_approximate:
+      lemma?.ipa_approximate ?? candidate.ipa_approximate ?? false,
     audio_url: lemma?.audio_url ?? candidate.audio_url ?? null,
     see_also: lemma?.see_also ?? candidate.see_also ?? [],
     definitions,

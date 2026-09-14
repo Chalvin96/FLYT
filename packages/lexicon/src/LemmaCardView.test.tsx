@@ -107,6 +107,50 @@ describe('LemmaCardView', () => {
     expect(screen.queryByText('translation 1')).toBeNull();
     expect(screen.queryByRole('button', { name: /more meaning/i })).toBeNull();
   });
+
+  it('test_expression_card_given_verified_forms_expect_natural_heading_and_alternatives', () => {
+    render(
+      <LemmaCardView
+        lemma={{
+          ...lemma,
+          word: 'få [stelle|lage] i stand',
+          pos: 'expression',
+          primary_display_form: 'få i stand',
+          alternative_forms: ['stelle i stand'],
+        }}
+        state="new"
+        onMarkKnown={vi.fn()}
+        onAddToReview={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'få i stand' })).not.toBeNull();
+    expect(screen.getByText('Expression')).not.toBeNull();
+    expect(screen.getByText('Other forms')).not.toBeNull();
+    expect(screen.getByText('stelle i stand')).not.toBeNull();
+    expect(screen.queryByText('få [stelle|lage] i stand')).toBeNull();
+  });
+
+  it('test_expression_card_given_multiple_alternatives_expect_inline_separated_caption_row', () => {
+    render(
+      <LemmaCardView
+        lemma={{
+          ...lemma,
+          word: 'få [stelle|lage] i stand',
+          pos: 'expression',
+          primary_display_form: 'få i stand',
+          alternative_forms: ['stelle i stand', 'lage i stand'],
+        }}
+        state="new"
+        onMarkKnown={vi.fn()}
+        onAddToReview={vi.fn()}
+      />,
+    );
+
+    const row = screen.getByText('Other forms').closest('p');
+    expect(row?.textContent).toBe('Other forms stelle i stand · lage i stand');
+    expect(row?.querySelector('ul, ol, li')).toBeNull();
+  });
 });
 
 describe('LemmaActionRow', () => {

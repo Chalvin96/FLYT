@@ -32,6 +32,7 @@ class LemmaPos(PyEnum):
     DETERMINER = "determiner"
     INTERJECTION = "interjection"
     NUMERAL = "numeral"
+    EXPRESSION = "expression"
     UNKNOWN = "unknown"
 
 
@@ -101,6 +102,13 @@ class Lemma(BaseModel, DateTimeMixin):
         lazy="selectin",
         order_by="SeeAlso.ordinal",
     )
+    aliases = relationship(
+        "LemmaAlias",
+        back_populates="lemma",
+        cascade="all, delete-orphan",
+        lazy="raise",
+        order_by="LemmaAlias.ordinal",
+    )
 
     __table_args__ = (
         # Identity of a lemma is its Ordbøkene (article, lemma id). (word, pos,
@@ -121,8 +129,81 @@ class Lemma(BaseModel, DateTimeMixin):
         ),
     )
 
+    @property
+    def primary_display_form(self) -> str | None:
+        """Return the producer-selected learner-facing form, if present."""
+        aliases = sorted(
+            self.aliases,
+            key=lambda alias: (
+                not alias.is_primary,
+                alias.ordinal,
+                alias.id or 0,
+            ),
+        )
+        return aliases[0].alias if aliases else None
+
+    @property
+    def alternative_forms(self) -> list[str]:
+        """Return complete verified alternatives in producer order."""
+        aliases = sorted(
+            self.aliases,
+            key=lambda alias: (alias.ordinal, alias.id or 0),
+        )
+        if not aliases:
+            return []
+        primary = next(
+            (alias for alias in aliases if alias.is_primary),
+            aliases[0],
+        )
+        return [alias.alias for alias in aliases if alias is not primary]
+
     def __str__(self):
         return self.word
+
+
+class LemmaAlias(BaseModel, DateTimeMixin):
+    """A producer-verified learner-facing form for an expression lemma.
+
+    ``Lemma.word`` remains the source identity.  Aliases are presentation and
+    lookup values only; ``normalized_alias`` is NFC/case-folded so exact and
+    prefix lookup can use a single indexed column.
+    """
+
+    __tablename__ = "lexicon_lemma_aliases"
+
+    lemma_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("lexicon_lemmas.id", ondelete="CASCADE"),
+        index=True,
+    )
+    alias: Mapped[str] = mapped_column(String(80), nullable=False)
+    normalized_alias: Mapped[str] = mapped_column(String(80), nullable=False)
+    is_primary: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false", default=False
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    lemma = relationship("Lemma", back_populates="aliases", lazy="raise")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "lemma_id",
+            "normalized_alias",
+            name="uq_lexicon_lemma_alias_lemma_normalized",
+        ),
+        Index(
+            "ix_lexicon_lemma_aliases_normalized_exact",
+            "normalized_alias",
+        ),
+        Index(
+            "ix_lexicon_lemma_aliases_normalized_pattern",
+            "normalized_alias",
+            postgresql_ops={"normalized_alias": "varchar_pattern_ops"},
+        ),
+    )
+
+    def __str__(self):
+        return self.alias
 
 
 class WordForm(BaseModel, DateTimeMixin):

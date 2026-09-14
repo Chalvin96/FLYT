@@ -44,6 +44,8 @@ function toSharedLemma(data: ReadingLemmaDefinitionsResponse): LemmaCardData {
     word: data.lemma.word,
     pos: data.lemma.pos,
     primary_translation: data.lemma.primary_translation ?? null,
+    primary_display_form: data.lemma.primary_display_form ?? null,
+    alternative_forms: data.lemma.alternative_forms ?? null,
     ipa: data.lemma.ipa ?? null,
     ipa_approximate: data.lemma.ipa_approximate ?? false,
     intonation: data.lemma.intonation ?? null,

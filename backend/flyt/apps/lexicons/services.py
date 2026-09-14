@@ -2,18 +2,22 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 import logging
 import re
+import unicodedata
 from uuid import UUID
 
 from sqlalchemy import case
+from sqlalchemy import exists
 from sqlalchemy import func
 from sqlalchemy import literal
 from sqlalchemy import select
 from sqlalchemy import union_all
+from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from flyt.apps.lexicons.constants import K_LEXICON_BROWSE_QUERY_MIN_LENGTH
 from flyt.apps.lexicons.constants import K_LEXICON_INVALID_QUERY_MESSAGE
+from flyt.apps.lexicons.constants import K_LEXICON_QUERY_MAX_LENGTH
 from flyt.apps.lexicons.constants import K_LEXICON_MATCH_KIND_EXACT
 from flyt.apps.lexicons.constants import K_LEXICON_MATCH_KIND_PREFIX
 from flyt.apps.lexicons.constants import K_LEXICON_MATCH_KIND_WORDFORM_EXACT
@@ -23,6 +27,8 @@ from flyt.apps.lexicons.constants import K_LEXICON_SUGGESTIONS_LIMIT
 from flyt.apps.lexicons.exceptions import LexiconNotFoundError
 from flyt.apps.lexicons.models import Definition
 from flyt.apps.lexicons.models import Lemma
+from flyt.apps.lexicons.models import LemmaAlias
+from flyt.apps.lexicons.models import LemmaPos
 from flyt.apps.lexicons.models import SeeAlso
 from flyt.apps.lexicons.models import WordForm
 from flyt.apps.flashcards.models import CardPool
@@ -36,7 +42,27 @@ from flyt.core.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
-NORWEGIAN_PATTERN = re.compile(r"^[a-zA-ZæøåÆØÅ]+(?:[-\s][a-zA-ZæøåÆØÅ]+)*$")
+K_LOOKUP_PUNCTUATION = frozenset("-–'[]|()/,.…!?")  # noqa: RUF001
+
+
+def normalize_lookup_query(query: str) -> str:
+    """Apply the shared dictionary lookup normalization and validation policy."""
+    normalized = unicodedata.normalize("NFC", query).strip(" ")
+    normalized = re.sub(r" +", " ", normalized)
+    if not normalized or len(normalized) > K_LEXICON_QUERY_MAX_LENGTH:
+        raise ValueError("invalid lookup query")
+    has_letter_or_digit = False
+    for char in normalized:
+        category = unicodedata.category(char)
+        if category[0] in {"L", "M", "N"}:
+            has_letter_or_digit = True
+            continue
+        if char == " " or char in K_LOOKUP_PUNCTUATION:
+            continue
+        raise ValueError("invalid lookup query")
+    if not has_letter_or_digit:
+        raise ValueError("invalid lookup query")
+    return normalized
 
 
 @dataclass(frozen=True)
@@ -44,6 +70,12 @@ class BrowseHeadwordEntry:
     uuid: UUID
     hgno: int
     label: str
+
+
+@dataclass(frozen=True)
+class BrowseSuggestionEntry:
+    label: str
+    alternative_forms: list[str]
 
 
 @dataclass(frozen=True)
@@ -90,11 +122,17 @@ class LexiconService:
         lemmas = (
             await self.db.scalars(
                 select(Lemma)
-                .join(WordForm, WordForm.lemma_id == Lemma.id)
-                .where(WordForm.form == sanitized_query)
+                .outerjoin(WordForm, WordForm.lemma_id == Lemma.id)
+                .outerjoin(LemmaAlias, LemmaAlias.lemma_id == Lemma.id)
+                .where(
+                    (WordForm.form == sanitized_query)
+                    | (LemmaAlias.normalized_alias == sanitized_query.casefold())
+                )
                 .distinct()
                 .options(selectinload(Lemma.word_forms))
                 .options(selectinload(Lemma.definitions))
+                .options(selectinload(Lemma.aliases))
+                .order_by(Lemma.hgno.asc(), Lemma.id.asc())
             )
         ).all()
 
@@ -147,38 +185,64 @@ class LexiconService:
         return WordResolution(lemmas=[], is_compound=False)
 
     async def _lemmas_by_form(self, form: str) -> Sequence[Lemma]:
-        """Return lemmas whose word forms case-insensitively match *form*.
+        """Return lemmas whose canonical word or word forms match *form*.
 
         Ordered by frequency rank (ASC NULLS LAST) then homograph number.
         """
         return (
             await self.db.scalars(
                 select(Lemma)
-                .join(WordForm, WordForm.lemma_id == Lemma.id)
+                .outerjoin(WordForm, WordForm.lemma_id == Lemma.id)
+                .outerjoin(LemmaAlias, LemmaAlias.lemma_id == Lemma.id)
                 .outerjoin(CardPool, CardPool.lemma_id == Lemma.id)
-                .where(func.lower(WordForm.form) == func.lower(form))
+                .where(
+                    (func.lower(Lemma.word) == func.lower(form))
+                    | (func.lower(WordForm.form) == func.lower(form))
+                    | (LemmaAlias.normalized_alias == form.casefold())
+                )
                 .group_by(Lemma.id)
                 .options(selectinload(Lemma.definitions))
                 .options(selectinload(Lemma.see_also))
+                .options(selectinload(Lemma.aliases))
                 .order_by(
                     func.min(CardPool.frequency_rank).asc().nullslast(),
                     Lemma.hgno.asc(),
+                    Lemma.id.asc(),
                 )
             )
         ).all()
 
     async def get_suggestions(self, query: str) -> list[str]:
-        """Return ranked headword suggestions for the autocomplete surface."""
+        """Return ranked headword labels for internal consumers."""
         sanitized_query = self._sanitize_and_validate_query(
             query,
             context="get_suggestions",
             min_length=K_LEXICON_SUGGEST_QUERY_MIN_LENGTH,
         )
-
-        suggestions = await self._list_ranked_headword_candidates(
+        return await self._list_ranked_headword_candidates(
             sanitized_query,
             limit=K_LEXICON_SUGGESTIONS_LIMIT,
         )
+
+    async def fetch_suggestion_entries(  # ume-ignore: UME-PY003
+        self, query: str
+    ) -> list[BrowseSuggestionEntry]:
+        """Return ranked headword suggestions for the autocomplete surface."""
+        sanitized_query = self._sanitize_and_validate_query(
+            query,
+            context="fetch_suggestion_entries",
+            min_length=K_LEXICON_SUGGEST_QUERY_MIN_LENGTH,
+        )
+
+        statement = self._build_suggestion_entries_query(sanitized_query)
+        rows = (await self.db.execute(statement)).all()
+        suggestions = [
+            BrowseSuggestionEntry(
+                label=headword,
+                alternative_forms=[form for form in (forms or []) if form != headword],
+            )
+            for headword, forms in rows
+        ]
 
         logger.info(
             "[LexiconService.get_suggestions] Found %s suggestions",
@@ -200,12 +264,13 @@ class LexiconService:
         return list(lemma.definitions)
 
     async def load_lemma_with_relations(self, lemma_uuid: UUID) -> Lemma:
-        """Load a lemma with definitions and see_also rows eagerly loaded."""
+        """Load a lemma with renderable relations eagerly loaded."""
         lemma = await self.db.scalar(
             select(Lemma)
             .where(Lemma.uuid == lemma_uuid)
             .options(selectinload(Lemma.definitions))
             .options(selectinload(Lemma.see_also))
+            .options(selectinload(Lemma.aliases))
         )
         if lemma is None:
             raise LexiconNotFoundError("Lemma not found")
@@ -309,7 +374,11 @@ class LexiconService:
     ) -> BrowseHeadwordResolution:
         """Build the resolved browse result for one headword."""
         entries = [
-            BrowseHeadwordEntry(uuid=lm.uuid, hgno=lm.hgno, label=lm.word)
+            BrowseHeadwordEntry(
+                uuid=lm.uuid,
+                hgno=lm.hgno,
+                label=lm.primary_display_form or lm.word,
+            )
             for lm in lemmas
         ]
 
@@ -322,9 +391,30 @@ class LexiconService:
             is_fallback=is_fallback,
         )
 
-    async def _list_ranked_headword_candidates(
+    def _build_suggestion_entries_query(self, query: str):
+        """Build the bounded suggestion query, including alternative forms."""
+        ranked = self._build_ranked_headword_candidates_query(
+            query,
+            limit=K_LEXICON_SUGGESTIONS_LIMIT,
+        ).subquery()
+        aliases = (
+            select(
+                func.array_agg(aggregate_order_by(LemmaAlias.alias, LemmaAlias.ordinal))
+            )
+            .join(Lemma, Lemma.id == LemmaAlias.lemma_id)
+            .where(LemmaAlias.lemma_id == ranked.c.lemma_id)
+            .scalar_subquery()
+        )
+        return select(ranked.c.headword, aliases).order_by(
+            ranked.c.best_match,
+            ranked.c.best_bucket,
+            ranked.c.best_frequency.asc().nullslast(),
+            ranked.c.headword,
+        )
+
+    def _build_ranked_headword_candidates_query(
         self, query: str, limit: int | None = None
-    ) -> list[str]:
+    ):
         """Return deduplicated headwords ordered by exact-then-prefix ranking.
 
         Headword matches rank above word-form matches: querying "leser"
@@ -338,51 +428,121 @@ class LexiconService:
         prefix_literal = literal(K_LEXICON_MATCH_KIND_PREFIX)
         wordform_exact_literal = literal(K_LEXICON_MATCH_KIND_WORDFORM_EXACT)
         wordform_prefix_literal = literal(K_LEXICON_MATCH_KIND_WORDFORM_PREFIX)
+        expression_bucket = case(
+            (
+                (Lemma.pos == LemmaPos.EXPRESSION) & Lemma.frequency_rank.is_(None),
+                1,
+            ),
+            else_=0,
+        )
+        has_verified_alias = exists(
+            select(LemmaAlias.id).where(LemmaAlias.lemma_id == Lemma.id)
+        )
 
         headword_matches = select(
             Lemma.word.label("headword"),
+            Lemma.id.label("lemma_id"),
             case(
                 (Lemma.word == query, exact_literal),
                 else_=prefix_literal,
             ).label("match_kind"),
-        ).where((Lemma.word == query) | Lemma.word.startswith(query))
+            expression_bucket.label("expression_bucket"),
+            Lemma.frequency_rank.label("frequency_rank"),
+        ).where(
+            ((Lemma.word == query) | Lemma.word.startswith(query, autoescape=True))
+            & ~((Lemma.pos == LemmaPos.EXPRESSION) & has_verified_alias)
+        )
 
         wordform_matches = (
             select(
                 Lemma.word.label("headword"),
+                Lemma.id.label("lemma_id"),
                 case(
                     (WordForm.form == query, wordform_exact_literal),
                     else_=wordform_prefix_literal,
                 ).label("match_kind"),
+                expression_bucket.label("expression_bucket"),
+                Lemma.frequency_rank.label("frequency_rank"),
             )
             .join(Lemma, Lemma.id == WordForm.lemma_id)
-            .where((WordForm.form == query) | WordForm.form.startswith(query))
+            .where(
+                (
+                    (WordForm.form == query)
+                    | WordForm.form.startswith(query, autoescape=True)
+                )
+                & ~((Lemma.pos == LemmaPos.EXPRESSION) & has_verified_alias)
+            )
         )
 
-        combined = union_all(headword_matches, wordform_matches).subquery()
+        alias_query = query.casefold()
+        alias_matches = (
+            select(
+                LemmaAlias.alias.label("headword"),
+                Lemma.id.label("lemma_id"),
+                case(
+                    (LemmaAlias.normalized_alias == alias_query, exact_literal),
+                    else_=prefix_literal,
+                ).label("match_kind"),
+                expression_bucket.label("expression_bucket"),
+                Lemma.frequency_rank.label("frequency_rank"),
+            )
+            .join(Lemma, Lemma.id == LemmaAlias.lemma_id)
+            .where(
+                (LemmaAlias.normalized_alias == alias_query)
+                | LemmaAlias.normalized_alias.startswith(
+                    alias_query,
+                    autoescape=True,
+                )
+            )
+        )
 
-        # One row per headword, ranked by its best match kind across both branches.
+        combined = union_all(
+            headword_matches,
+            wordform_matches,
+            alias_matches,
+        ).subquery()
         ranked = (
             select(
                 combined.c.headword,
+                func.min(combined.c.lemma_id).label("lemma_id"),
                 func.min(combined.c.match_kind).label("best_match"),
+                func.min(combined.c.expression_bucket).label("best_bucket"),
+                func.min(combined.c.frequency_rank).label("best_frequency"),
             )
             .group_by(combined.c.headword)
-            .order_by(func.min(combined.c.match_kind), combined.c.headword)
+            .order_by(
+                func.min(combined.c.match_kind),
+                func.min(combined.c.expression_bucket),
+                func.min(combined.c.frequency_rank).asc().nullslast(),
+                combined.c.headword,
+            )
         )
 
         if limit is not None:
             ranked = ranked.limit(limit)
 
+        return ranked
+
+    async def _list_ranked_headword_candidates(
+        self, query: str, limit: int | None = None
+    ) -> list[str]:
+        ranked = self._build_ranked_headword_candidates_query(query, limit)
+
         rows = (await self.db.execute(ranked)).all()
-        return [headword for headword, _best_match in rows]
+        return [headword for headword, *_ranking in rows]
 
     async def _list_homographs_for_headword(self, headword: str) -> list[Lemma]:
         """Return all lemma rows for one headword, ordered for stable UI rendering."""
         lemmas = (
             await self.db.scalars(
                 select(Lemma)
-                .where(Lemma.word == headword)
+                .outerjoin(LemmaAlias, LemmaAlias.lemma_id == Lemma.id)
+                .where(
+                    (Lemma.word == headword)
+                    | (LemmaAlias.normalized_alias == headword.casefold())
+                )
+                .group_by(Lemma.id)
+                .options(selectinload(Lemma.aliases))
                 .order_by(Lemma.hgno, Lemma.id)
             )
         ).all()
@@ -407,13 +567,13 @@ class LexiconService:
         min_length: int = 1,
     ) -> str:
         """Strip and validate user query against the Norwegian input policy."""
-        sanitized_query = query.strip()
+        try:
+            sanitized_query = normalize_lookup_query(query)
+        except ValueError:
+            logger.warning("[LexiconService.%s] Invalid query format", context)
+            raise ValidationError(K_LEXICON_INVALID_QUERY_MESSAGE) from None
 
         if len(sanitized_query) < min_length:
             logger.warning("[LexiconService.%s] Query too short", context)
-            raise ValidationError(K_LEXICON_INVALID_QUERY_MESSAGE)
-
-        if not NORWEGIAN_PATTERN.match(sanitized_query):
-            logger.warning("[LexiconService.%s] Invalid query format", context)
             raise ValidationError(K_LEXICON_INVALID_QUERY_MESSAGE)
         return sanitized_query

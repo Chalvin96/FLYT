@@ -72,6 +72,7 @@ def upgrade() -> None:
                 "determiner",
                 "interjection",
                 "numeral",
+                "expression",
                 "unknown",
                 name="lemmapos",
                 native_enum=False,

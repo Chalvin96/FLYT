@@ -15,6 +15,10 @@ export interface PronunciationRowProps {
   intonation?: string | null;
   audioUrl?: string | null;
   size?: 'sm' | 'md';
+  className?: string;
+  audioClassName?: string;
+  audioPosition?: 'leading' | 'trailing';
+  audioAppearance?: 'default' | 'quiet';
 }
 
 const TONE_META = {
@@ -25,7 +29,7 @@ const TONE_META = {
       'Tone 1 — pitch falls on the stressed syllable. Common in monosyllabic words and singular noun forms.',
     // Square viewBox: plateau then fall
     path: 'M1,5 L11,5 L15,14',
-    className: 'border-primary-20 bg-primary-10 text-primary-80',
+    className: 'border-primary-20 bg-primary-10 text-primary-90',
   },
   '2': {
     label: 'T2',
@@ -34,7 +38,7 @@ const TONE_META = {
       'Tone 2 — pitch rises then falls sharply. The characteristic sing-song melody of Norwegian.',
     // Square viewBox: rise then fall
     path: 'M1,14 L8,3 L15,14',
-    className: 'border-accent-30 bg-accent-10 text-accent-80',
+    className: 'border-accent-30 bg-accent-10 text-accent-90',
   },
 } as const;
 
@@ -45,19 +49,19 @@ function ApproximateIndicator({ size }: { size: 'sm' | 'md' }) {
       <TooltipTrigger asChild>
         <span
           role="img"
-          aria-label="Approximate pronunciation"
+          aria-label="Pronunciation generated automatically."
           tabIndex={0}
-          className={`relative inline-flex cursor-help items-center justify-center rounded-full border border-warning-60 bg-warning-10 text-warning-60 transition-colors after:absolute after:inset-[-6px] after:content-[''] hover:bg-warning-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${isSm ? 'h-3.5 w-3.5 text-[8px]' : 'h-4 w-4 text-[9px]'}`}
+          data-testid="ipa-approximate-marker"
+          className={`relative inline-flex cursor-help items-start justify-center text-secondary-80 after:absolute after:inset-[-8px] after:content-[''] focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${isSm ? '-top-1 h-3 w-1.5 text-[9px]' : '-top-1.5 h-3.5 w-2 text-[11px]'}`}
         >
-          ≈
+          *
         </span>
       </TooltipTrigger>
       <TooltipContent
         side="top"
         className="max-w-[210px] text-center type-caption-sm leading-snug"
       >
-        Pronunciation is auto-generated and may not be accurate for all forms.
-        Verify in a dictionary for precision.
+        Pronunciation generated automatically.
       </TooltipContent>
     </Tooltip>
   );
@@ -117,32 +121,51 @@ export function PronunciationRow({
   intonation,
   audioUrl,
   size = 'md',
+  className = '',
+  audioClassName = '',
+  audioPosition = 'leading',
+  audioAppearance = 'default',
 }: PronunciationRowProps) {
   if (!ipa && !intonation && !audioUrl) return null;
 
   const tone = intonation === '1' || intonation === '2' ? intonation : null;
+  const audioLeading = audioUrl && audioPosition === 'leading';
+  const audioTrailing = audioUrl && audioPosition === 'trailing';
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center gap-2">
-        {ipa && (
-          <span className="flex items-center gap-1">
-            <span
-              className={`font-mono text-muted-foreground ${size === 'sm' ? 'type-caption-sm' : 'type-caption'}`}
-            >
-              /{ipa}/
-            </span>
-            {ipaApproximate && <ApproximateIndicator size={size} />}
-          </span>
-        )}
-        {tone && <PitchBadge intonation={tone} size={size} />}
-        {audioUrl && (
+      <div
+        className={`flex min-w-0 flex-wrap items-center gap-2 ${className}`.trim()}
+      >
+        {audioLeading && (
           <AudioPlayButton
             src={audioUrl}
             tone="compact"
             size={size}
             label="Play pronunciation"
             playingLabel="Playing pronunciation"
+            className={audioClassName}
+            compactAppearance={audioAppearance}
+          />
+        )}
+        {ipa && (
+          <span
+            className={`min-w-0 max-w-full break-words font-mono text-secondary-80 ${size === 'sm' ? 'type-caption-sm' : 'type-caption'}`}
+          >
+            /{ipa}/
+          </span>
+        )}
+        {ipa && ipaApproximate && <ApproximateIndicator size={size} />}
+        {tone && <PitchBadge intonation={tone} size={size} />}
+        {audioTrailing && (
+          <AudioPlayButton
+            src={audioUrl}
+            tone="compact"
+            size={size}
+            label="Play pronunciation"
+            playingLabel="Playing pronunciation"
+            className={audioClassName}
+            compactAppearance={audioAppearance}
           />
         )}
       </div>

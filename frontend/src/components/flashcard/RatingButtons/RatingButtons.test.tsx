@@ -46,13 +46,24 @@ describe('RatingButtons', () => {
     });
   });
 
-  it('Easy button has the same visual variant as Hard', () => {
+  it('test_rating_buttons_given_default_state_expect_accessible_rating_group', () => {
     render(<RatingButtons onRate={vi.fn()} />);
 
-    const easy = screen.getByRole('button', { name: 'Easy' });
-    const hard = screen.getByRole('button', { name: 'Hard' });
-
-    expect(easy.className).toBe(hard.className);
+    expect(
+      screen.getByRole('group', { name: 'Rate this card' }),
+    ).toBeInTheDocument();
+    const buttons = screen.getAllByRole('button');
+    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Again',
+      'Hard',
+      'Good',
+      'Easy',
+    ]);
+    buttons.forEach((button) =>
+      expect(button).toHaveAccessibleDescription(
+        'Rate this card from 1 for Again to 4 for Easy.',
+      ),
+    );
   });
 
   it('renders the FSRS interval under each rating when previews are given', () => {

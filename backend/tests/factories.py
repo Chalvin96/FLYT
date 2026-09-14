@@ -29,6 +29,7 @@ from flyt.apps.lessons.models import LessonRelease
 from flyt.apps.lessons.models import UserLessonProgress
 from flyt.apps.lexicons.models import Definition
 from flyt.apps.lexicons.models import Lemma
+from flyt.apps.lexicons.models import LemmaAlias
 from flyt.apps.lexicons.models import LemmaPos
 from flyt.apps.lexicons.models import SeeAlso
 from flyt.apps.lexicons.models import WordForm
@@ -135,6 +136,7 @@ class LemmaFactory(AsyncSQLAlchemyFactory):
     definitions = Ignore()
     word_forms = Ignore()
     see_also = Ignore()
+    aliases = Ignore()
 
 
 class DefinitionFactory(AsyncSQLAlchemyFactory):
@@ -204,6 +206,29 @@ class SeeAlsoFactory(AsyncSQLAlchemyFactory):
             kwargs["lemma"] = lemma
             kwargs.pop("lemma_id", None)
 
+        return await super().create_async(**kwargs)
+
+
+class LemmaAliasFactory(AsyncSQLAlchemyFactory):
+    __model__ = LemmaAlias
+    __set_as_default_factory_for_type__ = True
+
+    lemma = Ignore()
+    alias = Use(fake.word)
+    normalized_alias = Use(fake.word)
+    is_primary = False
+    ordinal = 0
+
+    @classmethod
+    async def create_async(cls, **kwargs):
+        lemma = kwargs.pop("lemma", None)
+        if lemma is None and "lemma_id" not in kwargs:
+            lemma = await LemmaFactory.create(pos=LemmaPos.EXPRESSION)
+        if lemma is not None:
+            kwargs["lemma"] = lemma
+            kwargs.pop("lemma_id", None)
+        if "alias" in kwargs and "normalized_alias" not in kwargs:
+            kwargs["normalized_alias"] = kwargs["alias"].casefold()
         return await super().create_async(**kwargs)
 
 
