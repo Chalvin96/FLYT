@@ -1,6 +1,6 @@
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
-COPY --from=ghcr.io/astral-sh/uv:0.12.10 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.13 /uv /uvx /bin/
 
 WORKDIR /app
 
@@ -14,11 +14,15 @@ COPY . .
 RUN uv sync --frozen --no-dev
 
 
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
-RUN useradd -m -u 10001 svc
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && python -m pip uninstall -y pip setuptools \
+    && useradd -m -u 10001 svc
 
 COPY --from=builder --chown=svc:svc /app /app
 
