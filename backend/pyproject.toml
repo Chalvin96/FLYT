@@ -201,7 +201,7 @@ files = ["flyt", "scripts"]
 [dependency-groups]
 dev = [
   "pip-audit==2.10.1",
-  "ruff==0.16.6",
+  "ruff==0.16.7",
   "pytest>=8.0.0",
   "pytest-anyio>=0.0.0",
   "pytest-cov>=6.0.0",
