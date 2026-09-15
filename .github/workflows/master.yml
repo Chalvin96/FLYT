@@ -135,6 +135,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
+            FLYT_API_URL=${{ vars.FLYT_API_URL }}
             FLYT_RELEASE=${{ steps.images.outputs.release }}
 
       - name: Trivy image scan (gates push)
@@ -155,4 +156,5 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           build-args: |
+            FLYT_API_URL=${{ vars.FLYT_API_URL }}
             FLYT_RELEASE=${{ steps.images.outputs.release }}
