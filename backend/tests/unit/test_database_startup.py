@@ -1,5 +1,3 @@
-from unittest.mock import AsyncMock
-
 import pytest
 
 from flyt.core.base import Base
@@ -26,7 +24,6 @@ async def test_application_lifespan_given_runtime_dependencies_expect_no_schema_
         "from_redis_url",
         classmethod(fake_rate_limiter),
     )
-    monkeypatch.setattr(main, "close_redis", AsyncMock())
 
     async with main.lifespan(main.app):
         pass

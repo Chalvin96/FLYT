@@ -5,7 +5,6 @@ import { K_OPERATION_COMPONENT_MAP } from './componentMap';
 import type {
   FinishHandler,
   OperationComponentProps,
-  OperationOutcome,
   WriteJudgeFn,
 } from './operationTypes';
 import { UnsupportedFlashcardCard } from './UnsupportedFlashcardCard';
@@ -33,15 +32,6 @@ export function ExerciseView({
   onFinished,
 }: ExerciseViewProps) {
   const Component = K_OPERATION_COMPONENT_MAP[exercise.operation];
-  const finish = onFinished
-    ? (outcome: OperationOutcome) => {
-        if ('kind' in outcome) {
-          return onFinished(outcome);
-        } else {
-          return onFinished(gradedOutcome(outcome));
-        }
-      }
-    : undefined;
 
   if (!Component) {
     return (
@@ -65,7 +55,7 @@ export function ExerciseView({
       audio={audio}
       recordAndTranscribe={recordAndTranscribe}
       draftOwnerKey={draftOwnerKey}
-      onFinished={finish}
+      onFinished={onFinished}
     />
   );
 }

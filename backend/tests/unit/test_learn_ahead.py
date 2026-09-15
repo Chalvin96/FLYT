@@ -22,8 +22,6 @@ from flyt.apps.flashcards.models import Enrollment
 from flyt.apps.flashcards.models import UserCard
 from flyt.apps.flashcards.card_service import FlashcardCardService
 from flyt.apps.flashcards.review_service import FlashcardReviewService
-from flyt.apps.stats.queries import StatsQueryService
-from flyt.apps.stats.services import StatsService
 from flyt.apps.users.services import UserLemmaService
 from tests.factories import CardPoolFactory
 from tests.factories import FlashCardFactory
@@ -40,7 +38,6 @@ EXPECTED_THREE_CARD_PROMOTION = 3
 def review_service(session: AsyncSession) -> FlashcardReviewService:
     return FlashcardReviewService(
         session,
-        StatsService(session, query_service=StatsQueryService(session)),
         UserLemmaService(session),
         FlashcardCardService(session, UserLemmaService(session)),
     )

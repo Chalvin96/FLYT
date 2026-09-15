@@ -13,7 +13,6 @@ from flyt.apps.flashcards.models import CardState
 from flyt.apps.flashcards.models import UserCard
 from flyt.apps.lessons.models import Lesson
 from flyt.apps.stats.queries import StatsQueryService
-from flyt.apps.stats.services import StatsService
 from flyt.apps.users.models import User
 from flyt.libs.utils.date import now
 from tests.factories import CardPoolFactory
@@ -35,9 +34,7 @@ async def test_get_stats_given_empty_user_expect_zero_state(
 ) -> None:
     user = await UserFactory.create()
 
-    stats = await StatsService(
-        async_session, query_service=StatsQueryService(async_session)
-    ).get_stats(user_id=user.id)
+    stats = await StatsQueryService(async_session).get_dashboard_stats(user_id=user.id)
 
     assert stats.model_dump() == {
         "dueCount": 0,
@@ -64,11 +61,9 @@ async def test_get_stats_given_cards_logs_and_lessons_expect_frontend_contract(
 ) -> None:
     fixture = await _create_stats_fixture()
 
-    service = StatsService(
-        async_session, query_service=StatsQueryService(async_session)
-    )
+    service = StatsQueryService(async_session)
 
-    stats = await service.get_stats(user_id=fixture.user_id)
+    stats = await service.get_dashboard_stats(user_id=fixture.user_id)
     expected_accuracy = _expected_accuracy(fixture.events)
 
     assert stats.dueCount == EXPECTED_STATS_DUE_COUNT

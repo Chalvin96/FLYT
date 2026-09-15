@@ -22,6 +22,7 @@ from flyt.apps.flashcards.models import UserCard
 from flyt.apps.flashcards.queries import query_count_due_states
 from flyt.apps.lessons.models import Lesson
 from flyt.apps.lessons.models import UserLessonProgress
+from flyt.apps.stats.schemas import StatsRead
 from flyt.apps.stats.schemas import StatsSnapshotRead
 from flyt.libs.utils.date import now
 
@@ -35,6 +36,28 @@ class DueCountsResult:
 class StatsQueryService:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def get_dashboard_stats(self, user_id: int) -> StatsRead:
+        due_counts = await self.get_due_counts(user_id=user_id)
+        lesson_count = await self.get_lesson_count(user_id=user_id)
+        card_counts = await self.get_card_counts(user_id=user_id)
+        accuracy_7d = await self.get_accuracy_7d(user_id=user_id)
+        words_practiced = await self.get_words_practiced_count(user_id=user_id)
+        streak = await self.get_streak(user_id=user_id)
+        snapshot = await self.get_snapshot(user_id=user_id)
+
+        return StatsRead(
+            dueCount=due_counts.total,
+            dueNew=due_counts.new_count,
+            lessonCount=lesson_count,
+            new=card_counts[CardState.NEW],
+            learning=card_counts[CardState.LEARNING],
+            relearning=card_counts[CardState.RELEARNING],
+            accuracy7d=accuracy_7d,
+            wordsPracticed=words_practiced,
+            streak=streak,
+            snapshot=snapshot,
+        )
 
     async def get_due_counts(self, user_id: int) -> DueCountsResult:
         counts = await query_count_due_states(self.db, user_id)
@@ -78,9 +101,7 @@ class StatsQueryService:
                 .group_by(UserCard.state)
             )
         ).all()
-        counts = {state: 0 for state in CardState}
-        counts.update({state: count for state, count in rows})
-        return counts
+        return dict.fromkeys(CardState, 0) | {state: count for state, count in rows}
 
     async def get_words_practiced_count(self, user_id: int) -> int:
         return (

@@ -34,8 +34,6 @@ from flyt.apps.lessons.models import LessonRelease
 from flyt.apps.lessons.models import UserLessonProgress
 from flyt.apps.lessons.content_service import LessonContentService
 from flyt.apps.lessons.runtime_service import LessonService
-from flyt.apps.stats.queries import StatsQueryService
-from flyt.apps.stats.services import StatsService
 from flyt.apps.users.models import User
 from flyt.apps.users.services import UserLemmaService
 from flyt.clients.provider import GenerationRequest
@@ -84,7 +82,6 @@ async def import_lesson_import_dir(
 def lesson_review_service(session: AsyncSession) -> FlashcardReviewService:
     return FlashcardReviewService(
         session,
-        StatsService(session, query_service=StatsQueryService(session)),
         UserLemmaService(session),
         FlashcardCardService(session, UserLemmaService(session)),
     )

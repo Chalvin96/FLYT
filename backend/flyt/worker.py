@@ -19,7 +19,6 @@ from flyt.core.logging import configure_logging
 from flyt.core.observability import configure_sentry
 from flyt.core.queue import close_arq_pool
 from flyt.core.queue import redis_settings
-from flyt.core.redis import close_redis
 
 
 async def _on_startup(ctx: dict[str, Any]) -> None:
@@ -39,26 +38,15 @@ async def _on_startup(ctx: dict[str, Any]) -> None:
 
 async def _on_shutdown(ctx: dict[str, Any]) -> None:
     await close_arq_pool()
-    await close_redis()
 
 
 class WorkerSettings:
     functions: ClassVar[list] = [
         generate_story_pages,
         process_import,
-        # A generation must run exactly once: a terminal outcome (ready, failed,
-        # refused) is recorded before the job returns, and a retry would only
-        # re-reserve usage on a dead generation. arq's default retries
-        # are therefore disabled explicitly.
         func(generate_story, max_tries=1),
     ]
-    # Stale imports are re-enqueued by an external scheduler running
-    # ``python -m flyt.commands.requeue_stale_imports``, not an in-process cron.
     redis_settings = redis_settings()
     on_startup = _on_startup
     on_shutdown = _on_shutdown
-    # A job is force-cancelled at job_timeout; self-heal only requeues after
-    # STALE_AFTER. job_timeout MUST stay < STALE_AFTER so a stale reclaim can never
-    # run concurrently with (or be overwritten by) the original job. No fence token
-    # is needed as long as this holds.
-    job_timeout = 300  # seconds; STALE_AFTER is 1h
+    job_timeout = 300

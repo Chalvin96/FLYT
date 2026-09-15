@@ -1,58 +1,39 @@
 """Integration tests for the story generation API surface.
 
-Tests cover: surface endpoint, request generation (with/without topic, refusals),
-poll status (processing/ready/failed/refused), provider choices with usage signals,
-and the topic-escape security fix.
+Tests cover: surface endpoint, request generation (with/without topic, refusals,
+supersession), poll status (processing/ready/failed/refused/expired), provider
+choices with usage signals, and the topic-escape security fix.
 """
 
+from datetime import timedelta
 from http import HTTPStatus
 
 import pytest
-import redis.asyncio as aioredis
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flyt.apps.ai_usage.models import FlytAiUsage
 from flyt.apps.ai_usage.week import calculate_utc_week_start
 from flyt.apps.reading.tokenization import PageData
-from flyt.apps.story_generation.slot import GenerationSlotStore
-from flyt.apps.story_generation.slot import SlotRequest
+from flyt.apps.story_generation.constants import StoryGenerationErrorCode
+from flyt.apps.story_generation.models import Generation
+from flyt.apps.story_generation.models import GenerationOutcome
 from flyt.core.config import settings
+from flyt.libs.utils.date import now
 from tests.factories import LemmaFactory
 from tests.factories import UserFactory
 from tests.factories import UserLemmaFactory
 from tests.helpers.auth import authenticate
-from tests.helpers.redis import validate_local_redis_url
 
 pytestmark = pytest.mark.anyio
 
-_NAMESPACE = "story_generation"
 K_EXPECTED_ANCHOR_COUNT = 3
-K_TEST_GENERATION_ID = 42
+K_TEST_SNAPSHOT_BUDGET = 100_000
+K_TEST_REQUESTED_LENGTH = 250
 K_EXPECTED_REMAINING_PERCENT = 76
 K_FULL_REMAINING_PERCENT = 100
-K_TEST_SNAPSHOT_BUDGET = 100_000
-
-
-@pytest.fixture
-async def redis_client():
-    validate_local_redis_url(settings.REDIS_URL)
-    client = aioredis.from_url(settings.REDIS_URL)
-    try:
-        await client.ping()
-    except Exception:
-        pytest.skip("Redis not available")
-
-    keys = await client.keys(f"{_NAMESPACE}:*")
-    if keys:
-        await client.delete(*keys)
-
-    yield client
-
-    keys = await client.keys(f"{_NAMESPACE}:*")
-    if keys:
-        await client.delete(*keys)
-    await client.aclose()
 
 
 @pytest.fixture(autouse=True)
@@ -77,6 +58,26 @@ def build_pages() -> list[PageData]:
     ]
 
 
+async def add_generation(
+    db: AsyncSession,
+    user_id: int,
+    **overrides,
+) -> Generation:
+    values = {
+        "user_id": user_id,
+        "provider": "openrouter",
+        "anchor": "frequency",
+        "requested_length": 250,
+        "topic": None,
+        "outcome": GenerationOutcome.PROCESSING,
+    }
+    values.update(overrides)
+    generation = Generation(**values)
+    db.add(generation)
+    await db.flush()
+    return generation
+
+
 async def seed_frequency_lemmas(
     db: AsyncSession, user_id: int, count: int, known: bool = True
 ) -> None:
@@ -86,6 +87,14 @@ async def seed_frequency_lemmas(
             user_id=user_id, lemma_id=lemma.id, is_mastered=known
         )
     await db.flush()
+
+
+async def count_generations(db: AsyncSession, user_id: int) -> int:
+    return len(
+        (
+            await db.execute(select(Generation.id).where(Generation.user_id == user_id))
+        ).all()
+    )
 
 
 async def test_surface_given_authenticated_expect_providers_and_anchors(
@@ -117,7 +126,7 @@ async def test_surface_given_authenticated_expect_providers_and_anchors(
 
 
 async def test_create_generation_given_no_topic_expect_accepted(
-    client: AsyncClient, db: AsyncSession, redis_client
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     """R-001/R-013: a story requested without a topic is accepted and pollable."""
     user = await UserFactory.create_async()
@@ -136,15 +145,16 @@ async def test_create_generation_given_no_topic_expect_accepted(
     assert body["status"] == "processing"
     assert body["generationId"] > 0
 
-    slot_store = GenerationSlotStore(redis=redis_client)
-    slot = await slot_store.read(user.id)
-    assert slot is not None
-    assert slot.status == "processing"
-    assert slot.topic is None
+    generation = await db.get(Generation, body["generationId"])
+    assert generation is not None
+    assert generation.outcome is GenerationOutcome.PROCESSING
+    assert generation.topic is None
+    assert generation.provider == "openrouter"
+    assert generation.requested_length == K_TEST_REQUESTED_LENGTH
 
 
-async def test_create_generation_given_topic_expect_topic_in_slot(
-    client: AsyncClient, db: AsyncSession, redis_client
+async def test_create_generation_given_topic_expect_topic_stored(
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     """R-001: a supplied topic is carried with the request."""
     user = await UserFactory.create_async()
@@ -163,15 +173,14 @@ async def test_create_generation_given_topic_expect_topic_in_slot(
         },
     )
 
-    assert resp.status_code == HTTPStatus.ACCEPTED, resp.text
-    slot_store = GenerationSlotStore(redis=redis_client)
-    slot = await slot_store.read(user.id)
-    assert slot is not None
-    assert slot.topic == "En dag på skolen"
+    assert resp.status_code == HTTPStatus.ACCEPTED
+    generation = await db.get(Generation, resp.json()["generationId"])
+    assert generation is not None
+    assert generation.topic == "En dag på skolen"
 
 
 async def test_create_generation_given_overlong_topic_expect_refused(
-    client: AsyncClient, db: AsyncSession, redis_client
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     """R-015: an overlong topic is refused before any provider is called."""
     user = await UserFactory.create_async()
@@ -196,12 +205,11 @@ async def test_create_generation_given_overlong_topic_expect_refused(
     detail = resp.json()["detail"]
     assert detail["code"] == "STORY_GENERATION_TOPIC_TOO_LONG"
 
-    slot_store = GenerationSlotStore(redis=redis_client)
-    assert await slot_store.read(user.id) is None
+    assert await count_generations(db, user.id) == 0
 
 
 async def test_create_generation_given_unsupported_length_expect_refused(
-    client: AsyncClient, db: AsyncSession, redis_client
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     """R-108: a length outside the configured options is refused before any
     provider call, so no token spend is recorded."""
@@ -219,12 +227,11 @@ async def test_create_generation_given_unsupported_length_expect_refused(
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert resp.json()["detail"]["code"] == "STORY_GENERATION_LENGTH_OUT_OF_RANGE"
 
-    slot_store = GenerationSlotStore(redis=redis_client)
-    assert await slot_store.read(user.id) is None
+    assert await count_generations(db, user.id) == 0
 
 
 async def test_create_generation_given_exhausted_weekly_budget_expect_refused(
-    client: AsyncClient, db: AsyncSession, redis_client, monkeypatch
+    client: AsyncClient, db: AsyncSession, monkeypatch
 ) -> None:
     """R-001: an exhausted weekly budget is refused at request time, with no
     pollable generation."""
@@ -244,12 +251,11 @@ async def test_create_generation_given_exhausted_weekly_budget_expect_refused(
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert resp.json()["detail"]["code"] == "STORY_GENERATION_ALLOWANCE_EXHAUSTED"
 
-    slot_store = GenerationSlotStore(redis=redis_client)
-    assert await slot_store.read(user.id) is None
+    assert await count_generations(db, user.id) == 0
 
 
 async def test_refusal_given_refused_request_expect_no_pollable_generation(
-    client: AsyncClient, db: AsyncSession, redis_client
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     """R-001: a refused request creates no generation to poll."""
     user = await UserFactory.create_async()
@@ -276,7 +282,7 @@ async def test_refusal_given_refused_request_expect_no_pollable_generation(
 
 
 async def test_create_generation_given_unavailable_provider_expect_refused(
-    client: AsyncClient, db: AsyncSession, redis_client, monkeypatch
+    client: AsyncClient, db: AsyncSession, monkeypatch
 ) -> None:
     """R-001/R-012: an unavailable provider refuses the request at request time."""
     user = await UserFactory.create_async()
@@ -295,12 +301,11 @@ async def test_create_generation_given_unavailable_provider_expect_refused(
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert resp.json()["detail"]["code"] == "STORY_GENERATION_PROVIDER_UNAVAILABLE"
 
-    slot_store = GenerationSlotStore(redis=redis_client)
-    assert await slot_store.read(user.id) is None
+    assert await count_generations(db, user.id) == 0
 
 
 async def test_create_generation_given_unknown_anchor_expect_rejected(
-    client: AsyncClient, db: AsyncSession, redis_client
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     """R-001: an anchor that is not one of the offered types is rejected at the
     boundary, so no story is built on an anchor the learner never chose."""
@@ -319,12 +324,11 @@ async def test_create_generation_given_unknown_anchor_expect_rejected(
     errors = resp.json()["detail"]
     assert [error["loc"] for error in errors] == [["body", "anchor"]]
 
-    slot_store = GenerationSlotStore(redis=redis_client)
-    assert await slot_store.read(user.id) is None
+    assert await count_generations(db, user.id) == 0
 
 
 async def test_create_generation_given_missing_length_expect_rejected(
-    client: AsyncClient, db: AsyncSession, redis_client
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     """A length is always picked from the offered options, so a request without
     one is rejected at the boundary."""
@@ -343,12 +347,11 @@ async def test_create_generation_given_missing_length_expect_rejected(
     errors = resp.json()["detail"]
     assert [error["loc"] for error in errors] == [["body", "length"]]
 
-    slot_store = GenerationSlotStore(redis=redis_client)
-    assert await slot_store.read(user.id) is None
+    assert await count_generations(db, user.id) == 0
 
 
 async def test_create_generation_given_anchor_all_known_expect_refused(
-    client: AsyncClient, db: AsyncSession, redis_client
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     """R-010: an anchor with nothing left to teach refuses instead of producing
     an all-known story."""
@@ -369,26 +372,65 @@ async def test_create_generation_given_anchor_all_known_expect_refused(
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert resp.json()["detail"]["code"] == "STORY_GENERATION_ANCHOR_NOTHING_TO_TEACH"
 
-    slot_store = GenerationSlotStore(redis=redis_client)
-    assert await slot_store.read(user.id) is None
+    assert await count_generations(db, user.id) == 0
 
 
-async def test_current_given_ready_slot_expect_pages(
-    client: AsyncClient, db: AsyncSession, redis_client
+async def test_create_generation_given_processing_generation_expect_superseded(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """R-014: a new request atomically supersedes any prior in-flight
+    generation, which fails with the abandonment code."""
+    user = await UserFactory.create_async()
+    await seed_frequency_lemmas(db, user.id, 3, known=True)
+    await LemmaFactory.create(frequency_rank=10)
+    await db.flush()
+    await authenticate(client, user)
+
+    first = await client.post(
+        "/story-generation/generations",
+        json={"provider": "openrouter", "anchor": "frequency", "length": 250},
+    )
+    assert first.status_code == HTTPStatus.ACCEPTED
+    first_id = first.json()["generationId"]
+
+    second = await client.post(
+        "/story-generation/generations",
+        json={
+            "provider": "openrouter",
+            "anchor": "frequency",
+            "length": 250,
+            "topic": "katter",
+        },
+    )
+    assert second.status_code == HTTPStatus.ACCEPTED
+    second_id = second.json()["generationId"]
+
+    superseded = await db.get(Generation, first_id)
+    assert superseded is not None
+    assert superseded.outcome is GenerationOutcome.FAILED
+    assert superseded.failure_code == StoryGenerationErrorCode.GENERATION_ABANDONED
+
+    poll = await client.get("/story-generation/generations/current")
+    body = poll.json()
+    assert body["generationId"] == second_id
+    assert body["status"] == "processing"
+    assert body["topic"] == "katter"
+
+
+async def test_current_given_ready_generation_expect_pages(
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     """R-001/R-004: a ready generation is readable with annotated pages."""
     user = await UserFactory.create_async()
     await authenticate(client, user)
 
-    slot_store = GenerationSlotStore(redis=redis_client)
-    await slot_store.mint(
-        user.id,
-        K_TEST_GENERATION_ID,
-        SlotRequest("openrouter", "frequency", 250, None),
-    )
     pages = build_pages()
-    await slot_store.write_ready(
-        user.id, K_TEST_GENERATION_ID, "Det var en gang en katt.", pages
+    generation = await add_generation(
+        db,
+        user.id,
+        outcome=GenerationOutcome.READY,
+        text="Det var en gang en katt.",
+        pages=_page_payload(pages),
     )
 
     resp = await client.get("/story-generation/generations/current")
@@ -396,64 +438,61 @@ async def test_current_given_ready_slot_expect_pages(
     assert resp.status_code == HTTPStatus.OK, resp.text
     body = resp.json()
     assert body["status"] == "ready"
-    assert body["generationId"] == K_TEST_GENERATION_ID
+    assert body["generationId"] == generation.id
     assert body["pages"] is not None
     assert len(body["pages"]) == 1
     assert body["pages"][0]["tokens"][0]["word"] == "Det"
 
 
-async def test_current_given_failed_slot_expect_failure_code(
-    client: AsyncClient, db: AsyncSession, redis_client
+async def test_current_given_failed_generation_expect_failure_code(
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     """R-001: a failed generation reports a classified reason, not partial text."""
     user = await UserFactory.create_async()
     await authenticate(client, user)
 
-    slot_store = GenerationSlotStore(redis=redis_client)
-    await slot_store.mint(
-        user.id, 10, SlotRequest("openrouter", "frequency", 250, None)
-    )
-    await slot_store.write_failed(
-        user.id, 10, "STORY_GENERATION_FAILED", "Provider timed out"
+    await add_generation(
+        db,
+        user.id,
+        outcome=GenerationOutcome.FAILED,
+        failure_code="STORY_GENERATION_FAILED",
+        failure_message="Provider timed out",
     )
 
     resp = await client.get("/story-generation/generations/current")
 
-    assert resp.status_code == HTTPStatus.OK, resp.text
+    assert resp.status_code == HTTPStatus.OK
     body = resp.json()
     assert body["status"] == "failed"
     assert body["failureCode"] == "STORY_GENERATION_FAILED"
     assert body["pages"] is None
 
 
-async def test_current_given_refused_slot_expect_refused_status(
-    client: AsyncClient, db: AsyncSession, redis_client
+async def test_current_given_refused_generation_expect_refused_status(
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     """R-001: a refusal reports a status distinct from failure."""
     user = await UserFactory.create_async()
     await authenticate(client, user)
 
-    slot_store = GenerationSlotStore(redis=redis_client)
-    await slot_store.mint(
-        user.id, 10, SlotRequest("openrouter", "frequency", 250, None)
-    )
-    await slot_store.write_refused(
+    await add_generation(
+        db,
         user.id,
-        10,
-        "STORY_GENERATION_ALLOWANCE_EXHAUSTED",
-        "This story could not be started right now.",
+        outcome=GenerationOutcome.REFUSED,
+        failure_code="STORY_GENERATION_ALLOWANCE_EXHAUSTED",
+        failure_message="This story could not be started right now.",
     )
 
     resp = await client.get("/story-generation/generations/current")
 
-    assert resp.status_code == HTTPStatus.OK, resp.text
+    assert resp.status_code == HTTPStatus.OK
     body = resp.json()
     assert body["status"] == "refused"
     assert body["failureCode"] == "STORY_GENERATION_ALLOWANCE_EXHAUSTED"
 
 
 async def test_surface_given_partial_budget_use_expect_remaining_percentage(
-    client: AsyncClient, db: AsyncSession, redis_client
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     """R-103: the weekly percentage is reported before a request is made."""
     user = await UserFactory.create_async()
@@ -530,11 +569,9 @@ async def test_surface_given_unlinked_chatgpt_expect_locked_with_action(
 
 
 async def test_generating_given_no_import_expect_quota_unchanged(
-    client: AsyncClient, db: AsyncSession, redis_client
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     """R-005: a generated story never counts as an import."""
-    from sqlalchemy import select
-
     from flyt.apps.reading.models import ImportQuota
 
     user = await UserFactory.create_async()
@@ -555,7 +592,7 @@ async def test_generating_given_no_import_expect_quota_unchanged(
     assert quota is None
 
 
-async def test_current_given_no_slot_expect_null(
+async def test_current_given_no_generation_expect_null(
     client: AsyncClient, db: AsyncSession
 ) -> None:
     """R-001: with no generation, polling reports no current generation."""
@@ -568,17 +605,14 @@ async def test_current_given_no_slot_expect_null(
     assert resp.json() is None
 
 
-async def test_current_given_processing_slot_expect_processing(
-    client: AsyncClient, db: AsyncSession, redis_client
+async def test_current_given_processing_generation_expect_processing(
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     """R-001: an in-flight generation reports processing."""
     user = await UserFactory.create_async()
     await authenticate(client, user)
 
-    slot_store = GenerationSlotStore(redis=redis_client)
-    await slot_store.mint(
-        user.id, 99, SlotRequest("openrouter", "frequency", 250, "katter")
-    )
+    await add_generation(db, user.id, topic="katter")
 
     resp = await client.get("/story-generation/generations/current")
 
@@ -589,8 +623,38 @@ async def test_current_given_processing_slot_expect_processing(
     assert body["pages"] is None
 
 
-async def test_current_given_ready_slot_with_known_and_unknown_lemmas_expect_resolved_user_states(
-    client: AsyncClient, db: AsyncSession, redis_client
+async def test_current_given_expired_generation_expect_null(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """R-005: a result older than the retention window is no longer pollable;
+    expiry is derived from ``created_at`` plus the configured window."""
+    user = await UserFactory.create_async()
+    await authenticate(client, user)
+
+    generation = await add_generation(
+        db,
+        user.id,
+        outcome=GenerationOutcome.READY,
+        text="En gammel historie.",
+        pages=_page_payload(build_pages()),
+    )
+    stale = now() - timedelta(hours=settings.STORY_GENERATION_EPHEMERAL_TTL_HOURS + 1)
+    await db.execute(
+        update(Generation)
+        .where(Generation.id == generation.id)
+        .values(created_at=stale)
+        .execution_options(synchronize_session="fetch")
+    )
+    await db.flush()
+
+    resp = await client.get("/story-generation/generations/current")
+
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json() is None
+
+
+async def test_current_given_ready_generation_with_known_and_unknown_lemmas_expect_resolved_user_states(
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     user = await UserFactory.create_async()
     known_lemma = await LemmaFactory.create()
@@ -601,10 +665,6 @@ async def test_current_given_ready_slot_with_known_and_unknown_lemmas_expect_res
     await db.flush()
     await authenticate(client, user)
 
-    slot_store = GenerationSlotStore(redis=redis_client)
-    await slot_store.mint(
-        user.id, 42, SlotRequest("openrouter", "frequency", 250, None)
-    )
     pages = [
         PageData(
             index=0,
@@ -626,7 +686,13 @@ async def test_current_given_ready_slot_with_known_and_unknown_lemmas_expect_res
             word_count=2,
         )
     ]
-    await slot_store.write_ready(user.id, 42, "Katt hund.", pages)
+    await add_generation(
+        db,
+        user.id,
+        outcome=GenerationOutcome.READY,
+        text="Katt hund.",
+        pages=_page_payload(pages),
+    )
 
     resp = await client.get("/story-generation/generations/current")
 
@@ -638,8 +704,8 @@ async def test_current_given_ready_slot_with_known_and_unknown_lemmas_expect_res
     assert user_states[str(unknown_lemma.uuid)] == "new"
 
 
-async def test_current_given_processing_slot_expect_empty_user_states(
-    client: AsyncClient, db: AsyncSession, redis_client
+async def test_current_given_processing_generation_expect_empty_user_states(
+    client: AsyncClient, db: AsyncSession
 ) -> None:
     user = await UserFactory.create_async()
     known_lemma = await LemmaFactory.create()
@@ -649,14 +715,23 @@ async def test_current_given_processing_slot_expect_empty_user_states(
     await db.flush()
     await authenticate(client, user)
 
-    slot_store = GenerationSlotStore(redis=redis_client)
-    await slot_store.mint(
-        user.id, 77, SlotRequest("openrouter", "frequency", 250, None)
-    )
+    await add_generation(db, user.id)
 
     resp = await client.get("/story-generation/generations/current")
 
-    assert resp.status_code == HTTPStatus.OK, resp.text
+    assert resp.status_code == HTTPStatus.OK
     body = resp.json()
     assert body["status"] == "processing"
     assert body["userStates"] == {}
+
+
+def _page_payload(pages: list[PageData]) -> list[dict]:
+    return [
+        {
+            "index": p.index,
+            "content": p.content,
+            "tokens": p.tokens,
+            "word_count": p.word_count,
+        }
+        for p in pages
+    ]

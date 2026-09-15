@@ -8,6 +8,7 @@ from polyfactory.factories.sqlalchemy_factory import SQLAlchemyPersistenceMethod
 from polyfactory.fields import Ignore
 from polyfactory.fields import Use
 from pydantic import SecretStr
+
 from flyt.apps.chatgpt_link.models import ChatGPTLink
 from flyt.apps.flashcards.models import CardState
 from flyt.apps.flashcards.models import CardPool
@@ -716,9 +717,14 @@ class GenerationFactory(AsyncSQLAlchemyFactory):
             kwargs.pop("user", None)
 
         defaults: dict = {
+            "provider": "openrouter",
             "anchor": None,
+            "topic": None,
             "requested_length": 250,
             "requested_targets": 3,
+            "worker_claim": False,
+            "text": None,
+            "pages": None,
             "mastered_lemma_count": None,
             "in_progress_lemma_count": None,
             "unknown_lemma_count": None,

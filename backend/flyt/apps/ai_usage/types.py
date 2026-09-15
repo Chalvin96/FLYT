@@ -4,13 +4,6 @@ from enum import StrEnum
 
 
 @dataclass(frozen=True)
-class AiUsageRequest:
-    instructions: str
-    prompt: str
-    max_tokens: int | None = None
-
-
-@dataclass(frozen=True)
 class AiUsageStatus:
     remaining_tokens: int
     budget_tokens: int

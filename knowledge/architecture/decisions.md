@@ -11,5 +11,6 @@
 | Cookie auth for the browser                        | HTTP-only cookies protect the browser session; extension calls bridge per request.                  |
 | Generated lesson packets use discriminated schemas | Producers and consumers can reject unsupported versions before graph execution.                     |
 | Shared operation registry                          | Lesson and review behavior stays exhaustive and media resolution stays consistent.                  |
+| PostgreSQL owns generation state and results        | Generation state and results share one transactional source of truth.                         |
 
 When a new decision changes one of these boundaries, update this table and the owning domain document.

@@ -1,5 +1,6 @@
 import pytest
 from sqlalchemy import select
+from sqlalchemy import text
 
 from flyt.apps.story_generation.models import Generation
 from flyt.apps.story_generation.models import GenerationOutcome
@@ -106,6 +107,56 @@ async def test_generation_given_outcome_persisted_expect_readable(db) -> None:
     assert refreshed.unknown_token_count == K_EXPECTED_UNKNOWN_TOKEN_COUNT
     assert refreshed.lexical_token_count == K_EXPECTED_LEXICAL_TOKEN_COUNT
     assert refreshed.target_occurrences == {11: 2, 12: 0}
+
+
+async def test_generation_given_result_payload_expect_roundtrip(db) -> None:
+    """The generation row carries the durable result: request inputs, the
+    worker claim marker, the normalized text, and the annotated pages."""
+    user = await UserFactory.create_async()
+    generation = await GenerationFactory.create_async(
+        user_id=user.id,
+        provider="openrouter",
+        topic="En dag på skolen",
+        worker_claim=True,
+        outcome=GenerationOutcome.READY,
+        text="Det var en gang en katt.",
+        pages=[
+            {
+                "index": 0,
+                "content": "Det var en gang en katt.",
+                "tokens": [
+                    {"word": "Det", "start": 0, "end": 3, "lemmaUuid": "abc-123"}
+                ],
+                "word_count": 6,
+            }
+        ],
+    )
+    await db.flush()
+
+    refreshed = await db.get(Generation, generation.id)
+
+    assert refreshed is not None
+    assert refreshed.provider == "openrouter"
+    assert refreshed.topic == "En dag på skolen"
+    assert refreshed.worker_claim is True
+    assert refreshed.text == "Det var en gang en katt."
+    assert refreshed.pages is not None
+    assert refreshed.pages[0]["tokens"][0]["lemmaUuid"] == "abc-123"
+
+
+async def test_generation_given_absent_pages_expect_sql_null(db) -> None:
+    """An absent result is stored as SQL NULL, not JSON null: the pages column
+    uses none_as_null so inserts and the retention purge share NULL semantics."""
+    generation = await GenerationFactory.create_async()
+
+    await db.flush()
+    is_sql_null = await db.scalar(
+        text("SELECT pages IS NULL FROM story_generation_generations WHERE id = :id"),
+        {"id": generation.id},
+    )
+
+    assert is_sql_null is True
+    assert generation.pages is None
 
 
 async def test_provider_request_given_failed_outcome_expect_failure_fields_set(

@@ -37,7 +37,7 @@ def measure(
     uuid_to_id: dict[str, int],
     target_lemma_ids: list[int],
 ) -> QualityMeasurement:
-    target_occurrences = {target_id: 0 for target_id in target_lemma_ids}
+    target_occurrences = dict.fromkeys(target_lemma_ids, 0)
     mastered_lemmas: set[int] = set()
     in_progress_lemmas: set[int] = set()
     unknown_lemmas: set[int] = set()

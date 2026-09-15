@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flyt.apps.ai_usage.service import AiUsageService
 from flyt.apps.ai_usage.service import is_weekly_admissible
-from flyt.apps.ai_usage.types import AiUsageRequest
 from flyt.apps.chatbot.constants import K_CHATBOT_OPENROUTER_KEY_MAX_LENGTH
 from flyt.apps.chatbot.constants import K_CHATBOT_OPENROUTER_KEY_MIN_LENGTH
 from flyt.apps.chatbot.constants import K_CHATBOT_MODEL_ORDER
@@ -206,12 +205,7 @@ class ChatbotService:
         )
         if entry.definition.funded_by_flyt:
             admission = await AiUsageService(self._db).admit_request(
-                user_id,
-                AiUsageRequest(
-                    instructions=provider_request.instructions,
-                    prompt=provider_request.prompt,
-                    max_tokens=provider_request.max_tokens,
-                ),
+                user_id, provider_request
             )
             if not admission.admitted:
                 raise ChatbotQuotaExceededError()

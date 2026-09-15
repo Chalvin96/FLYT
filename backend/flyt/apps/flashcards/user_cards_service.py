@@ -260,7 +260,7 @@ class MyCardsService:
                 .group_by(bucket_expr)
             )
         ).all()
-        counts: dict[str, int] = {name: 0 for name in K_ALL_MASTERY_BUCKETS}
+        counts: dict[str, int] = dict.fromkeys(K_ALL_MASTERY_BUCKETS, 0)
         counts.update({bucket_name: count for bucket_name, count in rows})
         return counts
 

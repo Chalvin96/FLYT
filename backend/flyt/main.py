@@ -47,7 +47,6 @@ from flyt.core.config import settings
 from flyt.core.logging import configure_logging
 from flyt.core.observability import configure_sentry
 from flyt.core.rate_limit import MovingWindowRateLimiter
-from flyt.core.redis import close_redis
 from flyt.core.http import error_response
 
 # Runs after the app-module imports above; safe: no app module emits a log
@@ -199,10 +198,7 @@ async def lifespan(app: FastAPI):
         settings.LESSON_WRITE_JUDGE_RATE_WINDOW_SECONDS,
         namespace=EXERCISE_EVALUATION_RATE_LIMIT_NAMESPACE,
     )
-    try:
-        yield
-    finally:
-        await close_redis()
+    yield
 
 
 # Initialise Sentry BEFORE the app is created so FastApiIntegration can wrap it.

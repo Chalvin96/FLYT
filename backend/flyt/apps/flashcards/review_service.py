@@ -2,6 +2,7 @@
 
 import secrets
 from collections.abc import Sequence
+from datetime import datetime
 from datetime import timedelta
 from typing import Any
 
@@ -31,6 +32,7 @@ from flyt.apps.flashcards.models import CardState
 from flyt.apps.flashcards.models import CardType
 from flyt.apps.flashcards.models import Enrollment
 from flyt.apps.flashcards.models import FlashCard
+from flyt.apps.flashcards.models import StatsReviewLog
 from flyt.apps.flashcards.models import UserCard
 from flyt.apps.flashcards.queries import active_new_cards
 from flyt.apps.flashcards.queries import addable_variant_exists
@@ -40,7 +42,6 @@ from flyt.apps.flashcards.queries import query_daily_new_allowance
 from flyt.apps.flashcards.types import DueCard
 from flyt.apps.flashcards.types import QueueStateCounts
 from flyt.apps.lexicons.models import Lemma
-from flyt.apps.stats.services import StatsService
 from flyt.apps.users.models import UserLemmaContext
 from flyt.apps.users.services import UserLemmaService
 from flyt.libs.utils.date import now
@@ -89,12 +90,10 @@ class FlashcardReviewService:
     def __init__(
         self,
         db: AsyncSession,
-        stats_service: StatsService,
         user_lemma_service: UserLemmaService,
         card_service: FlashcardCardService,
     ):
         self.db = db
-        self.stats_service = stats_service
         self.user_lemma_service = user_lemma_service
         self.card_service = card_service
 
@@ -187,7 +186,7 @@ class FlashcardReviewService:
         ):
             user_card.introduced_at = now()
 
-        self.stats_service.create_review_log(
+        self._record_review_log(
             user_id=user_id,
             user_card_id=user_card.id,
             rating=rating,
@@ -323,6 +322,22 @@ class FlashcardReviewService:
             exclude_pool_ids=set(),
         )
         return len(promoted)
+
+    def _record_review_log(
+        self,
+        user_id: int,
+        user_card_id: int,
+        rating: int,
+        reviewed_at: datetime | None,
+    ) -> None:
+        self.db.add(
+            StatsReviewLog(
+                user_id=user_id,
+                user_card_id=user_card_id,
+                rating=rating,
+                reviewed_at=to_utc_naive(reviewed_at),
+            )
+        )
 
     async def _load_reviewable_user_card_or_raise(
         self, user_id: int, user_card_id: int, card_id: int

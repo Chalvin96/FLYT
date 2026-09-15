@@ -10,6 +10,7 @@ from pydantic_settings import SettingsConfigDict
 DEFAULT_OAUTH_SESSION_SECRET = "dev-oauth-session-secret-not-for-production"
 K_MIN_SIGNING_SECRET_LENGTH = 32
 K_CHATBOT_OUTPUT_TOKEN_CEILING = 3_000
+K_STORY_GENERATION_TOPIC_DB_MAX_LENGTH = 200
 
 
 class Settings(BaseSettings):
@@ -99,7 +100,7 @@ class Settings(BaseSettings):
     STORY_GENERATION_MAX_LENGTH: int = 600
     STORY_GENERATION_DENSITY_MIN: float = 0.03
     STORY_GENERATION_DENSITY_MAX: float = 0.05
-    STORY_GENERATION_TOPIC_MAX_LENGTH: int = 200
+    STORY_GENERATION_TOPIC_MAX_LENGTH: int = K_STORY_GENERATION_TOPIC_DB_MAX_LENGTH
     OPENROUTER_API_KEY: str | None = None
 
     LESSON_WRITE_JUDGE_OPENROUTER_MODEL: str = "openai/gpt-5.6-luna"
@@ -269,6 +270,17 @@ class Settings(BaseSettings):
             )
             raise ValueError(msg)
         return self
+
+    @field_validator("STORY_GENERATION_TOPIC_MAX_LENGTH")
+    @classmethod
+    def validate_story_generation_topic_max_length(cls, value: int) -> int:
+        if not 1 <= value <= K_STORY_GENERATION_TOPIC_DB_MAX_LENGTH:
+            msg = (
+                "STORY_GENERATION_TOPIC_MAX_LENGTH must be between 1 and "
+                f"{K_STORY_GENERATION_TOPIC_DB_MAX_LENGTH}"
+            )
+            raise ValueError(msg)
+        return value
 
     @model_validator(mode="after")
     def validate_production_security(self) -> "Settings":

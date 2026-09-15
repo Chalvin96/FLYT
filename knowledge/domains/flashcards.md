@@ -2,7 +2,7 @@
 
 A card pool is the stable concept identity; a user card owns FSRS state and the scheduler rotates snapshot variants. Card payloads are snapshots so later dictionary edits do not rewrite a learner's question. Enrollment and add-more-new limits are enforced per learner and pool.
 
-Grading maps correct and incorrect outcomes to scheduler ratings; skipped or unavailable speech/writing evaluation is ungraded. A submission updates the active session queue locally; leaving the session invalidates due cards, decks, and dashboard stats.
+Grading maps correct and incorrect outcomes to scheduler ratings; skipped or unavailable speech/writing evaluation is ungraded. A submission updates the active session queue locally; leaving the session invalidates due cards, decks, and dashboard stats. Graded submissions write their review log inside the review service's transaction; dashboard stats are read-only aggregation over review logs and card state.
 
 Due-card issuance records the unresolved variant separately from the most recently
 resolved variant. Repeated requests, including requests from another tab, reuse the

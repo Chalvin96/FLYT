@@ -71,7 +71,7 @@ describe('deriveLessonPages', () => {
     expect(pages).toHaveLength(1);
     expect(pages[0]).toMatchObject({
       kind: 'section',
-      title: 'Section 0',
+      section: { title: 'Section 0' },
     });
   });
 
@@ -87,8 +87,7 @@ describe('deriveLessonPages', () => {
     expect(pages).toHaveLength(1);
     expect(pages[0]).toMatchObject({
       kind: 'section',
-      title: 'Section 0',
-      blocks,
+      section: { title: 'Section 0', blocks },
     });
   });
 
@@ -119,7 +118,7 @@ describe('deriveLessonPages', () => {
     ).toEqual(['ex-a', 'ex-b']);
     expect(
       pages.map((page) =>
-        page.kind === 'section' ? page.sectionId : page.exerciseId,
+        page.kind === 'section' ? page.section.id : page.exerciseId,
       ),
     ).toEqual(['sec-0', 'ex-a', 'sec-1', 'ex-b']);
   });

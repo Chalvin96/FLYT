@@ -33,7 +33,6 @@ from flyt.apps.lexicons.types import K_USER_LEMMA_STATE_MASTERED
 from flyt.apps.lexicons.types import K_USER_LEMMA_STATE_NEW
 from flyt.apps.reading.services import ReadingService
 from flyt.apps.stats.queries import StatsQueryService
-from flyt.apps.stats.services import StatsService
 from flyt.apps.users.models import UserLemma
 from flyt.apps.users.services import UserLemmaService
 from tests.factories import CardPoolFactory
@@ -60,7 +59,6 @@ def card_service(session: AsyncSession) -> FlashcardCardService:
 def review_service(session: AsyncSession) -> FlashcardReviewService:
     return FlashcardReviewService(
         session,
-        StatsService(session, query_service=StatsQueryService(session)),
         UserLemmaService(session),
         card_service(session),
     )

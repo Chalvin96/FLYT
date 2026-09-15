@@ -60,8 +60,6 @@ async def create_generation(
         )
     except DomainException as error:
         raise http_error(error) from error
-    # Commit before enqueuing so a fast worker never reads a not-yet-visible
-    # Generation row (which would otherwise leave the slot processing until TTL).
     await db.commit()
     await enqueue_job(K_GENERATE_STORY_JOB, response.generationId)
     return response
@@ -90,9 +88,6 @@ async def import_generated_story(
             user_id=current_user.id,
             title=body.title,
         )
-        # Commit before the tokenizer job is enqueued or pages are published:
-        # the worker must see the import, and published pages leave with the
-        # response.
         await db.commit()
         item = await service.finalize_import(draft)
         await db.commit()

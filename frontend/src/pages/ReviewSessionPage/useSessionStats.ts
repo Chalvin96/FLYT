@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
-import type { SessionExerciseResult } from '@/components/flashcard/FlashcardSessionCard';
 import { K_RATING_GOOD } from '@/lib/fsrsRatings';
+import type { ExerciseOutcome } from '@/lib/operationResult';
 
 /** Running totals for the completion screen, updated as reviews are accepted. */
 export function useSessionStats() {
@@ -12,7 +12,7 @@ export function useSessionStats() {
   const accuracy =
     gradedCount > 0 ? Math.round((correctCount / gradedCount) * 100) : null;
 
-  const recordAcceptedResult = (result: SessionExerciseResult) => {
+  const recordAcceptedResult = (result: ExerciseOutcome) => {
     setReviewedCount((c) => c + 1);
     if (result.kind === 'graded') {
       setGradedCount((c) => c + 1);

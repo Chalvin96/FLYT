@@ -1,6 +1,10 @@
 import { transcribeSpeech } from '@/api/speech';
-import { K_RATING_AGAIN } from '@/lib/fsrsRatings';
-import type { ExerciseOutcome, Rating } from '@/lib/operationResult';
+import { K_RATING_GOOD } from '@/lib/fsrsRatings';
+import {
+  gradedOutcome,
+  type ExerciseOutcome,
+  type Rating,
+} from '@/lib/operationResult';
 import type {
   Exercise,
   FlashCardRenderable,
@@ -14,12 +18,6 @@ import { ExerciseView } from './ExerciseView';
 import type { FinishHandler, WriteJudgeFn } from './operationTypes';
 import { UnsupportedFlashcardCard } from './UnsupportedFlashcardCard';
 
-const K_UNSUPPORTED_CARD_FALLBACK_RATING = K_RATING_AGAIN;
-
-export type SessionExerciseResult =
-  | { kind: 'graded'; rating: Rating }
-  | { kind: 'ungraded'; outcome: 'skipped' | 'service_unavailable' };
-
 type FlashcardSessionCardProps = {
   card: FlashCardRenderable;
   className?: string;
@@ -27,7 +25,7 @@ type FlashcardSessionCardProps = {
   isSubmitting: boolean;
   judgeWrite?: WriteJudgeFn;
   draftOwnerKey?: string;
-  onFinished: FinishHandler<SessionExerciseResult>;
+  onFinished: FinishHandler<ExerciseOutcome>;
 };
 
 function isOperationCard(
@@ -38,12 +36,6 @@ function isOperationCard(
 
 function isSupportedOperationCard(card: OperationFlashCard): boolean {
   return card.schema_version === LESSON_PACKET_SCHEMA_VERSION;
-}
-
-function toSessionResult(outcome: ExerciseOutcome): SessionExerciseResult {
-  return outcome.kind === 'graded'
-    ? { kind: 'graded', rating: outcome.rating }
-    : { kind: 'ungraded', outcome: outcome.outcome };
 }
 
 export function FlashcardSessionCard({
@@ -61,12 +53,7 @@ export function FlashcardSessionCard({
         <UnsupportedFlashcardCard
           cardType={`${card.card.type} (schema ${card.card.schema_version})`}
           isSubmitting={isSubmitting}
-          onContinue={() =>
-            onFinished({
-              kind: 'graded',
-              rating: K_UNSUPPORTED_CARD_FALLBACK_RATING,
-            })
-          }
+          onContinue={() => onFinished(gradedOutcome({ correct: false }))}
         />
       );
     }
@@ -77,12 +64,7 @@ export function FlashcardSessionCard({
         <UnsupportedFlashcardCard
           cardType={card.card.type}
           isSubmitting={isSubmitting}
-          onContinue={() =>
-            onFinished({
-              kind: 'graded',
-              rating: K_UNSUPPORTED_CARD_FALLBACK_RATING,
-            })
-          }
+          onContinue={() => onFinished(gradedOutcome({ correct: false }))}
         />
       );
     }
@@ -100,7 +82,7 @@ export function FlashcardSessionCard({
           draftOwnerKey={
             draftOwnerKey ?? `${card.user_id ?? 'anonymous'}-card-${card.id}`
           }
-          onFinished={(result) => onFinished(toSessionResult(result))}
+          onFinished={onFinished}
         />
       </ExerciseModeProvider>
     );
@@ -113,12 +95,7 @@ export function FlashcardSessionCard({
       <UnsupportedFlashcardCard
         cardType={card.card.type}
         isSubmitting={isSubmitting}
-        onContinue={() =>
-          onFinished({
-            kind: 'graded',
-            rating: K_UNSUPPORTED_CARD_FALLBACK_RATING,
-          })
-        }
+        onContinue={() => onFinished(gradedOutcome({ correct: false }))}
       />
     );
   }
@@ -132,7 +109,11 @@ export function FlashcardSessionCard({
         desktopExpanded={desktopExpanded}
         isSubmitting={isSubmitting}
         onFinished={(rating) =>
-          onFinished({ kind: 'graded', rating: rating as Rating })
+          onFinished({
+            kind: 'graded',
+            correct: rating >= K_RATING_GOOD,
+            rating: rating as Rating,
+          })
         }
         wordForms={card.word_forms}
       />

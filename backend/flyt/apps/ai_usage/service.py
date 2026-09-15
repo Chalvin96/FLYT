@@ -11,14 +11,14 @@ from flyt.apps.ai_usage.models import FlytAiAggregateUsage
 from flyt.apps.ai_usage.models import FlytAiUsage
 from flyt.apps.ai_usage.types import AggregateUsageScope
 from flyt.apps.ai_usage.types import AiUsageAdmission
-from flyt.apps.ai_usage.types import AiUsageRequest
 from flyt.apps.ai_usage.types import AiUsageRefusalReason
 from flyt.apps.ai_usage.types import AiUsageStatus
 from flyt.apps.ai_usage.week import calculate_utc_week_start
+from flyt.clients.provider import GenerationRequest
 from flyt.core.config import settings
 
 
-def is_weekly_admissible(status: AiUsageStatus, request: AiUsageRequest) -> bool:
+def is_weekly_admissible(status: AiUsageStatus, request: GenerationRequest) -> bool:
     """Whether the estimated request fits the learner's weekly stock."""
     tokens = _estimate_request_tokens(request)
     if tokens > settings.FLYT_AI_WEEKLY_TOKEN_BUDGET:
@@ -26,7 +26,7 @@ def is_weekly_admissible(status: AiUsageStatus, request: AiUsageRequest) -> bool
     return status.remaining_tokens >= tokens
 
 
-def _estimate_request_tokens(request: AiUsageRequest) -> int:
+def _estimate_request_tokens(request: GenerationRequest) -> int:
     if request.max_tokens is not None and request.max_tokens < 0:
         raise ValueError("max_tokens must not be negative")
     encoded_bytes = len(request.instructions.encode("utf-8")) + len(
@@ -63,7 +63,7 @@ class AiUsageService:
     async def admit_request(
         self,
         user_id: int,
-        request: AiUsageRequest,
+        request: GenerationRequest,
         aggregate: AggregateUsageScope | None = None,
     ) -> AiUsageAdmission:
         return await self.consume_tokens(
@@ -72,7 +72,9 @@ class AiUsageService:
             aggregate=aggregate,
         )
 
-    async def is_request_admitted(self, user_id: int, request: AiUsageRequest) -> bool:
+    async def is_request_admitted(
+        self, user_id: int, request: GenerationRequest
+    ) -> bool:
         return is_weekly_admissible(await self.load_week_usage(user_id), request)
 
     async def find_remaining_percent(
