@@ -2,17 +2,21 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { LessonPage } from '@/lib/lessonPages';
-import type { Exercise } from '@/types/lesson-contracts';
+import type { Exercise, SectionPacket } from '@/types/lesson-contracts';
 
 import { LessonLayout } from './LessonLayout';
 
 const section = (title: string): LessonPage => ({
   kind: 'section',
   id: `page-${title}`,
-  sectionId: `section-${title}`,
-  role: 'orient',
-  title,
-  blocks: [],
+  section: {
+    kind: 'section',
+    id: `section-${title}`,
+    role: 'orient',
+    title,
+    objective_ids: ['objective-1'],
+    blocks: [],
+  } satisfies SectionPacket,
 });
 
 const exercise = (id: string): LessonPage => {

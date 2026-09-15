@@ -148,17 +148,7 @@ export function LessonDetailSession({
       {page.kind === 'section' ? (
         <FlashCardInfo
           key={page.id}
-          section={{
-            kind: 'section',
-            id: page.sectionId,
-            role: page.role,
-            title: page.title,
-            objective_ids:
-              lesson.packet.sections.find(
-                (section) => section.id === page.sectionId,
-              )?.objective_ids ?? [],
-            blocks: page.blocks,
-          }}
+          section={page.section}
           audioById={audioById}
           className={sessionCardClassName}
           desktopExpanded={isDesktop}

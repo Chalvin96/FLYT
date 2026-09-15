@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flyt.apps.ai_usage.models import FlytAiUsage
 from flyt.apps.ai_usage.service import AiUsageService
-from flyt.apps.ai_usage.types import AiUsageRequest
 from flyt.apps.ai_usage.week import calculate_utc_week_start
 from flyt.apps.chatbot.constants import K_CHATBOT_OUTPUT_MAX_CHARACTERS
 from flyt.apps.chatbot.exceptions import ChatbotProviderError
@@ -315,14 +314,7 @@ async def test_send_chatbot_message_given_flyt_expect_answer_and_debited_usage(
     assert "Learner question: Why is it en bok?" in request.prompt
     probe_user = await UserFactory.create()
     probe_service = AiUsageService(db)
-    await probe_service.admit_request(
-        probe_user.id,
-        AiUsageRequest(
-            instructions=request.instructions,
-            prompt=request.prompt,
-            max_tokens=request.max_tokens,
-        ),
-    )
+    await probe_service.admit_request(probe_user.id, request)
     probe_status = await probe_service.load_week_usage(probe_user.id)
     expected_debit = probe_status.budget_tokens - probe_status.remaining_tokens
     usage = await get_flyt_usage_row(db, user.id)

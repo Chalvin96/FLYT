@@ -1,6 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
+from flyt.core.config import K_STORY_GENERATION_TOPIC_DB_MAX_LENGTH
 from flyt.core.config import Settings
 
 
@@ -21,6 +22,31 @@ def test_settings_given_flyt_chatbot_enabled_without_key_expect_validation_error
 def test_settings_given_chatbot_output_above_ceiling_expect_validation_error() -> None:
     with pytest.raises(ValueError, match="CHATBOT_MAX_OUTPUT_TOKENS"):
         _make_settings(CHATBOT_MAX_OUTPUT_TOKENS=3_001)
+
+
+@pytest.mark.parametrize("length", [0, K_STORY_GENERATION_TOPIC_DB_MAX_LENGTH + 1])
+def test_settings_given_topic_length_outside_database_limit_expect_validation_error(
+    length: int,
+) -> None:
+    with pytest.raises(
+        ValueError,
+        match=(
+            "STORY_GENERATION_TOPIC_MAX_LENGTH must be between 1 and "
+            f"{K_STORY_GENERATION_TOPIC_DB_MAX_LENGTH}"
+        ),
+    ):
+        _make_settings(STORY_GENERATION_TOPIC_MAX_LENGTH=length)
+
+
+def test_settings_given_topic_length_at_database_limit_expect_valid() -> None:
+    settings = _make_settings(
+        STORY_GENERATION_TOPIC_MAX_LENGTH=K_STORY_GENERATION_TOPIC_DB_MAX_LENGTH
+    )
+
+    assert (
+        settings.STORY_GENERATION_TOPIC_MAX_LENGTH
+        == K_STORY_GENERATION_TOPIC_DB_MAX_LENGTH
+    )
 
 
 @pytest.mark.parametrize(

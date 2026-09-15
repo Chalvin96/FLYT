@@ -35,8 +35,6 @@ from flyt.apps.flashcards.user_cards_service import mastery_bucket_sql_case
 from flyt.apps.lexicons.models import Lemma
 from flyt.apps.lexicons.models import LemmaPos
 from flyt.apps.lexicons.services import LexiconService
-from flyt.apps.stats.queries import StatsQueryService
-from flyt.apps.stats.services import StatsService
 from flyt.apps.users.models import User
 from flyt.apps.users.models import UserLemma
 from flyt.apps.users.models import UserSettings
@@ -78,7 +76,6 @@ def card_service(session: AsyncSession) -> FlashcardCardService:
 def review_service(session: AsyncSession) -> FlashcardReviewService:
     return FlashcardReviewService(
         session,
-        StatsService(session, query_service=StatsQueryService(session)),
         UserLemmaService(session),
         card_service(session),
     )

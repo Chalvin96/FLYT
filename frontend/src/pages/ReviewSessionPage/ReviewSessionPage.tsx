@@ -3,8 +3,8 @@ import { Navigate, useNavigate } from '@tanstack/react-router';
 
 import { ErrorMessage } from '@/components/common/ErrorMessage/ErrorMessage';
 import { FlashcardSessionCard } from '@/components/flashcard/FlashcardSessionCard';
-import type { SessionExerciseResult } from '@/components/flashcard/FlashcardSessionCard';
 import type { WriteJudgeFn } from '@/components/flashcard/operationTypes';
+import type { ExerciseOutcome } from '@/lib/operationResult';
 import type { QueueCounts } from '@/lib/sessionQueue';
 import type { ReviewSubmissionBody, UserCard } from '@/types/api';
 
@@ -55,9 +55,7 @@ export function ReviewSessionPage({
   const isComplete = status === 'done';
   const totalQueued = counts.new + counts.learning + counts.review;
 
-  async function handleCardFinished(
-    result: SessionExerciseResult,
-  ): Promise<boolean> {
+  async function handleCardFinished(result: ExerciseOutcome): Promise<boolean> {
     if (!currentCard || isSubmitting) {
       return false;
     }

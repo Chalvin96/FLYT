@@ -1,13 +1,16 @@
-"""Models for story generation observability."""
+"""Models for story generation requests and provider attempts."""
 
 from enum import StrEnum
 
+from sqlalchemy import Boolean
 from sqlalchemy import Enum as SAEnum
+from sqlalchemy import false
 from sqlalchemy import Float
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import JSON
 from sqlalchemy import String
+from sqlalchemy import Text
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
@@ -18,6 +21,7 @@ from flyt.apps.story_generation.constants import ERROR_MESSAGE_MAX_LENGTH
 from flyt.apps.story_generation.constants import FAILURE_CLASS_MAX_LENGTH
 from flyt.apps.story_generation.constants import MODEL_ID_MAX_LENGTH
 from flyt.apps.story_generation.constants import PROVIDER_NAME_MAX_LENGTH
+from flyt.apps.story_generation.constants import K_TOPIC_MAX_LENGTH
 from flyt.apps.story_generation.constants import UPSTREAM_IDENTIFIER_MAX_LENGTH
 from flyt.core.base import BaseModel
 from flyt.core.base import DateTimeMixin
@@ -49,8 +53,17 @@ class Generation(BaseModel, DateTimeMixin):
         index=True,
     )
     anchor: Mapped[str | None] = mapped_column(String(ANCHOR_MAX_LENGTH), nullable=True)
+    topic: Mapped[str | None] = mapped_column(String(K_TOPIC_MAX_LENGTH), nullable=True)
     requested_length: Mapped[int | None] = mapped_column(Integer, nullable=True)
     requested_targets: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    provider: Mapped[str] = mapped_column(
+        String(PROVIDER_NAME_MAX_LENGTH), nullable=False, server_default=""
+    )
+    worker_claim: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=false()
+    )
+    text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pages: Mapped[list | None] = mapped_column(JSON(none_as_null=True), nullable=True)
     mastered_lemma_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     in_progress_lemma_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     unknown_lemma_count: Mapped[int | None] = mapped_column(Integer, nullable=True)

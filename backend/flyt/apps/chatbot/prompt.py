@@ -1,6 +1,6 @@
-from flyt.apps.ai_usage.types import AiUsageRequest
 from flyt.apps.chatbot.schemas import ChatbotContext
 from flyt.apps.chatbot.schemas import ChatbotMessageCreate
+from flyt.clients.provider import GenerationRequest
 
 
 def build_chatbot_instructions() -> str:
@@ -43,8 +43,8 @@ list for 1-2 points, no table except a compact comparison, code blocks only for
 code. Return only the learner-facing answer."""
 
 
-def build_minimum_chatbot_request(max_tokens: int) -> AiUsageRequest:
-    return AiUsageRequest(
+def build_minimum_chatbot_request(max_tokens: int) -> GenerationRequest:
+    return GenerationRequest(
         instructions=build_chatbot_instructions(),
         prompt="Learner question: x",
         max_tokens=max_tokens,

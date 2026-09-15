@@ -4,7 +4,6 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flyt.apps.ai_usage.service import AiUsageService
-from flyt.apps.ai_usage.types import AiUsageRequest
 from flyt.apps.extension.exceptions import ExtensionTranslationProviderError
 from flyt.apps.extension.exceptions import ExtensionTranslationQuotaExceededError
 from flyt.apps.extension.exceptions import ExtensionTranslationValidationError
@@ -66,12 +65,7 @@ class ExtensionTranslationService:
             max_tokens=K_TRANSLATION_MAX_TOKENS,
         )
         admission = await AiUsageService(self._db).admit_request(
-            user_id,
-            AiUsageRequest(
-                instructions=provider_request.instructions,
-                prompt=provider_request.prompt,
-                max_tokens=provider_request.max_tokens,
-            ),
+            user_id, provider_request
         )
         if not admission.admitted:
             raise ExtensionTranslationQuotaExceededError()

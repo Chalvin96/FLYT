@@ -1,5 +1,4 @@
 import type {
-  Block,
   Exercise,
   LessonPacket,
   SectionPacket,
@@ -7,12 +6,8 @@ import type {
 
 export type SectionLessonPage = {
   kind: 'section';
-  /** App-local; never a progress key. */
   id: string;
-  sectionId: string;
-  role: SectionPacket['role'];
-  title: string;
-  blocks: Block[];
+  section: SectionPacket;
 };
 
 export type ExerciseLessonPage = {
@@ -56,10 +51,7 @@ export function deriveLessonPages(packet: LessonPacket): LessonPage[] {
       pages.push({
         kind: 'section',
         id: `page-${index}`,
-        sectionId: section.id,
-        role: section.role,
-        title: section.title,
-        blocks: section.blocks,
+        section,
       });
       return;
     }

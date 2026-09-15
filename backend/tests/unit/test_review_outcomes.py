@@ -15,8 +15,6 @@ from flyt.apps.flashcards.models import CardType
 from flyt.apps.flashcards.models import StatsReviewLog
 from flyt.apps.flashcards.card_service import FlashcardCardService
 from flyt.apps.flashcards.review_service import FlashcardReviewService
-from flyt.apps.stats.queries import StatsQueryService
-from flyt.apps.stats.services import StatsService
 from flyt.apps.users.services import UserLemmaService
 from flyt.libs.utils.date import now
 from tests.factories import CardPoolFactory
@@ -30,7 +28,6 @@ pytestmark = pytest.mark.anyio
 def build_service(db: AsyncSession) -> FlashcardReviewService:
     return FlashcardReviewService(
         db,
-        StatsService(db, query_service=StatsQueryService(db)),
         UserLemmaService(db),
         FlashcardCardService(db, UserLemmaService(db)),
     )

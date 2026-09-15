@@ -9,7 +9,9 @@ inside a literal wrapper the model is told to treat as subject matter only.
 from dataclasses import dataclass
 import re
 
+from flyt.apps.story_generation.constants import K_ESTIMATED_OUTPUT_TOKENS_PER_WORD
 from flyt.apps.story_generation.exceptions import TopicTooLongRefused
+from flyt.clients.provider import GenerationRequest
 from flyt.core.config import settings
 
 _SYSTEM_INSTRUCTIONS = """\
@@ -66,6 +68,17 @@ def validate_topic(topic: str | None) -> str | None:
 class GenerationPrompt:
     instructions: str
     prompt: str
+
+
+def build_provider_request(prompt: GenerationPrompt, length: int) -> GenerationRequest:
+    """The single request contract for one prompt: estimated output tokens
+    scale with the requested length, so admission and dispatch must share
+    this exact object."""
+    return GenerationRequest(
+        instructions=prompt.instructions,
+        prompt=prompt.prompt,
+        max_tokens=length * K_ESTIMATED_OUTPUT_TOKENS_PER_WORD,
+    )
 
 
 def build_prompt(

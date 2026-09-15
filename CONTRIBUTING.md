@@ -203,10 +203,11 @@ uv run --directory backend python -m flyt.commands.settle_abandoned_generations
 
 The import command requires both `DATABASE_URL` and `REDIS_URL`; generation
 settlement requires `DATABASE_URL`. Settlement uses the configured generation
-TTL as its default age cutoff and marks abandoned rows failed without refunding
-admitted token debits. Do not shorten that cutoff while jobs may still be live.
-These commands have no built-in scheduler; arrange recurring recovery in the
-deployment environment if needed.
+TTL as its age cutoff: it marks abandoned rows failed without
+refunding admitted token debits and clears expired topic/text/pages while
+keeping the generation row and its non-content observability. Do not shorten
+that cutoff while jobs may still be live. These commands have no built-in
+scheduler; arrange recurring recovery in the deployment environment if needed.
 
 Gate API traffic on `/health/ready` and verify the worker separately. Roll back
 an application image only if it remains compatible with the applied schema;

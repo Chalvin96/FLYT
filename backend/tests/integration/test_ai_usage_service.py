@@ -17,7 +17,7 @@ from flyt.apps.ai_usage.models import FlytAiUsage
 from flyt.apps.ai_usage.service import AiUsageService
 from flyt.apps.ai_usage.types import AggregateUsageScope
 from flyt.apps.ai_usage.types import AiUsageRefusalReason
-from flyt.apps.ai_usage.types import AiUsageRequest
+from flyt.clients.provider import GenerationRequest
 from flyt.apps.ai_usage.types import AiUsageStatus
 from flyt.apps.ai_usage.week import calculate_utc_week_start
 from flyt.apps.ai_usage.window import calculate_utc_window_start
@@ -38,7 +38,7 @@ K_CONCURRENCY = 5
 K_TEST_WINDOW_START = datetime(2026, 1, 1)
 K_TEST_PRE_DEBIT_NAME = "Renamed before debit"
 K_TEST_POST_COMMIT_NAME = "Renamed after commit"
-K_TEST_REQUEST = AiUsageRequest(
+K_TEST_REQUEST = GenerationRequest(
     instructions="You are Flyt's chatbot.",
     prompt="Hvorfor er det «en bok»?",
     max_tokens=2_000,

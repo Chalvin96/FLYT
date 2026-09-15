@@ -98,7 +98,7 @@ async def query_count_due_states(  # ume-ignore: UME-PY003
             .group_by(UserCard.state)
         )
     ).all()
-    by_state: dict[CardState, int] = {state: 0 for state in CardState}
+    by_state: dict[CardState, int] = dict.fromkeys(CardState, 0)
     by_state.update({state: count for state, count in learning_review_rows})
 
     active_introduced_new = (
