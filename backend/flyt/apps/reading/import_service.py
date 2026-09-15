@@ -17,7 +17,7 @@ from flyt.apps.reading.constants import DERIVED_TITLE_WORDS
 from flyt.apps.reading.constants import ERROR_CODE_PROCESSING_FAILED
 from flyt.apps.reading.constants import ERROR_MESSAGE_MAX_LENGTH
 from flyt.apps.reading.constants import IMPORT_LIMIT
-from flyt.apps.reading.constants import MAX_NORMALIZED_BYTES
+from flyt.apps.reading.constants import K_MAX_NORMALIZED_BYTES
 from flyt.apps.reading.constants import MAX_PAGE_LIMIT
 from flyt.apps.reading.constants import PROCESS_IMPORT_JOB
 from flyt.apps.reading.constants import STALE_AFTER
@@ -211,7 +211,7 @@ class ImportService:
         normalized = normalize_text(text_value)
         if not normalized:
             raise ImportEmptyError()
-        if normalized_byte_length(normalized) > MAX_NORMALIZED_BYTES:
+        if normalized_byte_length(normalized) > K_MAX_NORMALIZED_BYTES:
             raise ImportTooLargeError()
         if source_url is not None:
             try:

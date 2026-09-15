@@ -17,18 +17,8 @@ is_ready: true
 Det var en gang.
 """
 EXPECTED_ENQUEUED_URL_COUNT = 2
-
-
-def _service(async_session, *, fetched: str, enqueued: list) -> ReadingIngestService:
-    async def _fake_fetch(url: str) -> str:
-        return fetched
-
-    async def _fake_enqueue(name: str, *args) -> None:
-        enqueued.append((name, args))
-
-    return ReadingIngestService(
-        db=async_session, fetch=_fake_fetch, enqueue=_fake_enqueue
-    )
+K_EXPECTED_MAX_INGEST_BYTES = 10_000_000
+K_EXPECTED_MAX_SOURCE_BYTES = 100_000_000
 
 
 @pytest.mark.anyio
@@ -43,6 +33,27 @@ async def test_ingest_creates_story_and_enqueues(async_session: AsyncSession) ->
     assert story.is_ready is True
     assert "Det var en gang." in story.content
     assert enqueued == [("generate_story_pages", (story.id,))]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("cefr_value", ["", '""'])
+async def test_ingest_given_null_or_empty_cefr_level_expect_none(
+    async_session: AsyncSession, cefr_value: str
+) -> None:
+    await ReadingGroupFactory.create(key="classics")
+    doc = f"""---
+slug: ungraded-reading
+title: Ungraded reading
+cefr_level: {cefr_value}
+group: classics
+---
+Dette er en tekst uten vurdert nivå.
+"""
+    service = _service(async_session, fetched=doc, enqueued=[])
+
+    story = await service.ingest_from_url("https://example.com/ungraded.md")
+
+    assert story.cefr_level is None
 
 
 @pytest.mark.anyio
@@ -119,10 +130,10 @@ async def test_default_fetch_given_unreachable_url_expect_ingest_error(
 ) -> None:
     import httpx
 
-    async def _raise(self, *args, **kwargs):
+    def _raise(self, *args, **kwargs):
         raise httpx.ConnectError("connection refused")
 
-    monkeypatch.setattr(httpx.AsyncClient, "get", _raise)
+    monkeypatch.setattr(httpx.AsyncClient, "stream", _raise)
 
     with pytest.raises(IngestError, match="Failed to fetch"):
         await default_fetch("https://example.com/file.md")
@@ -132,16 +143,26 @@ async def test_default_fetch_given_unreachable_url_expect_ingest_error(
 async def test_default_fetch_given_oversize_response_expect_ingest_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    oversized_content = "x" * (settings.READING_INGEST_MAX_BYTES + 1)
+    assert settings.READING_SOURCE_MAX_BYTES == K_EXPECTED_MAX_SOURCE_BYTES
+    monkeypatch.setattr(settings, "READING_SOURCE_MAX_BYTES", 8)
+    oversized_content = "x" * (settings.READING_SOURCE_MAX_BYTES + 1)
     import httpx
 
     class MockResponse:
-        content = oversized_content.encode("utf-8")
-        text = oversized_content
+        encoding = "utf-8"
         status_code = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
 
         def raise_for_status(self) -> None:
             pass
+
+        async def aiter_bytes(self):
+            yield oversized_content.encode("utf-8")
 
     class MockClient:
         async def __aenter__(self):
@@ -150,7 +171,7 @@ async def test_default_fetch_given_oversize_response_expect_ingest_error(
         async def __aexit__(self, *_args):
             return False
 
-        async def get(self, url):
+        def stream(self, method, url):
             return MockResponse()
 
     monkeypatch.setattr(httpx, "AsyncClient", lambda **_: MockClient())
@@ -243,3 +264,15 @@ async def test_run_returns_count_of_successful_ingests(
     )
 
     assert result == EXPECTED_ENQUEUED_URL_COUNT
+
+
+def _service(async_session, *, fetched: str, enqueued: list) -> ReadingIngestService:
+    async def _fake_fetch(url: str) -> str:
+        return fetched
+
+    async def _fake_enqueue(name: str, *args) -> None:
+        enqueued.append((name, args))
+
+    return ReadingIngestService(
+        db=async_session, fetch=_fake_fetch, enqueue=_fake_enqueue
+    )

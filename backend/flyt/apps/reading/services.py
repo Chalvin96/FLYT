@@ -246,6 +246,7 @@ class ReadingService:
                     func.count(Story.id),
                 )
                 .where(Story.reading_group_id == group_id)
+                .where(Story.cefr_level.is_not(None))
                 .where(public_story_filter())
                 .group_by(Story.cefr_level)
             )

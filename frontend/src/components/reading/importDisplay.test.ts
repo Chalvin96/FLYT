@@ -39,18 +39,18 @@ describe('importDisplay normalization', () => {
     expect(normalizeImportText(decomposed)).toBe(precomposed);
   });
 
-  it('test_get_normalized_import_text_byte_count_given_100_000_ascii_chars_expect_100_000_bytes', () => {
-    // Boundary: the server caps the NORMALIZED text at 100_000 bytes.
+  it('test_get_normalized_import_text_byte_count_given_10_000_000_ascii_chars_expect_10_000_000_bytes', () => {
+    // Boundary: the server caps the NORMALIZED text at 10_000_000 bytes.
     expect(
-      getImportTextByteCount(normalizeImportText('a'.repeat(100_000))),
-    ).toBe(100_000);
+      getImportTextByteCount(normalizeImportText('a'.repeat(10_000_000))),
+    ).toBe(10_000_000);
   });
 
-  it('test_get_normalized_import_text_byte_count_given_100_001_ascii_chars_expect_100_001_bytes', () => {
+  it('test_get_normalized_import_text_byte_count_given_10_000_001_ascii_chars_expect_10_000_001_bytes', () => {
     // Boundary: one byte over the cap.
     expect(
-      getImportTextByteCount(normalizeImportText('a'.repeat(100_001))),
-    ).toBe(100_001);
+      getImportTextByteCount(normalizeImportText('a'.repeat(10_000_001))),
+    ).toBe(10_000_001);
   });
 
   it('test_get_normalized_import_text_byte_count_given_norwegian_oe_expect_multibyte_counted', () => {
@@ -58,20 +58,23 @@ describe('importDisplay normalization', () => {
     // or it would underestimate and let oversized text through to a 413.
     expect(getImportTextByteCount('ø')).toBe(2);
     expect(
-      getImportTextByteCount(normalizeImportText('ø'.repeat(50_000))),
-    ).toBe(100_000);
+      getImportTextByteCount(normalizeImportText('ø'.repeat(5_000_000))),
+    ).toBe(10_000_000);
   });
 
   it('test_import_text_max_bytes_given_client_constant_expect_equals_server_cap', () => {
-    // Regression guard: the client constant must equal the server's 100_000
-    // cap exactly (NOT 1024*100 = 102_400, which the old constant used).
-    expect(IMPORT_TEXT_MAX_BYTES).toBe(100_000);
+    // Regression guard: the client constant must equal the server's 10_000_000
+    // byte cap exactly.
+    expect(IMPORT_TEXT_MAX_BYTES).toBe(10_000_000);
   });
 
   it('test_format_kilobytes_given_100_000_bytes_expect_97_7_kb', () => {
     // 100_000 / 1024 ≈ 97.6562, rounded to 1 fractional digit = 97.7 KB.
-    // (The old test asserted "100 KB", which only matched the old 102_400
-    // constant exactly.)
     expect(formatKilobytes(100_000)).toBe('97.7 KB');
+  });
+
+  it('test_format_kilobytes_given_10_000_000_bytes_expect_9_5_mb', () => {
+    // The 10 MB cap is rendered in MB once the value reaches 1 MB.
+    expect(formatKilobytes(10_000_000)).toBe('9.5 MB');
   });
 });

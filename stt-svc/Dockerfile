@@ -1,6 +1,6 @@
 FROM python:3.12-slim AS model-builder
 
-COPY --from=ghcr.io/astral-sh/uv:0.12.10 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.15 /uv /uvx /bin/
 
 ARG MODEL_ID=NbAiLab/nb-whisper-medium
 ARG MODEL_REVISION=0ed074d5985bd56ca4140159a9dbffbc3fb5117e
@@ -39,7 +39,7 @@ RUN if [ -n "${MODEL_BUNDLE_URL}" ]; then \
 
 FROM python:3.12-slim AS runtime
 
-COPY --from=ghcr.io/astral-sh/uv:0.12.10 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.15 /uv /uvx /bin/
 
 ARG MODEL_REVISION=0ed074d5985bd56ca4140159a9dbffbc3fb5117e
 
