@@ -50,7 +50,7 @@ development — 404 in production, never an auth bypass.
 | `REDIS_URL`                                 | no           | Defaults to `redis://localhost:6379`                                                    |
 | `ENV`                                       | no           | `development` / `production` (default `development`)                                    |
 | `FRONTEND_ORIGINS`                          | no           | JSON array of exact CORS origins, e.g. `["http://localhost:5173"]`                      |
-| `FLYT_API_URL` (frontend)                   | yes          | Backend API base URL                                                                    |
+| `FLYT_API_URL` (frontend)                   | yes          | Backend API base URL; set the repository variable for production image builds           |
 | `STT_SVC_URL`                               | no           | Private CPU speech service URL; required only for speech transcription                  |
 | `STT_MAX_AUDIO_BYTES`                       | no           | Backend speech upload cap (default `10485760`)                                          |
 
