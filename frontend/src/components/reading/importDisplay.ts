@@ -81,6 +81,12 @@ export function getImportTextByteCount(text: string): number {
 
 export function formatKilobytes(bytes: number): string {
   const kb = bytes / 1024;
+  if (kb >= 1024) {
+    const mb = kb / 1024;
+    return `${mb.toLocaleString(undefined, {
+      maximumFractionDigits: 1,
+    })} MB`;
+  }
   return `${kb.toLocaleString(undefined, {
     maximumFractionDigits: kb < 100 ? 1 : 0,
   })} KB`;

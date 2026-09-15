@@ -46,7 +46,8 @@ class Settings(BaseSettings):
 
     REDIS_URL: str = "redis://localhost:6379"
     READING_PAGE_TARGET_WORDS: int = 300
-    READING_INGEST_MAX_BYTES: int = 5_000_000
+    READING_INGEST_MAX_BYTES: int = 10_000_000
+    READING_SOURCE_MAX_BYTES: int = 100_000_000
     READING_INGEST_TIMEOUT_SECONDS: int = 10
 
     TAGGER_SVC_URL: str | None = None

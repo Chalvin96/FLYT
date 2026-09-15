@@ -309,4 +309,4 @@ export const IMPORT_ERROR_CODES = {
   NOT_FOUND: 'IMPORT_NOT_FOUND',
 } as const;
 
-export const IMPORT_TEXT_MAX_BYTES = 100_000;
+export const IMPORT_TEXT_MAX_BYTES = 10_000_000;

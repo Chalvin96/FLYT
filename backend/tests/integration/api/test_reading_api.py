@@ -92,6 +92,28 @@ async def test_get_stories_returns_read_state(client: AsyncClient) -> None:
     assert body["levelCounts"] == {"A1": K_EXPECTED_STORY_COUNT}
 
 
+async def test_get_stories_given_ungraded_story_expect_null_level_without_count(
+    client: AsyncClient,
+) -> None:
+    user = await UserFactory.create()
+    group = await ReadingGroupFactory.create(key="classics", title="Classics")
+    story = await StoryFactory.create(
+        reading_group=group,
+        title="Ungraded story",
+        cefr_level=None,
+    )
+    await StoryPageFactory.create(story=story, index=0)
+    await authenticate(client, user)
+
+    response = await client.get("/reading/stories", params={"group_key": group.key})
+
+    assert response.status_code == HTTPStatus.OK
+    body = response.json()
+    assert body["totalCount"] == 1
+    assert body["levelCounts"] == {}
+    assert body["stories"][0]["cefrLevel"] is None
+
+
 async def test_get_stories_paginates_with_cursor(client: AsyncClient) -> None:
     user = await UserFactory.create()
     group = await ReadingGroupFactory.create(key="news", title="News")

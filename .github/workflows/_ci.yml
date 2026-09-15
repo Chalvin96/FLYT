@@ -54,7 +54,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.0.1
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           python-version: 3.12
           enable-cache: true
@@ -147,7 +147,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.0.1
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           python-version: 3.12
           enable-cache: true
@@ -195,7 +195,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.0.1
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           python-version: 3.12
           enable-cache: true
@@ -227,7 +227,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.0.1
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           python-version: 3.12
           enable-cache: true
@@ -283,7 +283,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.0.1
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           python-version: 3.12
           enable-cache: true
@@ -302,7 +302,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.0.1
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           python-version: 3.12
       - name: Run checks
@@ -323,7 +323,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.0.1
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           python-version: 3.12
           enable-cache: true

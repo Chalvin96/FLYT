@@ -16,6 +16,7 @@ from flyt.apps.reading.models import UserStory
 from flyt.apps.reading import import_service as service_module
 from flyt.apps.reading import import_router as router_module
 from flyt.apps.reading.constants import IMPORT_LIMIT
+from flyt.apps.reading.constants import K_MAX_NORMALIZED_BYTES
 from flyt.apps.reading.constants import MAX_PAGE_LIMIT
 from flyt.apps.reading.constants import STALE_AFTER
 from flyt.apps.reading.models import ImportMeta
@@ -122,7 +123,7 @@ async def test_create_paste_given_oversized_text_expect_413(
     await db.flush()
     await authenticate(client, user)
 
-    big = "ord " * 30_000
+    big = "a" * (K_MAX_NORMALIZED_BYTES + 1)
     resp = await client.post("/imports", json={"text": big})
     assert resp.status_code == HTTPStatus.REQUEST_ENTITY_TOO_LARGE
     assert resp.json()["detail"]["code"] == "IMPORT_TOO_LARGE"

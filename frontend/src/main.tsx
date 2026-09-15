@@ -12,6 +12,7 @@ if (import.meta.env.FLYT_SENTRY_DSN) {
     dsn: import.meta.env.FLYT_SENTRY_DSN,
     environment: import.meta.env.MODE,
     release: import.meta.env.FLYT_RELEASE,
+    tracesSampleRate: 0.01,
   });
 }
 

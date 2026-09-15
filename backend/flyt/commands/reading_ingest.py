@@ -29,7 +29,7 @@ from flyt.core.db import AsyncSessionLocal
 from flyt.core.queue import close_arq_pool
 from flyt.core.queue import enqueue_job
 
-_REQUIRED_FIELDS = ("slug", "title", "cefr_level", "group")
+_REQUIRED_FIELDS = ("slug", "title", "group")
 
 Fetch = Callable[[str], Awaitable[str]]
 Enqueue = Callable[..., Awaitable[None]]
@@ -48,13 +48,17 @@ async def default_fetch(url: str) -> str:
         async with httpx.AsyncClient(
             timeout=settings.READING_INGEST_TIMEOUT_SECONDS, follow_redirects=False
         ) as client:
-            response = await client.get(url)
-        response.raise_for_status()
+            async with client.stream("GET", url) as response:
+                response.raise_for_status()
+                content = bytearray()
+                async for chunk in response.aiter_bytes():
+                    if len(content) + len(chunk) > settings.READING_SOURCE_MAX_BYTES:
+                        raise IngestError("File exceeds max ingest size")
+                    content.extend(chunk)
+                encoding = response.encoding or "utf-8"
     except httpx.HTTPError as exc:
         raise IngestError(f"Failed to fetch {url}: {exc}") from exc
-    if len(response.content) > settings.READING_INGEST_MAX_BYTES:
-        raise IngestError("File exceeds max ingest size")
-    return response.text
+    return content.decode(encoding, errors="replace")
 
 
 class ReadingIngestService:
@@ -77,6 +81,11 @@ class ReadingIngestService:
         for field in _REQUIRED_FIELDS:
             if not (meta.get(field) or "").strip():
                 raise IngestError(f"Missing required front-matter field: {field}")
+        cefr_level = meta.get("cefr_level")
+        if cefr_level is not None:
+            if not isinstance(cefr_level, str):
+                raise IngestError("Front-matter field cefr_level must be text or null")
+            cefr_level = cefr_level.strip() or None
         if not body:
             raise IngestError("Story body is empty")
 
@@ -97,7 +106,7 @@ class ReadingIngestService:
         story = Story(
             slug=meta["slug"],
             title=meta["title"],
-            cefr_level=meta["cefr_level"],
+            cefr_level=cefr_level,
             reading_group_id=group.id,
             visibility=StoryVisibility.PUBLIC,
             is_ready=bool(meta.get("is_ready")),

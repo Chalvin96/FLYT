@@ -17,8 +17,9 @@ COPY frontend frontend
 # Bake the deployment's backend URL and release id into the static frontend.
 # Vite reads FLYT_* values from the build process env.
 ARG FLYT_API_URL
+ARG FLYT_SENTRY_DSN
 ARG FLYT_RELEASE=dev
-RUN FLYT_API_URL=$FLYT_API_URL FLYT_RELEASE=$FLYT_RELEASE pnpm --filter frontend build
+RUN FLYT_API_URL=$FLYT_API_URL FLYT_SENTRY_DSN=$FLYT_SENTRY_DSN FLYT_RELEASE=$FLYT_RELEASE pnpm --filter frontend build
 
 # Unprivileged nginx: runs as uid 101, listens on 8080.
 FROM nginxinc/nginx-unprivileged:alpine

@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+import { IMPORT_TEXT_MAX_BYTES } from '@/types/api';
+
 import { ImportTextSheet } from './ImportTextSheet';
 
 const desktopState = vi.hoisted(() => ({ value: false }));
@@ -106,38 +108,36 @@ describe('ImportTextSheet', () => {
     const textarea = screen.getByPlaceholderText('Paste text here…');
     await user.type(textarea, 'Klimaendringene i Arktis skjer raskt.');
 
-    // Counter renders and shows the server's 100_000-byte cap rendered as KB
-    // (100_000 / 1024 ≈ 97.7 KB, NOT 100 KB — the old test asserted the wrong
-    // number because the constant used to be 102_400).
-    const counter = screen.getByText(/\/ 97\.7 KB$/);
+    // Counter renders and shows the server's 10_000_000-byte cap rendered as MB.
+    const counter = screen.getByText(/\/ 9\.5 MB$/);
     expect(counter).toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: 'Import' })).toBeEnabled();
   });
 
-  it('test_import_sheet_given_text_at_100_000_bytes_expect_submit_enabled', () => {
-    // Boundary: the server caps NORMALIZED text at exactly 100_000 bytes.
-    // A 100_000 ASCII-char string normalizes to itself (no whitespace), so
-    // byte length === 100_000 and the client must NOT block.
+  it('test_import_sheet_given_text_at_10_000_000_bytes_expect_submit_enabled', () => {
+    // Boundary: the server caps NORMALIZED text at exactly 10_000_000 bytes.
+    // An ASCII string normalizes to itself (no whitespace), so byte length
+    // equals the cap and the client must NOT block.
     renderSheet();
     const textarea = screen.getByPlaceholderText(
       'Paste text here…',
     ) as HTMLTextAreaElement;
     fireEvent.change(textarea, {
-      target: { value: 'a'.repeat(100_000) },
+      target: { value: 'a'.repeat(IMPORT_TEXT_MAX_BYTES) },
     });
 
     expect(screen.getByRole('button', { name: 'Import' })).toBeEnabled();
   });
 
-  it('test_import_sheet_given_text_at_100_001_bytes_expect_submit_blocked', () => {
+  it('test_import_sheet_given_text_at_10_000_001_bytes_expect_submit_blocked', () => {
     // Boundary: one byte over the server cap must be client-side blocked.
     renderSheet();
     const textarea = screen.getByPlaceholderText(
       'Paste text here…',
     ) as HTMLTextAreaElement;
     fireEvent.change(textarea, {
-      target: { value: 'a'.repeat(100_001) },
+      target: { value: 'a'.repeat(IMPORT_TEXT_MAX_BYTES + 1) },
     });
 
     expect(screen.getByText(/too long by/)).toBeInTheDocument();
@@ -152,24 +152,24 @@ describe('ImportTextSheet', () => {
       'Paste text here…',
     ) as HTMLTextAreaElement;
     fireEvent.change(textarea, {
-      target: { value: 'ø'.repeat(50_000) },
+      target: { value: 'ø'.repeat(5_000_000) },
     });
 
-    // 50_000 * 2 bytes = 100_000 bytes — exactly at the cap, not over it.
+    // 5_000_000 * 2 bytes = 10_000_000 bytes — exactly at the cap.
     expect(screen.getByRole('button', { name: 'Import' })).toBeEnabled();
   });
 
-  it('test_import_sheet_given_text_over_100_kb_expect_submit_blocked_with_over_message', () => {
+  it('test_import_sheet_given_text_over_10_mb_expect_submit_blocked_with_over_message', () => {
     renderSheet();
 
     const textarea = screen.getByPlaceholderText(
       'Paste text here…',
     ) as HTMLTextAreaElement;
-    // 1024 * 101 = 101 KB of single-byte chars, over the 100 KB cap.
-    // Use fireEvent.change (not userEvent.type) because typing 100k chars
+    // One byte over the cap is enough to block the import.
+    // Use fireEvent.change (not userEvent.type) because typing 10M chars
     // one keystroke at a time is far too slow for a unit test.
     fireEvent.change(textarea, {
-      target: { value: 'a'.repeat(1024 * 101) },
+      target: { value: 'a'.repeat(IMPORT_TEXT_MAX_BYTES + 1) },
     });
 
     const counter = screen.getByText(/too long by/);
@@ -300,7 +300,9 @@ describe('ImportTextSheet', () => {
     const textarea = screen.getByPlaceholderText(
       'Paste text here…',
     ) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: 'a'.repeat(100_001) } });
+    fireEvent.change(textarea, {
+      target: { value: 'a'.repeat(IMPORT_TEXT_MAX_BYTES + 1) },
+    });
     fireEvent.submit(textarea);
     await settle();
 
