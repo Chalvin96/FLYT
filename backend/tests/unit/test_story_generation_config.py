@@ -1,3 +1,4 @@
+from cryptography.fernet import Fernet
 import pytest
 from pydantic import ValidationError
 
@@ -70,9 +71,7 @@ def _make_settings(**overrides) -> Settings:
         "GOOGLE_CLIENT_ID": "google-client",
         "GOOGLE_CLIENT_SECRET": "google-secret",
         "OAUTH_SESSION_SECRET": "test-oauth-session-secret",
-        "PROVIDER_CREDENTIAL_ENCRYPTION_KEYS": [
-            "kkx-ZViSkteSQGh9z5FDskkiQGFImdcA1ceQt2DnwAk="
-        ],
+        "PROVIDER_CREDENTIAL_ENCRYPTION_KEYS": [Fernet.generate_key().decode()],
         "OPENROUTER_API_KEY": "test-key",
     }
     values.update(overrides)

@@ -1,125 +1,240 @@
-import { Bot, Lock } from 'lucide-react';
-import { useRef } from 'react';
-import type { KeyboardEvent } from 'react';
+import {
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  RadioGroup,
+  RadioGroupItem,
+  Row,
+  Text,
+} from '@flyt/ui';
+import { Bot, LoaderCircle, Lock } from 'lucide-react';
+import { useState } from 'react';
 
-import { cn } from '@/lib/utils';
+import { CHATBOT_MODEL_IDS } from '@/api/chatbot';
+import type { AccountPageAnchor } from '@/components/nav/accountNavigation';
 
-import { calculateNextModelIndex } from './calculateNextModelIndex';
+import { buildModelSetupGuidance } from './chatbotAvailability';
 import {
   formatUnavailableModelReason,
   MODEL_ORDER,
   modelDetail,
   modelLabel,
 } from './chatbotModels';
-import type { FlytChatbotModel } from './types';
+import type { ChatbotAvailabilityStatus, FlytChatbotModel } from './types';
+import {
+  CHATBOT_AVAILABILITY_STATUSES,
+  CHATBOT_MODEL_PILL_STATES,
+  CHATBOT_SETUP_TARGETS,
+} from './types';
 
 export function ModelPills({
   activeModel,
+  availabilityStatus,
   isModelUsable,
   modelActions,
   modelReasons,
   onModelChange,
+  onOpenAccountSettings,
+  onRetryAvailability,
 }: {
   activeModel: FlytChatbotModel | null;
+  availabilityStatus: ChatbotAvailabilityStatus;
   isModelUsable: (model: FlytChatbotModel) => boolean;
   modelActions: Partial<Record<FlytChatbotModel, string | null>>;
   modelReasons: Partial<Record<FlytChatbotModel, string | null>>;
   onModelChange: (model: FlytChatbotModel) => void;
+  onOpenAccountSettings?: (anchor: AccountPageAnchor) => void;
+  onRetryAvailability?: () => void;
 }) {
-  const pillRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const focusableIndex = MODEL_ORDER.findIndex((model) =>
-    activeModel === null ? isModelUsable(model) : model === activeModel,
-  );
+  const [openModel, setOpenModel] = useState<FlytChatbotModel | null>(null);
+  const isAvailabilityLoading =
+    availabilityStatus === CHATBOT_AVAILABILITY_STATUSES.LOADING;
+  const isModelInteractive = (model: FlytChatbotModel) =>
+    !isAvailabilityLoading && isModelUsable(model);
 
   const buildUnusableReason = (model: FlytChatbotModel) =>
     formatUnavailableModelReason(model, modelReasons, modelActions);
+  const buildReasonSummary = (model: FlytChatbotModel) => {
+    if (availabilityStatus === CHATBOT_AVAILABILITY_STATUSES.LOADING) {
+      return 'checking availability';
+    }
+    if (availabilityStatus === CHATBOT_AVAILABILITY_STATUSES.ERROR) {
+      return 'availability check failed';
+    }
+    return buildUnusableReason(model);
+  };
 
   return (
-    <div
+    <RadioGroup
+      aria-busy={isAvailabilityLoading || undefined}
       aria-label="Choose model"
-      aria-orientation="horizontal"
-      className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5"
-      role="radiogroup"
+      asChild
+      onValueChange={(value) => {
+        if (isAvailabilityLoading) return;
+        const model = value as FlytChatbotModel;
+        if (isModelUsable(model)) onModelChange(model);
+      }}
+      orientation="horizontal"
+      value={isAvailabilityLoading ? '' : (activeModel ?? '')}
     >
-      {MODEL_ORDER.map((model, modelIndex) => {
-        const usable = isModelUsable(model);
-        const selected = model === activeModel;
-        const detail = modelDetail[model];
-        const name = usable
-          ? detail
-            ? `${modelLabel[model]}, ${detail}`
-            : modelLabel[model]
-          : `${modelLabel[model]}, ${buildUnusableReason(model)}`;
-        return (
-          <button
-            aria-checked={selected}
-            aria-label={name}
-            className={cn(
-              'relative inline-flex min-h-8 shrink-0 items-center gap-1.5 radius-field border px-2.5 type-caption-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-              "after:absolute after:-inset-y-1.5 after:inset-x-0 after:content-['']",
-              selected
-                ? 'border-primary-50 bg-primary-5 text-primary-90'
-                : 'border-border text-secondary-80',
-              usable
-                ? 'cursor-pointer hover:border-primary-30 hover:bg-primary-5 hover:text-primary-90'
-                : 'cursor-not-allowed border-border bg-muted text-muted-foreground',
-            )}
-            disabled={!usable}
-            key={model}
-            onClick={() => onModelChange(model)}
-            onKeyDown={(event: KeyboardEvent<HTMLButtonElement>): void => {
-              const nextIndex = calculateNextModelIndex(
-                event.key,
-                modelIndex,
-                MODEL_ORDER,
-                isModelUsable,
-              );
-              if (nextIndex === null) return;
+      <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+        {MODEL_ORDER.map((model) => {
+          const usable = isModelUsable(model);
+          const interactive = isModelInteractive(model);
+          const locked = !interactive && !isAvailabilityLoading;
+          const selected = !isAvailabilityLoading && model === activeModel;
+          const detail = modelDetail[model];
+          const reasonSummary = buildReasonSummary(model);
+          const optionParts = formatModelOptionParts(
+            model,
+            detail,
+            availabilityStatus,
+            usable,
+            reasonSummary,
+          );
+          const name = optionParts.join(', ');
+          const title = optionParts.join(' · ');
+          const guidance = buildModelSetupGuidance(model, {
+            action: modelActions[model],
+            reason: modelReasons[model],
+            status: availabilityStatus,
+          });
 
-              const nextModel = MODEL_ORDER[nextIndex];
-              if (!nextModel || !isModelUsable(nextModel)) return;
-
-              event.preventDefault();
-              onModelChange(nextModel);
-              pillRefs.current[nextIndex]?.focus();
-            }}
-            ref={(element) => {
-              pillRefs.current[modelIndex] = element;
-            }}
-            role="radio"
-            tabIndex={modelIndex === focusableIndex ? 0 : -1}
-            title={
-              usable && detail
-                ? `${modelLabel[model]} · ${detail}`
-                : usable
-                  ? modelLabel[model]
-                  : `${modelLabel[model]} · ${buildUnusableReason(model)}`
-            }
-            type="button"
-          >
-            <span
-              aria-hidden="true"
-              className="flex shrink-0 items-center justify-center [&_svg]:icon-xs"
+          const pill = (
+            <Row
+              aria-busy={isAvailabilityLoading || undefined}
+              aria-disabled={locked || undefined}
+              aria-label={name}
+              data-availability-state={
+                isAvailabilityLoading
+                  ? CHATBOT_MODEL_PILL_STATES.LOADING
+                  : locked
+                    ? CHATBOT_MODEL_PILL_STATES.LOCKED
+                    : CHATBOT_MODEL_PILL_STATES.READY
+              }
+              layout="inline"
+              leading={
+                <span
+                  aria-hidden="true"
+                  className="flex items-center justify-center [&_svg]:icon-xs"
+                >
+                  <ModelMark model={model} />
+                </span>
+              }
+              selected={selected}
+              size="sm"
+              surface="outline"
+              title={title}
+              trailing={
+                isAvailabilityLoading ? (
+                  <LoaderCircle
+                    aria-hidden="true"
+                    className="icon-sm animate-spin text-subtle"
+                  />
+                ) : locked ? (
+                  <Lock aria-hidden="true" className="icon-sm text-subtle" />
+                ) : undefined
+              }
             >
-              <ModelMark model={model} />
-            </span>
-            <span className="whitespace-nowrap">{modelLabel[model]}</span>
-            {usable ? null : (
-              <Lock
-                aria-hidden="true"
-                className="icon-sm shrink-0 text-muted-foreground"
-              />
-            )}
-          </button>
-        );
-      })}
-    </div>
+              <span className="whitespace-nowrap">
+                <Text as="span" size="small" weight="semibold">
+                  {modelLabel[model]}
+                </Text>
+              </span>
+            </Row>
+          );
+
+          if (!locked) {
+            return (
+              <RadioGroupItem asChild key={model} value={model}>
+                {pill}
+              </RadioGroupItem>
+            );
+          }
+
+          return (
+            <Popover
+              key={model}
+              open={openModel === model}
+              onOpenChange={(next) => setOpenModel(next ? model : null)}
+            >
+              <PopoverTrigger
+                asChild
+                onClick={(event) => {
+                  if (event.detail === 0) event.preventDefault();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                  event.preventDefault();
+                  setOpenModel((current) => (current === model ? null : model));
+                }}
+              >
+                <RadioGroupItem asChild value={model}>
+                  {pill}
+                </RadioGroupItem>
+              </PopoverTrigger>
+              <PopoverContent
+                aria-label={`${modelLabel[model]} setup`}
+                align="center"
+                layer="overlay"
+                padding="compact"
+                width="compact"
+                collisionPadding={12}
+                side="top"
+                sideOffset={8}
+              >
+                <Text as="p" size="medium" tone="default">
+                  {guidance.message}
+                </Text>
+                {guidance.ctaLabel ? (
+                  <Button
+                    width="full"
+                    onClick={() => {
+                      setOpenModel(null);
+                      if (guidance.target === CHATBOT_SETUP_TARGETS.RETRY) {
+                        onRetryAvailability?.();
+                        return;
+                      }
+                      if (guidance.target) {
+                        onOpenAccountSettings?.(guidance.target);
+                      }
+                    }}
+                    size="sm"
+                    type="button"
+                  >
+                    {guidance.ctaLabel}
+                  </Button>
+                ) : null}
+              </PopoverContent>
+            </Popover>
+          );
+        })}
+      </div>
+    </RadioGroup>
   );
 }
 
+function formatModelOptionParts(
+  model: FlytChatbotModel,
+  detail: string | undefined,
+  availabilityStatus: ChatbotAvailabilityStatus,
+  usable: boolean,
+  reasonSummary: string,
+): string[] {
+  const parts = [modelLabel[model]];
+  if (detail) parts.push(detail);
+
+  if (availabilityStatus !== CHATBOT_AVAILABILITY_STATUSES.READY || !usable) {
+    parts.push(reasonSummary);
+  }
+
+  return parts;
+}
+
 function ModelMark({ model }: { model: FlytChatbotModel }) {
-  if (model === 'chatgpt') return <ChatGPTMark />;
-  if (model === 'deepseek') return <DeepSeekMark />;
+  if (model === CHATBOT_MODEL_IDS.CHATGPT) return <ChatGPTMark />;
+  if (model === CHATBOT_MODEL_IDS.DEEPSEEK) return <DeepSeekMark />;
 
   return <Bot aria-hidden="true" strokeWidth={1.8} />;
 }

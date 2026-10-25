@@ -1,9 +1,7 @@
-import { Badge } from '@flyt/ui';
-import { AlertTriangle, Sparkles } from 'lucide-react';
+import { Badge, Button, Card, Heading, Text } from '@flyt/ui';
+import { AlertTriangle } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
-import { AppCard } from '@/components/common/AppCard/AppCard';
-import { Button } from '@/components/common/Button/Button';
 import { ErrorMessage } from '@/components/common/ErrorMessage/ErrorMessage';
 import { cn } from '@/lib/utils';
 import type { StoryGenerationCurrentResponse } from '@/types/api';
@@ -33,9 +31,9 @@ export function GenerationStatusSurface({
   if (isError && !current) {
     return (
       <div className="space-y-4">
-        <h2 className="type-section font-semibold text-foreground">
+        <Heading as="h2" size="medium" tone="default">
           Your story
-        </h2>
+        </Heading>
         <ErrorMessage
           error="Could not check the current story."
           onRetry={onRetryCurrent}
@@ -92,19 +90,11 @@ export function GenerationStatusSurface({
 
 export function EmptyGenerationState() {
   return (
-    <AppCard className="p-6 sm:p-8">
-      <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-center">
-        <div className="flex size-12 items-center justify-center rounded-full bg-primary-10 text-primary-80">
-          <Sparkles className="icon-md" aria-hidden />
-        </div>
-        <h2 className="type-section font-semibold text-foreground">
-          Your story will appear here
-        </h2>
-        <p className="max-w-[38ch] type-caption text-muted-foreground">
-          Pick a focus and a length, then start a story when you&apos;re ready.
-        </p>
-      </div>
-    </AppCard>
+    <div className="py-2 text-center lg:py-8">
+      <Text as="p" size="medium" tone="subtle">
+        Your story appears here, ready to tap through.
+      </Text>
+    </div>
   );
 }
 
@@ -115,6 +105,8 @@ export function ProcessingState({
   onRetry: () => void;
   isRetryPending: boolean;
 }) {
+  const [startedWaitingAt] = useState(Date.now);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isStalled, setIsStalled] = useState(false);
 
   useEffect(() => {
@@ -122,45 +114,59 @@ export function ProcessingState({
       () => setIsStalled(true),
       STORY_GENERATION_PROCESSING_STALL_BACKSTOP_MS,
     );
-    return () => window.clearTimeout(id);
-  }, []);
+    const interval = window.setInterval(
+      () =>
+        setElapsedSeconds(Math.floor((Date.now() - startedWaitingAt) / 1000)),
+      1000,
+    );
+    return () => {
+      window.clearTimeout(id);
+      window.clearInterval(interval);
+    };
+  }, [startedWaitingAt]);
 
   const title = isStalled
     ? 'Your story is taking longer than usual'
     : 'Writing your story';
   const message = isStalled
-    ? 'You can try again to start a new generation.'
-    : "Usually about ten seconds. We're preparing it for word lookup as soon as the writing is done.";
+    ? 'The writer is slower than usual. You can wait or start a new attempt.'
+    : 'Usually about ten seconds. We’re getting the words ready for lookup.';
 
   return (
-    <AppCard className="p-6 sm:p-8">
-      <div
-        className="flex min-h-64 flex-col items-center justify-center gap-5 text-center"
-        role="status"
-        aria-live="polite"
-      >
+    <Card padding="roomy">
+      <div className="flex min-h-64 flex-col items-center justify-center gap-5 text-center">
         <div
-          className="size-8 animate-spin rounded-full border-[3px] border-secondary-20 border-t-primary-70"
-          aria-label="Generating"
+          className="size-8 animate-spin motion-reduce:animate-none rounded-full border-3 border-default border-t-selected"
+          aria-hidden="true"
         />
-        <div className="space-y-1">
-          <h2 className="type-section font-semibold text-foreground">
+        <div className="space-y-1" role="status" aria-live="polite">
+          <Heading as="h2" size="medium" tone="default">
             {title}
-          </h2>
-          <p className="type-caption text-muted-foreground">{message}</p>
+          </Heading>
+          <Text size="medium" tone="subtle">
+            {message}
+          </Text>
         </div>
+        <Text as="p" size="small" tone="subtle">
+          Waiting {elapsedSeconds} s · usually ~10 s
+        </Text>
         {isStalled ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onRetry}
-            disabled={isRetryPending}
-          >
-            Try again
-          </Button>
+          <div className="space-y-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onRetry}
+              disabled={isRetryPending}
+            >
+              Try again
+            </Button>
+            <Text as="p" size="small" tone="subtle">
+              Or keep waiting. It still appears here if it finishes.
+            </Text>
+          </div>
         ) : null}
       </div>
-    </AppCard>
+    </Card>
   );
 }
 
@@ -184,9 +190,9 @@ export function RefusedState({
       }
       code={current.failureCode}
     >
-      <p className="type-caption text-muted-foreground">
+      <Text size="medium" tone="warning">
         No provider request was made.
-      </p>
+      </Text>
       <Button
         type="button"
         variant="outline"
@@ -211,20 +217,19 @@ export function FailedState({
   return (
     <StatusCard
       tone="danger"
-      label="Attempted, but not finished"
       title="The story could not be finished"
       message={
         current.failureMessage ??
-        'The provider did not return a complete story. Nothing partial is shown.'
+        'The provider did not return a complete story.'
       }
       code={current.failureCode}
     >
-      <p className="type-caption text-muted-foreground">
-        The provider request was sent, but no story was saved.
-      </p>
+      <Text as="p" size="medium" tone="subtle">
+        Nothing was saved. You can try again.
+      </Text>
       <Button
         type="button"
-        variant="outline"
+        width="full"
         onClick={onRetry}
         disabled={isRetryPending}
       >
@@ -243,7 +248,7 @@ export function StatusCard({
   children,
 }: {
   tone: 'warning' | 'danger';
-  label: string;
+  label?: string;
   title: string;
   message: string;
   code: string | null;
@@ -251,52 +256,55 @@ export function StatusCard({
 }) {
   const warning = tone === 'warning';
   return (
-    <AppCard
-      className={cn(
-        'radius-section p-5 shadow-raised sm:p-6',
-        warning
-          ? 'border-warning-30 bg-warning-10/70'
-          : 'border-destructive-30 bg-destructive-10/70',
-      )}
+    <Card
       data-testid={warning ? 'generation-refused' : 'generation-failed'}
       role="alert"
+      surface={warning ? 'warning' : 'danger'}
     >
       <div className="space-y-4">
         <div className="flex items-start gap-3">
           <AlertTriangle
             className={cn(
               'mt-0.5 icon-md shrink-0',
-              warning ? 'text-warning-70' : 'text-destructive-70',
+              warning ? 'text-icon-warning' : 'text-icon-danger',
             )}
             aria-hidden
           />
           <div className="min-w-0 space-y-1">
-            <Badge
-              variant="outline"
-              className={cn(
-                'type-caption-sm',
-                warning
-                  ? 'border-warning-30 bg-warning-10 text-warning-80'
-                  : 'border-destructive-30 bg-destructive-10 text-destructive-80',
-              )}
-            >
-              {label}
-            </Badge>
-            <h2 className="type-section font-semibold text-foreground">
+            {label ? (
+              <Badge tone={warning ? 'warning' : 'danger'}>{label}</Badge>
+            ) : null}
+            <Heading as="h2" size="medium" tone="default">
               {title}
-            </h2>
-            <p className="type-caption text-muted-foreground">{message}</p>
+            </Heading>
+            <Text size="medium" tone={warning ? 'warning' : 'subtle'}>
+              {message}
+            </Text>
           </div>
         </div>
-        {code ? (
-          <p className="font-mono type-caption-sm text-muted-foreground">
-            {code}
-          </p>
-        ) : null}
         <div className="space-y-3 border-t border-current/10 pt-3">
           {children}
+          {code ? (
+            <details className="space-y-2">
+              <summary className="cursor-pointer py-2">
+                <Text as="span" size="small" tone="subtle">
+                  Details
+                </Text>
+              </summary>
+              <div className="break-all">
+                <Text
+                  as="p"
+                  font="mono"
+                  size="small"
+                  tone={warning ? 'warning' : 'subtle'}
+                >
+                  {code}
+                </Text>
+              </div>
+            </details>
+          ) : null}
         </div>
       </div>
-    </AppCard>
+    </Card>
   );
 }

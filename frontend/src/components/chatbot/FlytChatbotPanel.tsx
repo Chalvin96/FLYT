@@ -1,8 +1,10 @@
+import { Heading } from '@flyt/ui';
 import { useMessageScroller } from '@shadcn/react/message-scroller';
 import { Bot, Plus, X } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
+import { CHATBOT_MODEL_IDS } from '@/api/chatbot';
 import { MessageScrollerProvider } from '@/components/chatbot/ui/message-scroller';
 import { cn } from '@/lib/utils';
 
@@ -11,10 +13,12 @@ import { ChatbotComposer, IconButton } from './FlytChatbotComposer';
 import { ChatbotConversationList } from './FlytChatbotConversationList';
 import { ChatbotLiveStatus } from './FlytChatbotStatus';
 import type {
+  ChatbotAvailabilityStatus,
   FlytChatbotMessage,
   FlytChatbotModel,
   FlytChatbotPanelProps,
 } from './types';
+import { CHATBOT_AVAILABILITY_STATUSES } from './types';
 import { usePendingFollowUp } from './usePendingFollowUp';
 
 export type {
@@ -59,7 +63,7 @@ export function FlytChatbotPanel(props: FlytChatbotPanelProps) {
 function FlytChatbotPanelContent({
   context = null,
   messages = EMPTY_MESSAGES,
-  defaultModel = 'flyt',
+  defaultModel = CHATBOT_MODEL_IDS.FLYT,
   selectedModel: controlledSelectedModel,
   onSelectedModelChange,
   draft: controlledDraft,
@@ -68,6 +72,7 @@ function FlytChatbotPanelContent({
   unavailableModels = EMPTY_MODELS,
   modelReasons = EMPTY_MODEL_REASONS,
   modelActions = EMPTY_MODEL_ACTIONS,
+  availabilityStatus = CHATBOT_AVAILABILITY_STATUSES.READY,
   flytRemainingPercent = null,
   starterPrompts = DEFAULT_STARTER_PROMPTS,
   followUpPrompts = EMPTY_PROMPTS,
@@ -80,6 +85,8 @@ function FlytChatbotPanelContent({
   onErrorRetry,
   onModelChange,
   onNewConversation,
+  onOpenAccountSettings,
+  onRetryAvailability,
   onSend,
   onStarterSelect,
   onFollowUpSelect,
@@ -114,12 +121,12 @@ function FlytChatbotPanelContent({
   const hasCompletedAnswer =
     !isLoading && !error && lastMessage?.role === 'chatbot';
   const lastChatbotLabel = formatChatbotLabel(lastMessage, activeModel);
-  const availabilityNotice =
-    activeModel === null
-      ? 'No available model is connected. Connect a model to keep going.'
-      : isModelUsable(selectedModel)
-        ? null
-        : `${modelLabel[selectedModel]} is unavailable — switched to ${modelLabel[activeModel]}`;
+  const availabilityNotice = buildAvailabilityNotice(
+    availabilityStatus,
+    activeModel,
+    selectedModel,
+    isModelUsable,
+  );
 
   const handleModelChange = (model: FlytChatbotModel) => {
     setInternalSelectedModel(model);
@@ -168,8 +175,8 @@ function FlytChatbotPanelContent({
       className={cn(
         'grid h-full min-h-0 w-full grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden @container',
         surface === 'pane'
-          ? 'bg-card text-card-foreground'
-          : 'radius-section border border-border bg-card text-card-foreground shadow-soft',
+          ? 'bg-raised text-default'
+          : 'radius-section border border-default bg-raised text-default shadow-soft',
         className,
       )}
       data-testid="flyt-chatbot-panel"
@@ -189,7 +196,11 @@ function FlytChatbotPanelContent({
       />
 
       <ChatbotConversationList
-        chatbotLabel={activeModel ? modelLabel[activeModel] : 'Flyt'}
+        chatbotLabel={
+          activeModel
+            ? modelLabel[activeModel]
+            : modelLabel[CHATBOT_MODEL_IDS.FLYT]
+        }
         context={context}
         error={error}
         followUpPrompts={followUpPrompts}
@@ -206,6 +217,7 @@ function FlytChatbotPanelContent({
 
       <ChatbotComposer
         activeModel={activeModel}
+        availabilityStatus={availabilityStatus}
         composerState={{
           canSend,
           loading: isLoading,
@@ -220,11 +232,31 @@ function FlytChatbotPanelContent({
         onContextRemove={onContextRemove}
         onDraftChange={handleDraftChange}
         onModelChange={handleModelChange}
+        onOpenAccountSettings={onOpenAccountSettings}
+        onRetryAvailability={onRetryAvailability}
         onSubmit={handleSubmit}
         textareaRef={textareaRef}
       />
     </section>
   );
+}
+
+function buildAvailabilityNotice(
+  availabilityStatus: ChatbotAvailabilityStatus,
+  activeModel: FlytChatbotModel | null,
+  selectedModel: FlytChatbotModel,
+  isModelUsable: (model: FlytChatbotModel) => boolean,
+): string | null {
+  if (availabilityStatus === CHATBOT_AVAILABILITY_STATUSES.LOADING) return null;
+  if (availabilityStatus === CHATBOT_AVAILABILITY_STATUSES.ERROR) {
+    return 'Flyt could not check which models you can use. Try again.';
+  }
+  if (activeModel === null) {
+    return 'No available model is connected. Connect a model to keep going.';
+  }
+  if (isModelUsable(selectedModel)) return null;
+
+  return `${modelLabel[selectedModel]} is unavailable — switched to ${modelLabel[activeModel]}`;
 }
 
 function ChatbotPanelHeader({
@@ -235,13 +267,15 @@ function ChatbotPanelHeader({
   onNewConversation: () => void;
 }) {
   return (
-    <header className="flex min-h-14 min-w-0 shrink-0 items-center justify-between gap-2 border-b border-border/70 px-3 sm:px-4">
+    <header className="flex min-h-14 min-w-0 shrink-0 items-center justify-between gap-2 border-b border-default/70 px-3 sm:px-4">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-5 text-primary-70 @max-[360px]:hidden">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-subtle text-icon-brand @max-[360px]:hidden">
           <Bot aria-hidden="true" className="icon-sm" strokeWidth={1.8} />
         </span>
-        <h2 className="min-w-0 truncate font-display type-body font-semibold text-foreground">
-          Ask Flyt
+        <h2 className="min-w-0 truncate">
+          <Heading as="span" size="small" tone="default">
+            Ask Flyt
+          </Heading>
         </h2>
       </div>
 

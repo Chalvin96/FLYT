@@ -10,12 +10,6 @@ function renderInDnd(ui: React.ReactElement) {
 }
 
 describe('DropZone', () => {
-  it('renders with the expected resting tokens', () => {
-    renderInDnd(<DropZone id="zone-1" label="Bucket" />);
-    const zone = screen.getByTestId('drop-zone');
-    expect(zone).toHaveClass('border-dashed', 'border-border', 'bg-card');
-  });
-
   it('exposes the accessible label via aria-label', () => {
     renderInDnd(<DropZone id="zone-1" label="Common gender" />);
     expect(screen.getByTestId('drop-zone')).toHaveAttribute(
@@ -37,14 +31,12 @@ describe('DropZone', () => {
     renderInDnd(<DropZone id="zone-1" isOver />);
     const zone = screen.getByTestId('drop-zone');
     expect(zone).toHaveAttribute('data-over', 'true');
-    expect(zone).toHaveClass('border-primary-60', 'bg-primary-5');
   });
 
   it('reflects the resting state when isOver is overridden to false', () => {
     renderInDnd(<DropZone id="zone-1" isOver={false} />);
     const zone = screen.getByTestId('drop-zone');
     expect(zone).toHaveAttribute('data-over', 'false');
-    expect(zone).not.toHaveClass('bg-primary-5');
   });
 
   it('stamps the data-dropzone-id attribute for debugging', () => {
@@ -61,11 +53,6 @@ describe('DropZone', () => {
     const zone = screen.getByTestId('drop-zone');
     expect(zone).toHaveAttribute('aria-label', 'Neuter');
     expect(zone.textContent).toBe('');
-  });
-
-  it('merges custom className without clobbering tokens', () => {
-    renderInDnd(<DropZone id="zone-1" className="min-h-[5rem]" />);
-    expect(screen.getByTestId('drop-zone')).toHaveClass('min-h-[5rem]');
   });
 
   it('stays a plain div when no onClick is provided', () => {

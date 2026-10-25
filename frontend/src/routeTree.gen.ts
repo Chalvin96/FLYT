@@ -10,9 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ImportsBackRouteImport } from './routes/_importsBack'
 import { Route as LessonSessionRouteImport } from './routes/_lessonSession'
 import { Route as ReaderRouteImport } from './routes/_reader'
-import { Route as ReadingThemeRouteImport } from './routes/_readingTheme'
+import { Route as ReadingBackRouteImport } from './routes/_readingBack'
 import { Route as ReviewCardsRouteImport } from './routes/_reviewCards'
 import { Route as ReviewSessionRouteImport } from './routes/_reviewSession'
 import { Route as ShellRouteImport } from './routes/_shell'
@@ -26,21 +27,25 @@ import { Route as ShellReadingRouteImport } from './routes/_shell.reading'
 import { Route as ShellReviewRouteImport } from './routes/_shell.review'
 import { Route as ShellSearchRouteImport } from './routes/_shell.search'
 import { Route as LessonSessionLessonLessonIdRouteImport } from './routes/_lessonSession.lesson.$lessonId'
+import { Route as ReadingBackReadingGenerateRouteImport } from './routes/_readingBack.reading.generate'
+import { Route as ReadingBackReadingImportsRouteImport } from './routes/_readingBack.reading.imports'
 import { Route as ReviewCardsReviewCardsRouteImport } from './routes/_reviewCards.review.cards'
 import { Route as ReviewSessionReviewSessionRouteImport } from './routes/_reviewSession.review.session'
 import { Route as ShellLessonIndexRouteImport } from './routes/_shell.lesson.index'
 import { Route as ShellReadingIndexRouteImport } from './routes/_shell.reading.index'
-import { Route as ShellReadingGenerateRouteImport } from './routes/_shell.reading.generate'
-import { Route as ShellReadingImportsRouteImport } from './routes/_shell.reading.imports'
 import { Route as ShellReviewIndexRouteImport } from './routes/_shell.review.index'
 import { Route as ShellReviewPickRouteImport } from './routes/_shell.review.pick'
+import { Route as ImportsBackReadingImportsInstallRouteImport } from './routes/_importsBack.reading.imports.install'
 import { Route as ReaderReadingStoryUuidRouteImport } from './routes/_reader.reading.story.$uuid'
-import { Route as ReadingThemeReadingThemesKeyRouteImport } from './routes/_readingTheme.reading.themes.$key'
-import { Route as ShellReadingImportsInstallRouteImport } from './routes/_shell.reading.imports_.install'
+import { Route as ReadingBackReadingThemesKeyRouteImport } from './routes/_readingBack.reading.themes.$key'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImportsBackRoute = ImportsBackRouteImport.update({
+  id: '/_importsBack',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LessonSessionRoute = LessonSessionRouteImport.update({
@@ -51,8 +56,8 @@ const ReaderRoute = ReaderRouteImport.update({
   id: '/_reader',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ReadingThemeRoute = ReadingThemeRouteImport.update({
-  id: '/_readingTheme',
+const ReadingBackRoute = ReadingBackRouteImport.update({
+  id: '/_readingBack',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReviewCardsRoute = ReviewCardsRouteImport.update({
@@ -118,6 +123,18 @@ const LessonSessionLessonLessonIdRoute =
     path: '/lesson/$lessonId',
     getParentRoute: () => LessonSessionRoute,
   } as any)
+const ReadingBackReadingGenerateRoute =
+  ReadingBackReadingGenerateRouteImport.update({
+    id: '/reading/generate',
+    path: '/reading/generate',
+    getParentRoute: () => ReadingBackRoute,
+  } as any)
+const ReadingBackReadingImportsRoute =
+  ReadingBackReadingImportsRouteImport.update({
+    id: '/reading/imports',
+    path: '/reading/imports',
+    getParentRoute: () => ReadingBackRoute,
+  } as any)
 const ReviewCardsReviewCardsRoute = ReviewCardsReviewCardsRouteImport.update({
   id: '/review/cards',
   path: '/review/cards',
@@ -139,16 +156,6 @@ const ShellReadingIndexRoute = ShellReadingIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ShellReadingRoute,
 } as any)
-const ShellReadingGenerateRoute = ShellReadingGenerateRouteImport.update({
-  id: '/generate',
-  path: '/generate',
-  getParentRoute: () => ShellReadingRoute,
-} as any)
-const ShellReadingImportsRoute = ShellReadingImportsRouteImport.update({
-  id: '/imports',
-  path: '/imports',
-  getParentRoute: () => ShellReadingRoute,
-} as any)
 const ShellReviewIndexRoute = ShellReviewIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -159,22 +166,22 @@ const ShellReviewPickRoute = ShellReviewPickRouteImport.update({
   path: '/pick',
   getParentRoute: () => ShellReviewRoute,
 } as any)
+const ImportsBackReadingImportsInstallRoute =
+  ImportsBackReadingImportsInstallRouteImport.update({
+    id: '/reading/imports/install',
+    path: '/reading/imports/install',
+    getParentRoute: () => ImportsBackRoute,
+  } as any)
 const ReaderReadingStoryUuidRoute = ReaderReadingStoryUuidRouteImport.update({
   id: '/reading/story/$uuid',
   path: '/reading/story/$uuid',
   getParentRoute: () => ReaderRoute,
 } as any)
-const ReadingThemeReadingThemesKeyRoute =
-  ReadingThemeReadingThemesKeyRouteImport.update({
+const ReadingBackReadingThemesKeyRoute =
+  ReadingBackReadingThemesKeyRouteImport.update({
     id: '/reading/themes/$key',
     path: '/reading/themes/$key',
-    getParentRoute: () => ReadingThemeRoute,
-  } as any)
-const ShellReadingImportsInstallRoute =
-  ShellReadingImportsInstallRouteImport.update({
-    id: '/imports_/install',
-    path: '/imports/install',
-    getParentRoute: () => ShellReadingRoute,
+    getParentRoute: () => ReadingBackRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -189,17 +196,17 @@ export interface FileRoutesByFullPath {
   '/review': typeof ShellReviewRouteWithChildren
   '/search': typeof ShellSearchRoute
   '/lesson/$lessonId': typeof LessonSessionLessonLessonIdRoute
+  '/reading/generate': typeof ReadingBackReadingGenerateRoute
+  '/reading/imports': typeof ReadingBackReadingImportsRoute
   '/review/cards': typeof ReviewCardsReviewCardsRoute
   '/review/session': typeof ReviewSessionReviewSessionRoute
-  '/reading/generate': typeof ShellReadingGenerateRoute
-  '/reading/imports': typeof ShellReadingImportsRoute
   '/review/pick': typeof ShellReviewPickRoute
   '/lesson/': typeof ShellLessonIndexRoute
   '/reading/': typeof ShellReadingIndexRoute
   '/review/': typeof ShellReviewIndexRoute
+  '/reading/imports/install': typeof ImportsBackReadingImportsInstallRoute
   '/reading/story/$uuid': typeof ReaderReadingStoryUuidRoute
-  '/reading/themes/$key': typeof ReadingThemeReadingThemesKeyRoute
-  '/reading/imports/install': typeof ShellReadingImportsInstallRoute
+  '/reading/themes/$key': typeof ReadingBackReadingThemesKeyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -210,24 +217,25 @@ export interface FileRoutesByTo {
   '/home': typeof ShellHomeRoute
   '/search': typeof ShellSearchRoute
   '/lesson/$lessonId': typeof LessonSessionLessonLessonIdRoute
+  '/reading/generate': typeof ReadingBackReadingGenerateRoute
+  '/reading/imports': typeof ReadingBackReadingImportsRoute
   '/review/cards': typeof ReviewCardsReviewCardsRoute
   '/review/session': typeof ReviewSessionReviewSessionRoute
-  '/reading/generate': typeof ShellReadingGenerateRoute
-  '/reading/imports': typeof ShellReadingImportsRoute
   '/review/pick': typeof ShellReviewPickRoute
   '/lesson': typeof ShellLessonIndexRoute
   '/reading': typeof ShellReadingIndexRoute
   '/review': typeof ShellReviewIndexRoute
+  '/reading/imports/install': typeof ImportsBackReadingImportsInstallRoute
   '/reading/story/$uuid': typeof ReaderReadingStoryUuidRoute
-  '/reading/themes/$key': typeof ReadingThemeReadingThemesKeyRoute
-  '/reading/imports/install': typeof ShellReadingImportsInstallRoute
+  '/reading/themes/$key': typeof ReadingBackReadingThemesKeyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_importsBack': typeof ImportsBackRouteWithChildren
   '/_lessonSession': typeof LessonSessionRouteWithChildren
   '/_reader': typeof ReaderRouteWithChildren
-  '/_readingTheme': typeof ReadingThemeRouteWithChildren
+  '/_readingBack': typeof ReadingBackRouteWithChildren
   '/_reviewCards': typeof ReviewCardsRouteWithChildren
   '/_reviewSession': typeof ReviewSessionRouteWithChildren
   '/_shell': typeof ShellRouteWithChildren
@@ -241,17 +249,17 @@ export interface FileRoutesById {
   '/_shell/review': typeof ShellReviewRouteWithChildren
   '/_shell/search': typeof ShellSearchRoute
   '/_lessonSession/lesson/$lessonId': typeof LessonSessionLessonLessonIdRoute
+  '/_readingBack/reading/generate': typeof ReadingBackReadingGenerateRoute
+  '/_readingBack/reading/imports': typeof ReadingBackReadingImportsRoute
   '/_reviewCards/review/cards': typeof ReviewCardsReviewCardsRoute
   '/_reviewSession/review/session': typeof ReviewSessionReviewSessionRoute
-  '/_shell/reading/generate': typeof ShellReadingGenerateRoute
-  '/_shell/reading/imports': typeof ShellReadingImportsRoute
   '/_shell/review/pick': typeof ShellReviewPickRoute
   '/_shell/lesson/': typeof ShellLessonIndexRoute
   '/_shell/reading/': typeof ShellReadingIndexRoute
   '/_shell/review/': typeof ShellReviewIndexRoute
+  '/_importsBack/reading/imports/install': typeof ImportsBackReadingImportsInstallRoute
   '/_reader/reading/story/$uuid': typeof ReaderReadingStoryUuidRoute
-  '/_readingTheme/reading/themes/$key': typeof ReadingThemeReadingThemesKeyRoute
-  '/_shell/reading/imports_/install': typeof ShellReadingImportsInstallRoute
+  '/_readingBack/reading/themes/$key': typeof ReadingBackReadingThemesKeyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -267,17 +275,17 @@ export interface FileRouteTypes {
     | '/review'
     | '/search'
     | '/lesson/$lessonId'
-    | '/review/cards'
-    | '/review/session'
     | '/reading/generate'
     | '/reading/imports'
+    | '/review/cards'
+    | '/review/session'
     | '/review/pick'
     | '/lesson/'
     | '/reading/'
     | '/review/'
+    | '/reading/imports/install'
     | '/reading/story/$uuid'
     | '/reading/themes/$key'
-    | '/reading/imports/install'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -288,23 +296,24 @@ export interface FileRouteTypes {
     | '/home'
     | '/search'
     | '/lesson/$lessonId'
-    | '/review/cards'
-    | '/review/session'
     | '/reading/generate'
     | '/reading/imports'
+    | '/review/cards'
+    | '/review/session'
     | '/review/pick'
     | '/lesson'
     | '/reading'
     | '/review'
+    | '/reading/imports/install'
     | '/reading/story/$uuid'
     | '/reading/themes/$key'
-    | '/reading/imports/install'
   id:
     | '__root__'
     | '/'
+    | '/_importsBack'
     | '/_lessonSession'
     | '/_reader'
-    | '/_readingTheme'
+    | '/_readingBack'
     | '/_reviewCards'
     | '/_reviewSession'
     | '/_shell'
@@ -318,24 +327,25 @@ export interface FileRouteTypes {
     | '/_shell/review'
     | '/_shell/search'
     | '/_lessonSession/lesson/$lessonId'
+    | '/_readingBack/reading/generate'
+    | '/_readingBack/reading/imports'
     | '/_reviewCards/review/cards'
     | '/_reviewSession/review/session'
-    | '/_shell/reading/generate'
-    | '/_shell/reading/imports'
     | '/_shell/review/pick'
     | '/_shell/lesson/'
     | '/_shell/reading/'
     | '/_shell/review/'
+    | '/_importsBack/reading/imports/install'
     | '/_reader/reading/story/$uuid'
-    | '/_readingTheme/reading/themes/$key'
-    | '/_shell/reading/imports_/install'
+    | '/_readingBack/reading/themes/$key'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ImportsBackRoute: typeof ImportsBackRouteWithChildren
   LessonSessionRoute: typeof LessonSessionRouteWithChildren
   ReaderRoute: typeof ReaderRouteWithChildren
-  ReadingThemeRoute: typeof ReadingThemeRouteWithChildren
+  ReadingBackRoute: typeof ReadingBackRouteWithChildren
   ReviewCardsRoute: typeof ReviewCardsRouteWithChildren
   ReviewSessionRoute: typeof ReviewSessionRouteWithChildren
   ShellRoute: typeof ShellRouteWithChildren
@@ -353,6 +363,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_importsBack': {
+      id: '/_importsBack'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof ImportsBackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_lessonSession': {
       id: '/_lessonSession'
       path: ''
@@ -367,11 +384,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReaderRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_readingTheme': {
-      id: '/_readingTheme'
+    '/_readingBack': {
+      id: '/_readingBack'
       path: ''
       fullPath: '/'
-      preLoaderRoute: typeof ReadingThemeRouteImport
+      preLoaderRoute: typeof ReadingBackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_reviewCards': {
@@ -465,6 +482,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LessonSessionLessonLessonIdRouteImport
       parentRoute: typeof LessonSessionRoute
     }
+    '/_readingBack/reading/generate': {
+      id: '/_readingBack/reading/generate'
+      path: '/reading/generate'
+      fullPath: '/reading/generate'
+      preLoaderRoute: typeof ReadingBackReadingGenerateRouteImport
+      parentRoute: typeof ReadingBackRoute
+    }
+    '/_readingBack/reading/imports': {
+      id: '/_readingBack/reading/imports'
+      path: '/reading/imports'
+      fullPath: '/reading/imports'
+      preLoaderRoute: typeof ReadingBackReadingImportsRouteImport
+      parentRoute: typeof ReadingBackRoute
+    }
     '/_reviewCards/review/cards': {
       id: '/_reviewCards/review/cards'
       path: '/review/cards'
@@ -493,20 +524,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellReadingIndexRouteImport
       parentRoute: typeof ShellReadingRoute
     }
-    '/_shell/reading/generate': {
-      id: '/_shell/reading/generate'
-      path: '/generate'
-      fullPath: '/reading/generate'
-      preLoaderRoute: typeof ShellReadingGenerateRouteImport
-      parentRoute: typeof ShellReadingRoute
-    }
-    '/_shell/reading/imports': {
-      id: '/_shell/reading/imports'
-      path: '/imports'
-      fullPath: '/reading/imports'
-      preLoaderRoute: typeof ShellReadingImportsRouteImport
-      parentRoute: typeof ShellReadingRoute
-    }
     '/_shell/review/': {
       id: '/_shell/review/'
       path: '/'
@@ -521,6 +538,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellReviewPickRouteImport
       parentRoute: typeof ShellReviewRoute
     }
+    '/_importsBack/reading/imports/install': {
+      id: '/_importsBack/reading/imports/install'
+      path: '/reading/imports/install'
+      fullPath: '/reading/imports/install'
+      preLoaderRoute: typeof ImportsBackReadingImportsInstallRouteImport
+      parentRoute: typeof ImportsBackRoute
+    }
     '/_reader/reading/story/$uuid': {
       id: '/_reader/reading/story/$uuid'
       path: '/reading/story/$uuid'
@@ -528,22 +552,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReaderReadingStoryUuidRouteImport
       parentRoute: typeof ReaderRoute
     }
-    '/_readingTheme/reading/themes/$key': {
-      id: '/_readingTheme/reading/themes/$key'
+    '/_readingBack/reading/themes/$key': {
+      id: '/_readingBack/reading/themes/$key'
       path: '/reading/themes/$key'
       fullPath: '/reading/themes/$key'
-      preLoaderRoute: typeof ReadingThemeReadingThemesKeyRouteImport
-      parentRoute: typeof ReadingThemeRoute
-    }
-    '/_shell/reading/imports_/install': {
-      id: '/_shell/reading/imports_/install'
-      path: '/imports/install'
-      fullPath: '/reading/imports/install'
-      preLoaderRoute: typeof ShellReadingImportsInstallRouteImport
-      parentRoute: typeof ShellReadingRoute
+      preLoaderRoute: typeof ReadingBackReadingThemesKeyRouteImport
+      parentRoute: typeof ReadingBackRoute
     }
   }
 }
+
+interface ImportsBackRouteChildren {
+  ImportsBackReadingImportsInstallRoute: typeof ImportsBackReadingImportsInstallRoute
+}
+
+const ImportsBackRouteChildren: ImportsBackRouteChildren = {
+  ImportsBackReadingImportsInstallRoute: ImportsBackReadingImportsInstallRoute,
+}
+
+const ImportsBackRouteWithChildren = ImportsBackRoute._addFileChildren(
+  ImportsBackRouteChildren,
+)
 
 interface LessonSessionRouteChildren {
   LessonSessionLessonLessonIdRoute: typeof LessonSessionLessonLessonIdRoute
@@ -568,16 +597,20 @@ const ReaderRouteChildren: ReaderRouteChildren = {
 const ReaderRouteWithChildren =
   ReaderRoute._addFileChildren(ReaderRouteChildren)
 
-interface ReadingThemeRouteChildren {
-  ReadingThemeReadingThemesKeyRoute: typeof ReadingThemeReadingThemesKeyRoute
+interface ReadingBackRouteChildren {
+  ReadingBackReadingGenerateRoute: typeof ReadingBackReadingGenerateRoute
+  ReadingBackReadingImportsRoute: typeof ReadingBackReadingImportsRoute
+  ReadingBackReadingThemesKeyRoute: typeof ReadingBackReadingThemesKeyRoute
 }
 
-const ReadingThemeRouteChildren: ReadingThemeRouteChildren = {
-  ReadingThemeReadingThemesKeyRoute: ReadingThemeReadingThemesKeyRoute,
+const ReadingBackRouteChildren: ReadingBackRouteChildren = {
+  ReadingBackReadingGenerateRoute: ReadingBackReadingGenerateRoute,
+  ReadingBackReadingImportsRoute: ReadingBackReadingImportsRoute,
+  ReadingBackReadingThemesKeyRoute: ReadingBackReadingThemesKeyRoute,
 }
 
-const ReadingThemeRouteWithChildren = ReadingThemeRoute._addFileChildren(
-  ReadingThemeRouteChildren,
+const ReadingBackRouteWithChildren = ReadingBackRoute._addFileChildren(
+  ReadingBackRouteChildren,
 )
 
 interface ReviewCardsRouteChildren {
@@ -617,17 +650,11 @@ const ShellLessonRouteWithChildren = ShellLessonRoute._addFileChildren(
 )
 
 interface ShellReadingRouteChildren {
-  ShellReadingGenerateRoute: typeof ShellReadingGenerateRoute
-  ShellReadingImportsRoute: typeof ShellReadingImportsRoute
   ShellReadingIndexRoute: typeof ShellReadingIndexRoute
-  ShellReadingImportsInstallRoute: typeof ShellReadingImportsInstallRoute
 }
 
 const ShellReadingRouteChildren: ShellReadingRouteChildren = {
-  ShellReadingGenerateRoute: ShellReadingGenerateRoute,
-  ShellReadingImportsRoute: ShellReadingImportsRoute,
   ShellReadingIndexRoute: ShellReadingIndexRoute,
-  ShellReadingImportsInstallRoute: ShellReadingImportsInstallRoute,
 }
 
 const ShellReadingRouteWithChildren = ShellReadingRoute._addFileChildren(
@@ -670,9 +697,10 @@ const ShellRouteWithChildren = ShellRoute._addFileChildren(ShellRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ImportsBackRoute: ImportsBackRouteWithChildren,
   LessonSessionRoute: LessonSessionRouteWithChildren,
   ReaderRoute: ReaderRouteWithChildren,
-  ReadingThemeRoute: ReadingThemeRouteWithChildren,
+  ReadingBackRoute: ReadingBackRouteWithChildren,
   ReviewCardsRoute: ReviewCardsRouteWithChildren,
   ReviewSessionRoute: ReviewSessionRouteWithChildren,
   ShellRoute: ShellRouteWithChildren,

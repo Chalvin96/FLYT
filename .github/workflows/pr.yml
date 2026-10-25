@@ -3,79 +3,68 @@ name: PR
 on:
   pull_request:
 
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   ci:
     uses: ./.github/workflows/_ci.yml
 
   e2e:
-    name: Flyt E2E
+    name: E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v7
+      - name: Return the workspace to the runner user
+        if: runner.environment == 'self-hosted'
+        run: docker run --rm --volume "$GITHUB_WORKSPACE:/workspace" alpine:3 chown -R 0:0 /workspace
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Playwright Chromium
-        working-directory: frontend
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Run Flyt E2E foundation
-        run: ./scripts/run_e2e.sh
-
-  extension-e2e:
-    name: Extension E2E
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
         with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          standalone: false
 
       # The extension resolves @flyt/ui and @flyt/lexicon from the workspace,
       # so this needs the whole install, not just extension/.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Use the Playwright image matching the installed version
+        run: echo "FLYT_PLAYWRIGHT_IMAGE=mcr.microsoft.com/playwright:v$(node -p "require('./frontend/node_modules/@playwright/test/package.json').version")-noble" >> "$GITHUB_ENV"
 
-      - name: Install Playwright Chromium
-        working-directory: extension
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Remove E2E stacks left by an interrupted run
+        run: ./scripts/sweep_e2e_stacks.sh
+
+      - name: Drop registry logins left by an interrupted run
+        run: docker logout ghcr.io
+
+      - name: Run Flyt E2E
+        run: ./scripts/run_e2e.sh
 
       - name: Run extension E2E
+        if: success() || failure()
         run: ./scripts/run_extension_e2e.sh
 
-      - name: Upload Playwright report
+      - name: Upload Playwright reports
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: extension-e2e-report
+          name: e2e-reports
           path: |
+            frontend/playwright-report
+            frontend/test-results
             extension/playwright-report
             extension/test-results
           retention-days: 7
+
+      - name: Remove E2E stacks
+        if: always()
+        run: ./scripts/sweep_e2e_stacks.sh

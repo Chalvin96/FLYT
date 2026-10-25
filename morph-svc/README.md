@@ -40,10 +40,23 @@ fail-open fallback after direct and spaCy-lemma resolution; it does not cache th
 service response. Failed requests return no fallback candidates; normal dictionary
 lookup remains available without this service.
 
-The service caches successful analyses by exact case-sensitive input and does
-not cache failures. It admits four subprocess analyses; excess requests receive 503. Keep the backend timeout below the subprocess deadline so a slow tagger
-does not hold up annotation. For each annotation job, backend fan-out and
-distinct unresolved words are bounded; see the tagger client for current limits.
+Successful analyses are cached (1024, exact case). Concurrent misses for the same
+word share one analysis; failures are not cached.
+
+| Variable | Default | Meaning |
+| --- | ---: | --- |
+| `MORPH_MAX_CONCURRENT_ANALYSES` | `8` | Uncached analyses at once |
+| `MORPH_SLOT_WAIT_SECONDS` | `1.0` | Wait for a slot, then 503 `busy` |
+| `MORPH_ANALYSIS_DEADLINE_SECONDS` | `3.0` | Analysis budget, then 504 `analysis timeout` |
+
+Keep the backend's `TAGGER_SVC_TIMEOUT_SECONDS` (5.0) above slot wait plus
+deadline plus 0.5 s cleanup.
+
+`/health` returns 503 until a startup analysis of `møter` succeeds (dictionary
+preload takes about 4 s); broken resources exit non-zero.
+
+Known limit: a frozen (alive but stuck) forkserver blocks analyses; restart the
+service.
 
 The upstream tagger and its resources come from the `textlab/obt:1.0` base
 image, maintained by UiO Text Laboratory. Flyt's MIT license covers this HTTP

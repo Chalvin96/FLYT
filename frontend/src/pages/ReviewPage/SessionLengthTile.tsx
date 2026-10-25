@@ -1,7 +1,5 @@
+import { ChoiceTile, Heading, Text } from '@flyt/ui';
 import type { ReactNode } from 'react';
-
-import { appCardClassName } from '@/components/common/AppCard/AppCard';
-import { cn } from '@/lib/utils';
 
 export function SessionLengthTile({
   title,
@@ -9,6 +7,7 @@ export function SessionLengthTile({
   durationLabel,
   isDisabled,
   isSelected,
+  tabStop,
   icon,
   onClick,
   hint,
@@ -18,31 +17,41 @@ export function SessionLengthTile({
   durationLabel: string;
   isDisabled: boolean;
   isSelected: boolean;
+  tabStop: boolean;
   icon: ReactNode;
   onClick: () => void;
   hint?: string;
 }) {
   return (
-    <button
-      type="button"
+    <ChoiceTile
       disabled={isDisabled}
-      aria-pressed={isSelected}
       onClick={onClick}
-      className={cn(
-        appCardClassName,
-        'flex min-h-44 cursor-pointer flex-col items-center gap-2 p-6 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-        isSelected && 'border-primary-60 bg-primary-10',
-        !isSelected && !isDisabled && 'hover:bg-muted/40',
-        isDisabled && 'cursor-not-allowed opacity-50',
-      )}
+      selected={isSelected}
+      tabIndex={tabStop ? 0 : -1}
     >
       {icon}
-      <p className="font-display type-section text-foreground">{title}</p>
-      <p className="type-caption text-muted-foreground">{cardsLabel}</p>
-      <p className="type-caption text-muted-foreground">{durationLabel}</p>
+      <Heading as="div" size="medium" tone="default">
+        {title}
+      </Heading>
+      <Text
+        size="medium"
+        tone={isSelected && !isDisabled ? 'default' : 'subtle'}
+      >
+        {cardsLabel}
+      </Text>
+      <Text
+        size="medium"
+        tone={isSelected && !isDisabled ? 'default' : 'subtle'}
+      >
+        {durationLabel}
+      </Text>
       {hint ? (
-        <p className="type-caption font-medium text-warning-70">{hint}</p>
+        <div className="text-warning">
+          <Text as="p" size="medium" weight="semibold">
+            {hint}
+          </Text>
+        </div>
       ) : null}
-    </button>
+    </ChoiceTile>
   );
 }

@@ -1,7 +1,8 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import * as exerciseAttempt from '@/hooks/flashcard/useExerciseAttempt/useExerciseAttempt';
 import type { Exercise } from '@/types/lesson-contracts';
 
 import { FlashCardCategorize } from './FlashCardCategorize';
@@ -67,8 +68,10 @@ function chipsInZone(zoneId: string) {
 }
 
 describe('FlashCardCategorize', () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it('renders all items in the tray and all buckets initially', () => {
-    render(<FlashCardCategorize exercise={makeExercise()} />);
+    render(<FlashCardCategorize allowRetry exercise={makeExercise()} />);
 
     // All items present and interactive (buttons, not spans) in the tray.
     expect(chipsInZone(TRAY_ID)).toHaveLength(2);
@@ -85,18 +88,18 @@ describe('FlashCardCategorize', () => {
   });
 
   it('renders no <select> elements (old interaction is gone)', () => {
-    render(<FlashCardCategorize exercise={makeExercise()} />);
+    render(<FlashCardCategorize allowRetry exercise={makeExercise()} />);
     expect(screen.queryByRole('combobox')).toBeNull();
   });
 
   it('disables Check until every item is assigned', () => {
-    render(<FlashCardCategorize exercise={makeExercise()} />);
+    render(<FlashCardCategorize allowRetry exercise={makeExercise()} />);
     expect(screen.getByRole('button', { name: /check/i })).toBeDisabled();
   });
 
   it('shows the mobile hint copy for idle and armed tap-to-place states', async () => {
     const user = userEvent.setup();
-    render(<FlashCardCategorize exercise={makeExercise()} />);
+    render(<FlashCardCategorize allowRetry exercise={makeExercise()} />);
 
     expect(
       screen.getByText('Tap a word, then tap its group — or drag it.'),
@@ -113,11 +116,15 @@ describe('FlashCardCategorize', () => {
 
   // --- Retry flow tests ---
 
-  it('first-try solve → Easy (4)', async () => {
+  it('test_categorize_given_first_try_solve_expect_correct_outcome', async () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
     render(
-      <FlashCardCategorize exercise={makeExercise()} onFinished={onFinished} />,
+      <FlashCardCategorize
+        allowRetry
+        exercise={makeExercise()}
+        onFinished={onFinished}
+      />,
     );
 
     // Place both items correctly.
@@ -127,19 +134,19 @@ describe('FlashCardCategorize', () => {
     await user.click(getDropZone('neuter'));
 
     await user.click(screen.getByRole('button', { name: /check/i }));
-    expect(screen.getByText(/^correct$/i)).toBeInTheDocument();
+    expect(screen.getByTestId('operation-banner')).toHaveTextContent(
+      /^correct$/i,
+    );
 
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: true,
-      rating: 4,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
   });
 
   it('wrong check → alert present, no per-item colors, board stays editable', async () => {
     const user = userEvent.setup();
-    render(<FlashCardCategorize exercise={makeExercise()} />);
+    render(<FlashCardCategorize allowRetry exercise={makeExercise()} />);
 
     // Swap: put "en bok" in Neuter and "et hus" in Common gender.
     await user.click(screen.getByText('en bok'));
@@ -178,7 +185,7 @@ describe('FlashCardCategorize', () => {
 
   it('dirty gate: Check disabled after wrong check, re-enabled after board change', async () => {
     const user = userEvent.setup();
-    render(<FlashCardCategorize exercise={makeExercise()} />);
+    render(<FlashCardCategorize allowRetry exercise={makeExercise()} />);
 
     // Put both items wrong.
     await user.click(screen.getByText('en bok'));
@@ -201,11 +208,15 @@ describe('FlashCardCategorize', () => {
     expect(screen.getByRole('button', { name: /^check/i })).not.toBeDisabled();
   });
 
-  it('solve after a wrong → Hard (2)', async () => {
+  it('test_categorize_given_retry_after_wrong_check_expect_correct_outcome', async () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
     render(
-      <FlashCardCategorize exercise={makeExercise()} onFinished={onFinished} />,
+      <FlashCardCategorize
+        allowRetry
+        exercise={makeExercise()}
+        onFinished={onFinished}
+      />,
     );
 
     // Wrong first.
@@ -227,19 +238,19 @@ describe('FlashCardCategorize', () => {
     await user.click(getDropZone('neuter'));
 
     await user.click(screen.getByRole('button', { name: /check/i }));
-    expect(screen.getByText(/^correct$/i)).toBeInTheDocument();
+    expect(screen.getByTestId('operation-banner')).toHaveTextContent(
+      /^correct$/i,
+    );
 
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: true,
-      rating: 2,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
   });
 
   it('reveal shows the correct grouping and chip colors', async () => {
     const user = userEvent.setup();
-    render(<FlashCardCategorize exercise={makeExercise()} />);
+    render(<FlashCardCategorize allowRetry exercise={makeExercise()} />);
 
     // en bok correct (common); et hus wrong (common too).
     await user.click(screen.getByText('en bok'));
@@ -265,14 +276,79 @@ describe('FlashCardCategorize', () => {
     const enBok = within(getDropZone('common')).getByTestId('token-chip');
     const etHus = within(getDropZone('neuter')).getByTestId('token-chip');
     expect(enBok).toHaveAttribute('data-state', 'correct');
-    expect(etHus).toHaveAttribute('data-state', 'wrong');
+    expect(etHus).toHaveAttribute('data-state', 'incorrect');
   });
 
-  it('reveal >= 0.5 → Hard (2)', async () => {
+  it('test_categorize_given_lesson_reveal_before_placement_expect_all_chips_incorrect', async () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
     render(
-      <FlashCardCategorize exercise={makeExercise()} onFinished={onFinished} />,
+      <FlashCardCategorize
+        allowRetry
+        exercise={makeExercise()}
+        onFinished={onFinished}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /reveal answer/i }));
+
+    for (const chip of itemChips()) {
+      expect(chip).toHaveAttribute('data-state', 'incorrect');
+    }
+
+    await user.click(screen.getByRole('button', { name: /continue/i }));
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: false }),
+    );
+  });
+
+  it('test_categorize_given_lesson_reveal_with_one_placed_expect_only_placed_chip_correct', async () => {
+    const onFinished = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <FlashCardCategorize
+        allowRetry
+        exercise={makeExercise()}
+        onFinished={onFinished}
+      />,
+    );
+
+    await user.click(screen.getByText('en bok'));
+    await user.click(getDropZone('common'));
+    await user.click(screen.getByRole('button', { name: /reveal answer/i }));
+
+    expect(chipsInZone('common')[0]).toHaveAttribute('data-state', 'correct');
+    expect(chipsInZone('neuter')[0]).toHaveAttribute('data-state', 'incorrect');
+
+    await user.click(screen.getByRole('button', { name: /continue/i }));
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: false }),
+    );
+  });
+
+  it('test_categorize_given_reveal_of_partly_correct_board_expect_incorrect_outcome', async () => {
+    const onFinished = vi.fn();
+    const user = userEvent.setup();
+    const useAttempt = exerciseAttempt.useExerciseAttempt;
+    const reportReveal = vi.fn();
+    vi.spyOn(exerciseAttempt, 'useExerciseAttempt').mockImplementation(
+      (config) => {
+        const attempt = useAttempt(config);
+        return {
+          ...attempt,
+          reveal: (fraction: number) => {
+            reportReveal(fraction);
+            attempt.reveal(fraction);
+          },
+        };
+      },
+    );
+    render(
+      <FlashCardCategorize
+        allowRetry
+        exercise={makeExercise()}
+        onFinished={onFinished}
+      />,
     );
 
     // 1 of 2 correct (en bok in common) → fraction = 0.5.
@@ -285,18 +361,21 @@ describe('FlashCardCategorize', () => {
     await user.click(screen.getByRole('button', { name: /reveal answer/i }));
     await user.click(screen.getByRole('button', { name: /continue/i }));
 
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: false,
-      rating: 2,
-    });
+    expect(reportReveal).toHaveBeenCalledWith(0.5);
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: false }),
+    );
   });
 
-  it('reveal < 0.5 → Again (1)', async () => {
+  it('test_categorize_given_reveal_of_wrong_board_expect_incorrect_outcome', async () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
     render(
-      <FlashCardCategorize exercise={makeExercise()} onFinished={onFinished} />,
+      <FlashCardCategorize
+        allowRetry
+        exercise={makeExercise()}
+        onFinished={onFinished}
+      />,
     );
 
     // 0 of 2 correct → fraction = 0.
@@ -309,16 +388,14 @@ describe('FlashCardCategorize', () => {
     await user.click(screen.getByRole('button', { name: /reveal answer/i }));
     await user.click(screen.getByRole('button', { name: /continue/i }));
 
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: false,
-      rating: 1,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: false }),
+    );
   });
 
   it('disables chips after terminal phase (solved)', async () => {
     const user = userEvent.setup();
-    render(<FlashCardCategorize exercise={makeExercise()} />);
+    render(<FlashCardCategorize allowRetry exercise={makeExercise()} />);
 
     // Place both items correctly.
     await user.click(screen.getByText('en bok'));
@@ -335,7 +412,7 @@ describe('FlashCardCategorize', () => {
 
   it('can return a chip to the tray by activating an armed placed chip again', async () => {
     const user = userEvent.setup();
-    render(<FlashCardCategorize exercise={makeExercise()} />);
+    render(<FlashCardCategorize allowRetry exercise={makeExercise()} />);
 
     // Place both items.
     await user.click(screen.getByText('en bok'));
@@ -355,7 +432,7 @@ describe('FlashCardCategorize', () => {
 
   it('supports keyboard-only arm and place flow', async () => {
     const user = userEvent.setup();
-    render(<FlashCardCategorize exercise={makeExercise()} />);
+    render(<FlashCardCategorize allowRetry exercise={makeExercise()} />);
 
     await user.tab();
     expect(screen.getByRole('button', { name: 'en bok' })).toHaveFocus();

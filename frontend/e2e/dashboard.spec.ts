@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test';
-
+import { expect, test } from './fixtures';
 import { loginAs } from './helpers/auth';
 
 test('unauthenticated home redirects to login', async ({ page }) => {
@@ -15,7 +14,13 @@ test('learner dashboard shows lesson and review next steps', async ({
   page,
 }) => {
   await loginAs(page, 'learner@example.com');
+  const dashboardResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/me/dashboard/stats' &&
+      response.request().method() === 'GET',
+  );
   await page.goto('/home');
+  expect((await dashboardResponse).ok()).toBe(true);
 
   await expect(
     page.getByRole('heading', { name: 'Choose your next step' }),

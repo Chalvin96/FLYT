@@ -10,6 +10,7 @@ import {
   searchSuggestions,
   translateSelection,
 } from "./api";
+import { classify } from "./classify";
 
 const { openLogin, readSessionToken } = vi.hoisted(() => ({
   openLogin: vi.fn(),
@@ -44,6 +45,23 @@ afterEach(() => {
 });
 
 describe("resolveWord", () => {
+  it("test_resolve_word_given_backend_error_message_expect_classified_user_copy", async () => {
+    fetchMock().mockResolvedValue(
+      jsonResponse(
+        {
+          detail: { message: "Dictionary service is temporarily unavailable." },
+        },
+        503,
+      ),
+    );
+    const failure = await resolveWord("hund").catch(classify);
+    expect(failure).toEqual({
+      ok: false,
+      error: "unknown",
+      message: "Dictionary service is temporarily unavailable.",
+    });
+  });
+
   it("test_resolve_word_given_query_expect_anonymous_get_with_encoded_word", async () => {
     const fetch = fetchMock();
     fetch.mockResolvedValue(jsonResponse({ query: "sjø", candidates: [] }));
@@ -271,6 +289,27 @@ describe("addToDeck", () => {
 });
 
 describe("translateSelection", () => {
+  it("test_translate_selection_given_backend_quota_message_expect_message_reaches_popup", async () => {
+    readSessionToken.mockResolvedValue("jwt-123");
+    fetchMock().mockResolvedValue(
+      jsonResponse(
+        {
+          detail: {
+            code: "EXTENSION_TRANSLATION_QUOTA_EXCEEDED",
+            message: "Your translation allowance is used for today.",
+          },
+        },
+        429,
+      ),
+    );
+    const result = await translateSelection("Jeg lærer norsk.").catch(classify);
+    expect(result).toEqual({
+      ok: false,
+      error: "quota-reached",
+      message: "Your translation allowance is used for today.",
+    });
+  });
+
   const translation = {
     source_text: "Jeg lærer norsk.",
     translated_text: "I am learning Norwegian.",
@@ -328,6 +367,36 @@ describe("translateSelection", () => {
 });
 
 describe("importPage", () => {
+  it.each([
+    { status: 413, code: "IMPORT_TOO_LARGE", error: "too-large" },
+    { status: 422, code: "IMPORT_EMPTY", error: "invalid-page" },
+  ])(
+    "test_import_page_given_backend_input_failure_expect_classified_user_message",
+    async ({ status, code, error }) => {
+      readSessionToken.mockResolvedValue("test-session");
+      fetchMock().mockResolvedValue(
+        jsonResponse(
+          {
+            detail: { code, message: "This page cannot be imported." },
+          },
+          status,
+        ),
+      );
+
+      expect(
+        await importPage({
+          title: "Article",
+          source_url: "https://example.com/article",
+          text: "Article text.",
+        }).catch(classify),
+      ).toEqual({
+        ok: false,
+        error,
+        message: "This page cannot be imported.",
+      });
+    },
+  );
+
   const payload = {
     title: "Artikkel",
     source_url: "https://nrk.no/a",

@@ -45,13 +45,13 @@ function RouterDecorator({ children }: { children: React.ReactNode }) {
 }
 
 const meta = {
-  title: 'Lesson/LessonListItem',
+  title: 'Features/Lesson/LessonListItem',
   component: LessonListItem,
   tags: ['autodocs'],
   decorators: [
     (Story) => (
       <RouterDecorator>
-        <div className="mx-auto max-w-3xl overflow-hidden rounded-xl border border-border bg-card">
+        <div className="mx-auto max-w-3xl overflow-hidden radius-section border border-default bg-raised">
           <Story />
         </div>
       </RouterDecorator>

@@ -1,8 +1,6 @@
+import { Card, CardHeader, CardTitle, Skeleton, Text } from '@flyt/ui';
 import { m } from 'motion/react';
 
-import { AppCard } from '@/components/common/AppCard/AppCard';
-import { CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import type { DashboardStatsRead } from '@/types/api';
 
 import {
@@ -26,19 +24,20 @@ export interface DashboardPageProps {
 }
 
 function buildDashboardModel(stats: DashboardStatsRead | null) {
+  const currentTime = new Date();
   const dueCount = stats?.dueCount ?? 0;
   const lessonCount = stats?.lessonCount ?? 0;
   const snapshot = stats?.snapshot ?? emptySnapshot;
   const streak = stats?.streak ?? 0;
   const reviewedToday =
-    (snapshot.this_week[(new Date().getUTCDay() + 6) % 7] ?? 0) > 0;
+    (snapshot.this_week[(currentTime.getUTCDay() + 6) % 7] ?? 0) > 0;
   const isNewUser =
     (stats?.wordsPracticed ?? 0) === 0 && dueCount === 0 && lessonCount === 0;
   const streakAtRisk =
     streak > 0 &&
     !reviewedToday &&
     dueCount > 0 &&
-    new Date().getUTCHours() >= 18;
+    currentTime.getUTCHours() >= 18;
   let state:
     | typeof K_HERO_STATE_DONE
     | typeof K_HERO_STATE_EMPTY
@@ -64,11 +63,13 @@ function buildDashboardModel(stats: DashboardStatsRead | null) {
 function DashboardLoading() {
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-4">
-      <Skeleton className="radius-field h-16" />
-      <Skeleton className="radius-section h-40" />
+      <Skeleton shape="field" variant="block" size="sm" />
+      <Skeleton shape="section" variant="block" size="lg" />
       <div className="grid grid-cols-2 gap-3">
         {[1, 2, 3, 4].map((slot) => (
-          <Skeleton key={slot} className="radius-field h-40" />
+          <div className="h-40" key={slot}>
+            <Skeleton shape="field" variant="block" />
+          </div>
         ))}
       </div>
     </div>
@@ -77,14 +78,16 @@ function DashboardLoading() {
 
 function DashboardError() {
   return (
-    <AppCard className="mx-auto w-full max-w-md">
-      <CardHeader>
-        <CardTitle>Could not load dashboard</CardTitle>
-        <p className="type-body text-muted-foreground">
-          Try refreshing the page.
-        </p>
-      </CardHeader>
-    </AppCard>
+    <div className="mx-auto w-full max-w-md">
+      <Card>
+        <CardHeader>
+          <CardTitle>Could not load dashboard</CardTitle>
+          <Text size="large" tone="subtle">
+            Try refreshing the page.
+          </Text>
+        </CardHeader>
+      </Card>
+    </div>
   );
 }
 

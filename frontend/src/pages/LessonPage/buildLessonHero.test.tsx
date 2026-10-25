@@ -12,7 +12,7 @@ const target = {
 };
 
 describe('buildLessonHero', () => {
-  it('builds next-not-started mode with progress metadata and no chip', () => {
+  it('test_lesson_hero_given_next_lesson_expect_sentence_case_family_and_progress', () => {
     const hero = buildLessonHero({
       mode: 'next',
       target: { ...target, inProgress: false },
@@ -21,6 +21,7 @@ describe('buildLessonHero', () => {
     });
 
     expect(hero.badge).toBe('Up next');
+    expect(hero.label).toBe('Personal pronouns · A1');
     expect(hero.title).toBe('Personal Pronouns');
     expect(hero.chip).toBeUndefined();
     expect(hero.progress).toMatchObject({

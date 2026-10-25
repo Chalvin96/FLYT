@@ -1,8 +1,11 @@
+import { Text } from '@flyt/ui';
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
 
-export const exerciseSheetFooterClassName = 'border-t border-border pt-5';
+import { ExercisePrompt } from './ExercisePrompt';
+
+export const exerciseSheetFooterClassName = 'border-t border-default pt-5';
 
 interface ExerciseSheetProps {
   title?: string;
@@ -32,24 +35,22 @@ export function ExerciseSheet({
   return (
     <section
       className={cn(
-        'shadow-raised radius-section mx-auto flex h-full min-h-0 w-full flex-col overflow-hidden border border-border bg-card px-4 sm:px-5',
+        'shadow-raised radius-section mx-auto flex h-full min-h-0 w-full flex-col overflow-hidden border border-default bg-raised px-4 sm:px-5',
         maxWidthClassName ?? (desktopExpanded ? 'max-w-4xl' : 'max-w-panel'),
         className,
       )}
     >
       {hasHeader ? (
-        <div className="border-b border-border pb-5 pt-4 sm:pt-5">
+        <div className="border-b border-default pb-5 pt-4 sm:pt-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="max-w-text">
-              {title ? (
-                <h2 className="text-prompt font-medium leading-prompt text-foreground">
-                  {title}
-                </h2>
-              ) : null}
+              {title ? <ExercisePrompt>{title}</ExercisePrompt> : null}
               {description ? (
-                <p className="type-caption mt-2.5 text-muted-foreground">
-                  {description}
-                </p>
+                <div className="mt-2.5">
+                  <Text as="p" size="medium" tone="subtle">
+                    {description}
+                  </Text>
+                </div>
               ) : null}
             </div>
             {headerAccessory ? (

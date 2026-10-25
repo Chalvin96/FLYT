@@ -15,10 +15,7 @@ import {
 import type { MsgResult } from '../lib/messages';
 import { type PopupHandle, mountPopup } from '../popup/mountShadow';
 import { type ToastHandle, mountImportToast } from '../popup/mountToast';
-import {
-  containingSentence,
-  selectionTextOffset,
-} from './containingSentence';
+import { containingSentence, selectionTextOffset } from './containingSentence';
 import { mountSelectionIcon } from './selectionIcon';
 import { watchSelection } from './selectionListener';
 
@@ -95,13 +92,24 @@ async function trigger(word: string, rect: DOMRect): Promise<void> {
   host ??= mountPopup(importCurrentPage);
   const context = contextForSelection(word);
   host.showLoading(word, rect, context);
-  const res = await sendMessage({ kind: MSG_KIND.RESOLVE, word });
-  if (res.ok && res.kind === MSG_RESULT_KIND.RESOLVE) {
-    if (res.data.candidates.length > 0) host.showResult(res.data, rect, context);
-    else host.showSelection(context, rect, word);
+  let res: MsgResult;
+  try {
+    res = await sendMessage({ kind: MSG_KIND.RESOLVE, word });
+  } catch {
+    res = { ok: false, error: 'network' };
   }
-  else if (!res.ok && res.error === 'unauthorized') host.showSignIn(rect);
-  else host.showError(rect);
+  if (res.ok && res.kind === MSG_RESULT_KIND.RESOLVE) {
+    if (res.data.candidates.length > 0)
+      host.showResult(res.data, rect, context);
+    else host.showSelection(context, rect, word);
+  } else if (!res.ok && res.error === 'unauthorized') host.showSignIn(rect);
+  else
+    host.showError(
+      rect,
+      res.ok ? { ok: false, error: 'unknown' } : res,
+      word,
+      context,
+    );
 }
 
 function triggerSentence(text: string, rect: DOMRect): void {
@@ -112,6 +120,7 @@ function triggerSentence(text: string, rect: DOMRect): void {
       source_title: document.title,
     }),
     rect,
+    text,
   );
 }
 

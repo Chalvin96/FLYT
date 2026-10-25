@@ -1,3 +1,4 @@
+import { Text } from '@flyt/ui';
 import type { Meta, StoryObj } from '@storybook/react';
 import { fn } from 'storybook/test';
 import type { ReactNode } from 'react';
@@ -143,7 +144,7 @@ function RouterDecorator({ children }: { children: ReactNode }) {
   const router = useMemo(() => {
     const rootRoute = createRootRoute({
       component: () => (
-        <div className="min-h-dvh bg-background px-4 py-6 sm:px-6">
+        <div className="min-h-dvh bg-neutral px-4 py-6 sm:px-6">
           <Outlet />
         </div>
       ),
@@ -157,13 +158,15 @@ function RouterDecorator({ children }: { children: ReactNode }) {
       getParentRoute: () => rootRoute,
       path: 'lesson/$lessonId',
       component: () => (
-        <div className="mx-auto max-w-md rounded-xl border border-border bg-card p-6">
-          <p className="type-body font-semibold text-foreground">
+        <div className="mx-auto max-w-md radius-section border border-default bg-raised p-6">
+          <Text as="p" size="large" weight="semibold" tone="default">
             Lesson detail preview
-          </p>
-          <p className="mt-2 type-caption text-muted-foreground">
-            The lesson index link is wired to the detail route.
-          </p>
+          </Text>
+          <div className="mt-2">
+            <Text as="p" size="medium" tone="subtle">
+              The lesson index link is wired to the detail route.
+            </Text>
+          </div>
         </div>
       ),
     });
@@ -178,7 +181,7 @@ function RouterDecorator({ children }: { children: ReactNode }) {
 }
 
 const meta = {
-  title: 'Lesson/LessonPage',
+  title: 'Pages/Lesson',
   component: LessonPage,
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
@@ -218,10 +221,6 @@ export const ActiveCourse: Story = {
 export const ResumePriority: Story = {
   args: { lessons: resumePriorityLessons },
   beforeEach: setSavedLevelForStory(null),
-};
-
-export const RememberedCourse: Story = {
-  beforeEach: setSavedLevelForStory('B1'),
 };
 
 export const AllLessonsCompleted: Story = {

@@ -1,7 +1,14 @@
-import { AppCard } from '@/components/common/AppCard/AppCard';
-import { Button } from '@/components/common/Button/Button';
-import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
+import {
+  Badge,
+  Button,
+  Card,
+  DialogDescription,
+  DialogTitle,
+  Heading,
+  Text,
+} from '@flyt/ui';
+
+import { formatReadingNumber } from './readingDisplay';
 
 export interface ReadingLevelFilterOption {
   count: number;
@@ -25,68 +32,59 @@ function FilterSections({
   hideReadStories,
   onToggleLevel,
   onHideReadStoriesChange,
-  mode,
 }: FilterPanelProps) {
-  const isSheet = mode === 'sheet';
-  const checkboxClassName = isSheet ? 'h-5 w-5' : 'h-[18px] w-[18px]';
-  const optionClassName = isSheet
-    ? 'radius-field px-2 py-2 type-body'
-    : 'type-body';
   const selectedLevelSet = new Set(selectedLevels);
 
   return (
-    <div className="space-y-6">
-      <section>
-        <h2 className="type-label font-semibold text-foreground">Level</h2>
-        <div className="mt-4 space-y-2.5">
+    <div className="space-y-5">
+      <fieldset>
+        <legend>
+          <Heading as="span" size="xxsmall">
+            Level
+          </Heading>
+        </legend>
+        <div className="mt-3 space-y-1">
           {levelOptions.map((level) => (
             <label
               key={level.value}
-              className={cn(
-                'flex items-center justify-between gap-3 text-foreground',
-                optionClassName,
-              )}
+              className="flex min-h-11 cursor-pointer items-center gap-3"
             >
-              <span className="flex items-center gap-3">
-                <input
-                  checked={selectedLevelSet.has(level.value)}
-                  type="checkbox"
-                  className={cn(
-                    'rounded border-border text-primary-70 focus:ring-primary-60',
-                    checkboxClassName,
-                  )}
-                  onChange={() => onToggleLevel(level.value)}
-                />
-                <span>{level.label}</span>
-              </span>
-              <span className="rounded-full bg-secondary-10 px-2.5 py-1 type-caption font-semibold text-secondary-90">
-                {level.count}
-              </span>
+              <input
+                checked={selectedLevelSet.has(level.value)}
+                type="checkbox"
+                className="size-4 shrink-0 accent-[var(--background-brand-bold)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--border-focused)]"
+                onChange={() => onToggleLevel(level.value)}
+              />
+              <span className="min-w-0 flex-1">
+                <Text as="span" size="medium">
+                  {level.label}
+                </Text>
+              </span>{' '}
+              <Badge tone="neutral" shape="pill">
+                {formatReadingNumber(level.count)}
+              </Badge>
             </label>
           ))}
         </div>
-      </section>
-
-      <section>
-        <h2 className="type-label font-semibold text-foreground">Status</h2>
-        <label
-          className={cn(
-            'mt-4 flex items-center gap-3 text-foreground',
-            optionClassName,
-          )}
-        >
+      </fieldset>
+      <fieldset className="border-t border-default pt-4">
+        <legend>
+          <Heading as="span" size="xxsmall">
+            Status
+          </Heading>
+        </legend>
+        <label className="flex min-h-11 cursor-pointer items-center gap-3">
           <input
             checked={hideReadStories}
             type="checkbox"
-            className={cn(
-              'rounded border-border text-primary-70 focus:ring-primary-60',
-              checkboxClassName,
-            )}
+            className="size-4 shrink-0 accent-[var(--background-brand-bold)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--border-focused)]"
             onChange={(event) => onHideReadStoriesChange(event.target.checked)}
           />
-          Hide read stories
+          <Text as="span" size="medium">
+            Hide read stories
+          </Text>
         </label>
-      </section>
+      </fieldset>
     </div>
   );
 }
@@ -98,36 +96,29 @@ export function FilterPanel({
 }: FilterPanelProps) {
   if (mode === 'sheet') {
     return (
-      <div className="flex max-h-[var(--sheet-max-height-tall)] flex-col overflow-hidden">
-        <div className="flex justify-center px-5 pt-3">
-          <span className="h-1 w-10 rounded-full bg-secondary-30" />
-        </div>
-
-        <div className="border-b border-border px-5 pb-4 pt-4">
-          <DialogTitle className="text-left type-section font-semibold text-foreground">
-            Filters
-          </DialogTitle>
-          <DialogDescription className="sr-only">
+      <div className="flex max-h-[var(--sheet-max-height-tall)] flex-col overflow-hidden bg-overlay">
+        <div className="border-b border-default px-5 py-4">
+          <DialogTitle size="section">Filters</DialogTitle>
+          <DialogDescription visuallyHidden>
             Filter stories by level and read status.
           </DialogDescription>
         </div>
-
         <div className="overflow-y-auto px-5 py-5">
-          <FilterSections {...props} mode={mode} />
+          <FilterSections {...props} />
         </div>
-
-        <div className="border-t border-border px-5 py-4">
-          <Button type="button" className="w-full" onClick={onApply}>
+        <div className="border-t border-default px-5 py-4">
+          <Button type="button" width="full" onClick={onApply}>
             Apply
           </Button>
         </div>
       </div>
     );
   }
-
   return (
-    <AppCard className="h-fit w-[260px] shrink-0 border-border bg-white-100 p-5 lg:sticky lg:top-4">
-      <FilterSections {...props} mode={mode} />
-    </AppCard>
+    <div className="h-fit w-70 shrink-0">
+      <Card padding="compact" surface="solid" elevation="flat">
+        <FilterSections {...props} />
+      </Card>
+    </div>
   );
 }

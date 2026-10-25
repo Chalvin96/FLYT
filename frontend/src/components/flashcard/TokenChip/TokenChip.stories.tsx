@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { TokenChip, type TokenChipState } from './TokenChip';
 
 const meta = {
-  title: 'Flashcard/TokenChip',
+  title: 'Features/Flashcard/TokenChip',
   component: TokenChip,
   tags: ['autodocs'],
   argTypes: {
@@ -15,7 +15,7 @@ const meta = {
         'selected',
         'dragging',
         'correct',
-        'wrong',
+        'incorrect',
         'fixed',
       ] satisfies TokenChipState[],
       description: 'Visual + interactive state',
@@ -56,7 +56,7 @@ export const Correct: Story = {
 };
 
 export const Wrong: Story = {
-  args: { state: 'wrong' },
+  args: { state: 'incorrect' },
 };
 
 export const Fixed: Story = {
@@ -74,7 +74,7 @@ export const AllStates: Story = {
       <TokenChip text="snakker" state="selected" />
       <TokenChip text="norsk" state="dragging" />
       <TokenChip text="hver" state="correct" />
-      <TokenChip text="dag" state="wrong" />
+      <TokenChip text="dag" state="incorrect" />
       <TokenChip text="," state="fixed" />
     </div>
   ),

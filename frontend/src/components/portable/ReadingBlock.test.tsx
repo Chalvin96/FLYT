@@ -22,7 +22,6 @@ describe('ReadingBlock', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(trigger).toHaveTextContent('▶');
     expect(screen.getByText(block.translation)).not.toBeVisible();
-    expect(trigger).not.toHaveClass('underline');
   });
 
   it('test_reading_translation_given_toggle_expect_reveal_and_hide', async () => {

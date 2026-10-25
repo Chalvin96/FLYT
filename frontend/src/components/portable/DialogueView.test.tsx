@@ -156,16 +156,18 @@ describe('DialogueView', () => {
     expect(lineButtons[2]).toHaveAccessibleName("Play Anna's line");
   });
 
-  it('test_dialogue_play_all_given_playing_turn_expect_active_highlight', async () => {
+  it('test_dialogue_play_all_given_playing_turn_expect_active_turn_marked', async () => {
     render(<DialogueView group={group} audioById={audioById(true)} />);
 
     await playAll();
 
-    expect(screen.getByTestId('dialogue-turn-r1')).toHaveClass(
-      'border-primary-30',
+    expect(screen.getByTestId('dialogue-turn-r1')).toHaveAttribute(
+      'data-active',
+      'true',
     );
-    expect(screen.getByTestId('dialogue-turn-r3')).not.toHaveClass(
-      'border-primary-30',
+    expect(screen.getByTestId('dialogue-turn-r3')).toHaveAttribute(
+      'data-active',
+      'false',
     );
   });
 
@@ -176,8 +178,9 @@ describe('DialogueView', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Stop' }));
 
     expect(FakeAudio.instances[0].pause).toHaveBeenCalled();
-    expect(screen.getByTestId('dialogue-turn-r1')).not.toHaveClass(
-      'border-primary-30',
+    expect(screen.getByTestId('dialogue-turn-r1')).toHaveAttribute(
+      'data-active',
+      'false',
     );
 
     FakeAudio.instances[0].dispatch('ended');
@@ -195,8 +198,9 @@ describe('DialogueView', () => {
     expect(
       screen.getByRole('button', { name: /play all/i }),
     ).toBeInTheDocument();
-    expect(screen.getByTestId('dialogue-turn-r1')).not.toHaveClass(
-      'border-primary-30',
+    expect(screen.getByTestId('dialogue-turn-r1')).toHaveAttribute(
+      'data-active',
+      'false',
     );
     await act(async () => {
       FakeAudio.instances[0].dispatch('ended');

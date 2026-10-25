@@ -1,8 +1,8 @@
-import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
-  chromium,
   test as base,
+  chromium,
   type BrowserContext,
   type Page,
   type Worker,
@@ -10,7 +10,7 @@ import {
 
 const DIST = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  '../../dist',
+  '../../dist/chrome',
 );
 
 export const API_URL = process.env.FLYT_E2E_API_URL ?? 'http://127.0.0.1:18000';
@@ -43,7 +43,8 @@ export const test = base.extend<ExtensionFixtures>({
 
   serviceWorker: async ({ context }, use) => {
     const worker =
-      context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+      context.serviceWorkers()[0] ??
+      (await context.waitForEvent('serviceworker'));
     // A worker that throws on startup otherwise surfaces only as an unrelated
     // timeout, and worker console output is not in the trace.
     worker.on('console', (message) => {
@@ -51,7 +52,6 @@ export const test = base.extend<ExtensionFixtures>({
     });
     await use(worker);
   },
-
 });
 
 export const expect = test.expect;
@@ -60,6 +60,15 @@ export const LOOKUP_BUTTON = '[aria-label="Look up with Flyt"]';
 
 export function lookupIcon(page: Page) {
   return page.locator(LOOKUP_BUTTON);
+}
+
+export async function resolveSelection(page: Page): Promise<void> {
+  const response = page.context().waitForEvent('response', {
+    predicate: (response) =>
+      new URL(response.url()).pathname === '/lexicons/resolve',
+  });
+  await lookupIcon(page).click();
+  expect((await response).ok()).toBe(true);
 }
 
 // selectText fires selectionchange exactly once, so an assertion retry cannot

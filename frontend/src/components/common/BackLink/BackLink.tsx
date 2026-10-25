@@ -1,11 +1,13 @@
+import { Button } from '@flyt/ui';
 import { ArrowLeft } from 'lucide-react';
 import type { ComponentProps } from 'react';
 import { Link } from '@tanstack/react-router';
 
-import { Button } from '@/components/common/Button/Button';
+import { cn } from '@/lib/utils';
 
 type BackLinkBase = {
   children: React.ReactNode;
+  /** Placement in the caller's layout. Applied to the wrapper, not the button. */
   className?: string;
 };
 
@@ -37,27 +39,26 @@ export function BackLink(props: BackLinkProps) {
 
   if (props.to !== undefined) {
     return (
-      <Button variant="link" size="default" asChild className={className}>
-        <Link
-          to={props.to}
-          params={props.params as never}
-          search={props.search as never}
-        >
-          {content}
-        </Link>
-      </Button>
+      <span className={cn('inline-flex', className)}>
+        <Button variant="link" asChild>
+          <Link
+            to={props.to}
+            params={props.params as never}
+            search={props.search as never}
+          >
+            {content}
+          </Link>
+        </Button>
+      </span>
     );
   }
 
   return (
-    <Button
-      variant="link"
-      size="default"
-      onClick={props.onClick}
-      className={className}
-    >
-      {content}
-    </Button>
+    <span className={cn('inline-flex', className)}>
+      <Button variant="link" onClick={props.onClick}>
+        {content}
+      </Button>
+    </span>
   );
 }
 

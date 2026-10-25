@@ -97,6 +97,7 @@ async def test_reset_e2e_users_given_existing_users_expect_deleted(
     async_session: AsyncSession,
 ) -> None:
     user = await UserFactory.create(email=seed.E2E_EMAILS[0])
+    async_session.expunge_all()
     await seed.reset_e2e_users(async_session)
 
     deleted = await async_session.scalar(select(User).where(User.id == user.id))
@@ -283,7 +284,6 @@ async def test_ensure_definition_card_pools_given_lemma_with_source_lemma_id_exp
     from flyt.apps.flashcards.models import CardPool
 
     lemma = await LemmaFactory.create(source_lemma_id=42, source_article_id=1)
-    lemma.definitions = []
 
     await seed.ensure_definition_card_pools(async_session, count=1)
 
@@ -304,7 +304,6 @@ async def test_ensure_definition_card_pools_given_lemma_with_only_article_id_exp
     from flyt.apps.flashcards.models import CardPool
 
     lemma = await LemmaFactory.create(source_lemma_id=None, source_article_id=99)
-    lemma.definitions = []
 
     await seed.ensure_definition_card_pools(async_session, count=1)
 

@@ -8,23 +8,23 @@ export const BUCKETS: {
   {
     key: 'not_started',
     label: 'Not started',
-    className: 'bg-secondary-10 text-secondary-90',
+    className: 'bg-neutral-subtle text-default',
   },
   {
     key: 'learning',
     label: 'Learning',
-    className: 'bg-primary-20 text-primary-90',
+    className: 'bg-selected-hovered text-selected',
   },
   {
     key: 'familiar',
     label: 'Familiar',
-    className: 'bg-primary-10 text-primary-90',
+    className: 'bg-brand-subtle text-selected',
   },
-  { key: 'known', label: 'Known', className: 'bg-accent-10 text-accent-90' },
+  { key: 'known', label: 'Known', className: 'bg-success-subtle text-success' },
   {
     key: 'mastered',
     label: 'Mastered',
-    className: 'bg-accent-20 text-accent-90',
+    className: 'bg-success text-success',
   },
 ];
 

@@ -27,8 +27,5 @@ VITE_APP_ORIGIN="${APP_ORIGIN}" \
 VITE_E2E_HOOKS=true \
 pnpm build
 
-echo "Ensuring Playwright Chromium is installed..."
-pnpm exec playwright install chromium
-
 echo "Running the extension E2E suite..."
-FLYT_E2E_API_URL="${API_URL}" pnpm exec playwright test "$@"
+FLYT_E2E_API_URL="${API_URL}" run_playwright_tests "$@"

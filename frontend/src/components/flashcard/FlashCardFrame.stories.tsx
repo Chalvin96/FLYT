@@ -1,10 +1,11 @@
+import { Text } from '@flyt/ui';
 import type { Meta, StoryObj } from '@storybook/react';
 import { expect, within } from 'storybook/test';
 
 import { FlashCardFrame } from './FlashCardFrame';
 
 const meta = {
-  title: 'Flashcard/FlashCardFrame',
+  title: 'Features/Flashcard/FlashCardFrame',
   component: FlashCardFrame,
   parameters: { layout: 'centered' },
 } satisfies Meta<typeof FlashCardFrame>;
@@ -16,8 +17,14 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {
     title: 'Passive flashcard',
-    footer: <p className="type-caption px-1">Footer content</p>,
-    children: <p className="type-body">Flashcard content</p>,
+    footer: (
+      <div className="px-1">
+        <Text as="p" size="medium">
+          Footer content
+        </Text>
+      </div>
+    ),
+    children: <Text size="large">Flashcard content</Text>,
   },
   render: (args) => (
     <div className="h-96 w-[28rem] max-w-full">

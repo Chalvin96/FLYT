@@ -9,9 +9,6 @@ Tests:
 - returns 0 when nothing is UPCOMING.
 """
 
-from datetime import datetime
-from datetime import UTC
-
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +20,7 @@ from flyt.apps.flashcards.models import UserCard
 from flyt.apps.flashcards.card_service import FlashcardCardService
 from flyt.apps.flashcards.review_service import FlashcardReviewService
 from flyt.apps.users.services import UserLemmaService
+from flyt.libs.utils.date import now_aware
 from tests.factories import CardPoolFactory
 from tests.factories import FlashCardFactory
 from tests.factories import LemmaFactory
@@ -199,7 +197,7 @@ async def test_add_more_new_given_upcoming_card_expect_active_due_now(
     user = await UserFactory.create()
     await UserSettingsFactory.create(user=user, daily_new_limit=5)
     uc = await _make_upcoming(async_session, user, rank=1, key="amn-flip")
-    before = datetime.now(UTC)
+    before = now_aware()
 
     promoted = await review_service(async_session).add_more_new(user.id)
 
@@ -209,7 +207,7 @@ async def test_add_more_new_given_upcoming_card_expect_active_due_now(
     assert result.enrollment_state == Enrollment.ACTIVE
     assert result.state == CardState.NEW
     assert result.due_at is not None
-    after = datetime.now(UTC)
+    after = now_aware()
     # due_at should be set to ~now (within a generous window).
     naive_before = before.replace(tzinfo=None)
     naive_after = after.replace(tzinfo=None)

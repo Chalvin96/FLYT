@@ -1,0 +1,5 @@
+:host {
+  all: initial;
+
+  @apply font-sans text-sm leading-normal text-default;
+}

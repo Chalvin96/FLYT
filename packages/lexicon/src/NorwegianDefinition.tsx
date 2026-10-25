@@ -1,5 +1,5 @@
+import { disclosureTriggerClassName, Glyph, Text } from '@flyt/ui';
 import { useState } from 'react';
-import { Button } from '@flyt/ui';
 
 export function NorwegianDefinition({
   text,
@@ -10,24 +10,22 @@ export function NorwegianDefinition({
   if (!text) return null;
   return (
     <div className="space-y-1">
-      <Button
+      <button
         type="button"
-        variant="ghost"
-        size="sm"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
-        className="!px-0 !py-0 h-auto w-full whitespace-normal text-left type-caption font-medium text-secondary-70 transition-colors hover:text-secondary-90 flex items-center gap-1.5 justify-start"
+        className={`${disclosureTriggerClassName} w-full whitespace-normal`}
       >
-        <span aria-hidden="true" className="text-[10px] leading-none">
-          {expanded ? '▼' : '▶'}
-        </span>
+        <Glyph size="3xs">{expanded ? '▼' : '▶'}</Glyph>
         <span className="flex-1">
           {expanded ? 'Hide Norwegian definition' : 'Show Norwegian definition'}
         </span>
-      </Button>
+      </button>
       {expanded ? (
-        <p className="type-caption break-words pl-4 italic text-secondary-70">
-          {text}
+        <p className="break-words pl-4 italic">
+          <Text as="span" size="medium" tone="subtle">
+            {text}
+          </Text>
         </p>
       ) : null}
     </div>

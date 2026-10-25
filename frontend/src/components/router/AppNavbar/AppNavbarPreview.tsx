@@ -1,3 +1,4 @@
+import { Heading } from '@flyt/ui';
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -27,11 +28,11 @@ function PreviewFrame({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <LookupProvider>
-        <div className="flex h-dvh flex-col bg-background text-foreground">
-          <header className="shell-px sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-border/60 bg-white-100 py-3">
-            <span className="font-display type-section tracking-tight">
+        <div className="flex h-dvh flex-col bg-neutral text-default">
+          <header className="shell-px sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-default/60 bg-overlay py-3">
+            <Heading as="span" size="medium">
               Flyt
-            </span>
+            </Heading>
             <div className="flex items-center gap-2 lg:hidden">
               <SearchIconButton />
               <AppAccountAvatarLink />

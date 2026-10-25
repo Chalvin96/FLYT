@@ -1,9 +1,10 @@
+import { Button, Card, Heading, Text } from '@flyt/ui';
 import { Bot } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import type { ChatGPTLink, ChatGPTLinkStart } from '@/api/chatgptLink';
-import { AppCard } from '@/components/common/AppCard/AppCard';
-import { Button } from '@/components/common/Button/Button';
+import { ACCOUNT_PAGE_ANCHORS } from '@/components/nav/accountNavigation';
+import { cn } from '@/lib/utils';
 
 import {
   formatLinkCaption,
@@ -80,7 +81,7 @@ export function ChatGPTLinkCard({
     pending,
     working,
   });
-  const actionVariant = working || pending ? 'outline' : 'default';
+  const actionVariant = working || pending ? 'outline' : 'primary';
 
   const codeIsOpen =
     Boolean(pending) &&
@@ -104,47 +105,52 @@ export function ChatGPTLinkCard({
 
   return (
     <>
-      <AppCard className="space-y-4 p-4 sm:p-5">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="radius-field flex size-11 shrink-0 items-center justify-center bg-secondary-20 text-secondary-90">
-              <Bot aria-hidden className="icon-sm" />
+      <Card padding="compact">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="radius-field flex size-11 shrink-0 items-center justify-center bg-neutral-pressed text-default">
+                <Bot aria-hidden className="icon-sm" />
+              </div>
+              <div className="min-w-0">
+                <h2
+                  className="scroll-mt-24 focus:outline-none"
+                  id={ACCOUNT_PAGE_ANCHORS.CHATGPT}
+                  tabIndex={-1}
+                >
+                  <Heading as="span" size="medium" tone="default">
+                    ChatGPT
+                  </Heading>
+                </h2>
+                <div
+                  className={cn(linkIsBroken ? 'text-danger' : 'text-subtle')}
+                >
+                  <Text as="p" size="medium">
+                    {caption}
+                  </Text>
+                </div>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="type-section font-semibold text-foreground">
-                ChatGPT
-              </p>
-              <p
-                className={
-                  linkIsBroken
-                    ? 'type-caption text-destructive'
-                    : 'type-caption text-muted-foreground'
-                }
+            {!terminalIneligible ? (
+              <Button
+                disabled={isStarting || isDisconnecting}
+                onClick={handlePrimaryAction}
+                type="button"
+                variant={actionVariant}
               >
-                {caption}
-              </p>
-            </div>
+                {isStarting ? 'Connecting…' : actionLabel}
+              </Button>
+            ) : null}
           </div>
-          {!terminalIneligible ? (
-            <Button
-              className="shrink-0"
-              disabled={isStarting || isDisconnecting}
-              onClick={handlePrimaryAction}
-              type="button"
-              variant={actionVariant}
-            >
-              {isStarting ? 'Connecting…' : actionLabel}
-            </Button>
-          ) : null}
-        </div>
 
-        <ChatGPTLinkNotices
-          failure={failure}
-          isLapsed={isLapsed}
-          linkIsBroken={linkIsBroken}
-          terminalIneligible={terminalIneligible}
-        />
-      </AppCard>
+          <ChatGPTLinkNotices
+            failure={failure}
+            isLapsed={isLapsed}
+            linkIsBroken={linkIsBroken}
+            terminalIneligible={terminalIneligible}
+          />
+        </div>
+      </Card>
 
       <ConnectCodeModal
         authorizationUrl={getAuthorizationUrl(authorization)}

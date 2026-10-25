@@ -1,8 +1,7 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
 from datetime import timedelta
-from datetime import UTC
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 import pytest
 from sqlalchemy import select
@@ -13,6 +12,7 @@ import flyt.commands.settle_abandoned_generations as settlement
 from flyt.apps.story_generation.constants import StoryGenerationErrorCode
 from flyt.apps.story_generation.models import Generation
 from flyt.apps.story_generation.models import GenerationOutcome
+from flyt.libs.utils.date import now
 from tests.factories import GenerationFactory
 from tests.factories import UserFactory
 
@@ -130,6 +130,7 @@ async def test_settlement_given_expired_ready_generation_expect_content_cleared_
     generation = await GenerationFactory.create_async(
         outcome=GenerationOutcome.READY,
         topic="En dag på skolen",
+        title="Kattens eventyr",
         text="Det var en gang en katt.",
         pages=[
             {
@@ -152,6 +153,7 @@ async def test_settlement_given_expired_ready_generation_expect_content_cleared_
     assert generation.id is not None
     assert generation.outcome is GenerationOutcome.READY
     assert generation.provider == "openrouter"
+    assert generation.title is None
     assert generation.topic is None
     assert generation.text is None
     assert generation.pages is None
@@ -282,7 +284,7 @@ async def _pages_is_sql_null(db: AsyncSession, generation_id: int) -> bool | Non
 
 
 def _created_at_ago(hours: float) -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=hours)
+    return now() - timedelta(hours=hours)
 
 
 async def _run_settlement(
@@ -292,7 +294,7 @@ async def _run_settlement(
     dry_run: bool = False,
 ) -> tuple[int, int, int]:
     @asynccontextmanager
-    async def _session_local() -> AsyncIterator[AsyncSession]:
+    async def _session_local() -> AsyncGenerator[AsyncSession, None]:
         yield db
 
     monkeypatch.setattr(settlement, "AsyncSessionLocal", _session_local)

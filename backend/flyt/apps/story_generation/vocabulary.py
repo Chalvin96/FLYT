@@ -117,9 +117,9 @@ class VocabularyService:
             .scalars()
             .all()
         )
-        for lemma_id in card_lemmas:
-            if lemma_id is not None and lemma_id not in known:
-                in_progress.add(lemma_id)
+        for card_lemma_id in card_lemmas:
+            if card_lemma_id is not None and card_lemma_id not in known:
+                in_progress.add(card_lemma_id)
 
         return VocabularyClassifier(
             known_ids=frozenset(known),
@@ -135,7 +135,11 @@ class VocabularyService:
                 .limit(settings.STORY_GENERATION_FREQUENCY_DECK_SIZE)
             )
         ).all()
-        return [FrequencyLemma(id=r[0], word=r[1], frequency_rank=r[2]) for r in rows]
+        return [
+            FrequencyLemma(id=r[0], word=r[1], frequency_rank=rank)
+            for r in rows
+            if (rank := r[2]) is not None
+        ]
 
     async def anchor_choices(self, user_id: int) -> AnchorChoices:
         classifier = await self.build_classifier(user_id)

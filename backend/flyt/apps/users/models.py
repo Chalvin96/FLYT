@@ -40,6 +40,9 @@ class User(BaseModel, DateTimeMixin):
         default=UserRole.USER,
         server_default=UserRole.USER.value,
     )
+    session_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=true()
     )
@@ -123,4 +126,4 @@ class UserSettings(BaseModel, DateTimeMixin):
         Integer, nullable=False, default=20, server_default="20"
     )
 
-    user: Mapped["User"] = relationship("User", foreign_keys=[user_id], lazy="selectin")
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id], lazy="raise")

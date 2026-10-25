@@ -1,3 +1,4 @@
+import { Text } from '@flyt/ui';
 import { Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
 
@@ -41,15 +42,14 @@ export function LoadingStatus({ className }: { className?: string }) {
   }, []);
 
   return (
-    <div
-      aria-busy="true"
-      className={cn(
-        'flex items-center gap-2 type-caption-sm text-muted-foreground',
-        className,
-      )}
-    >
-      <Loader2 className="icon-sm animate-spin" aria-hidden="true" />
-      Thinking…
+    <div aria-busy="true" className={cn('flex items-center gap-2', className)}>
+      <Loader2
+        className="icon-sm animate-spin text-subtle"
+        aria-hidden="true"
+      />
+      <Text as="span" size="small" tone="subtle">
+        Thinking…
+      </Text>
     </div>
   );
 }

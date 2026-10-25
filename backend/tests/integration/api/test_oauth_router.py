@@ -139,7 +139,7 @@ async def test_read_users_me_given_cookie_expect_user_returned(
 
     user = await UserFactory.create(email="test@example.com", display_name="Test User")
     auth = AuthService()
-    token = auth.create_access_token(data={"sub": str(user.uuid)})
+    token = auth.create_access_token(user=user)
     client.cookies.set(settings.ACCESS_COOKIE_NAME, token)
 
     response = await client.get("/users/me")
@@ -163,7 +163,7 @@ async def test_update_users_me_given_display_name_expect_name_updated(
 
     user = await UserFactory.create(email="test@example.com", display_name="Old Name")
     auth = AuthService()
-    token = auth.create_access_token(data={"sub": str(user.uuid)})
+    token = auth.create_access_token(user=user)
     client.cookies.set(settings.ACCESS_COOKIE_NAME, token)
 
     response = await client.patch("/users/me", json={"display_name": "  New Name  "})
@@ -181,7 +181,7 @@ async def test_update_users_me_given_email_expect_email_ignored(
 
     user = await UserFactory.create(email="test@example.com", display_name="Old Name")
     auth = AuthService()
-    token = auth.create_access_token(data={"sub": str(user.uuid)})
+    token = auth.create_access_token(user=user)
     client.cookies.set(settings.ACCESS_COOKIE_NAME, token)
 
     response = await client.patch(
@@ -202,7 +202,7 @@ async def test_update_users_me_given_blank_display_name_expect_validation_error(
 
     user = await UserFactory.create(email="test@example.com", display_name="Old Name")
     auth = AuthService()
-    token = auth.create_access_token(data={"sub": str(user.uuid)})
+    token = auth.create_access_token(user=user)
     client.cookies.set(settings.ACCESS_COOKIE_NAME, token)
 
     response = await client.patch("/users/me", json={"display_name": "   "})
@@ -217,7 +217,7 @@ async def test_logout_given_authenticated_user_expect_cookie_cleared(
 
     user = await UserFactory.create(email="test@example.com", display_name="Test User")
     auth = AuthService()
-    token = auth.create_access_token(data={"sub": str(user.uuid)})
+    token = auth.create_access_token(user=user)
     client.cookies.set(settings.ACCESS_COOKIE_NAME, token)
     client.cookies.set("oauth_session", "mock-session")
 

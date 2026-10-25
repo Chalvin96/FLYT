@@ -1,31 +1,27 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 
-import { transcribeSpeech } from '@/api/speech';
-import { ExerciseModeProvider } from '@/components/flashcard/ExerciseModeProvider';
-import { ExerciseView } from '@/components/flashcard/ExerciseView';
+import { ExerciseHost } from '@/components/flashcard/ExerciseHost';
 import { FlashCardInfo } from '@/components/flashcard/FlashCardInfo/FlashCardInfo';
-import { FlashCardLessonEnd } from '@/components/flashcard/FlashCardLessonEnd/FlashCardLessonEnd';
-import type { WriteJudgeFn } from '@/components/flashcard/operationTypes';
-import { useJudgeLessonWrite } from '@/hooks/lessons/useJudgeLessonWrite';
 import { useIsDesktop } from '@/hooks/ui/useIsDesktop';
-import type { AudioAsset, WriteJudgement } from '@/types/lesson-contracts';
+import type { AudioAsset } from '@/types/lesson-contracts';
 
 import { LessonLayout } from './components/LessonLayout';
 import { LessonStartScreen } from './components/LessonStartScreen';
+import { LessonCompletion } from './LessonCompletion';
+import {
+  buildLessonExerciseAdapter,
+  type LessonDetailJudgeWrite,
+} from './lessonExerciseAdapter';
 import {
   useLessonDetailState,
+  type LessonCompletionDestination,
   type LessonDetailActions,
 } from './useLessonDetailState';
-
-export type LessonDetailJudgeWrite = (
-  exerciseId: string,
-  response: string,
-) => Promise<WriteJudgement>;
 
 type LessonDetailSessionProps = {
   lesson: import('@/types/api').LessonDetailRead;
   userId?: number;
-  onExit?: () => void;
+  onExit?: (destination: LessonCompletionDestination) => void;
   actions?: LessonDetailActions;
   judgeWrite?: LessonDetailJudgeWrite;
 };
@@ -67,39 +63,9 @@ export function LessonDetailSession({
     isSubmitting,
     pages,
     pageIndex,
-    persistCompletion,
+    retryCompletion,
   } = state;
-  const sessionCardClassName = 'w-full';
   const page = pages[pageIndex];
-  const writeExerciseId =
-    page?.kind === 'exercise' && page.exercise.operation === 'write'
-      ? page.exercise.id
-      : null;
-  const productionJudgeWrite = useJudgeLessonWrite(lesson.id, writeExerciseId);
-  const judgeWrite = useMemo<WriteJudgeFn | undefined>(() => {
-    if (writeExerciseId === null) {
-      return undefined;
-    }
-    if (storyJudgeWrite) {
-      return (response) => storyJudgeWrite(writeExerciseId, response);
-    }
-    return productionJudgeWrite;
-  }, [productionJudgeWrite, storyJudgeWrite, writeExerciseId]);
-  const exerciseAudio =
-    page?.kind === 'exercise' && page.exercise.audio_id
-      ? (audioById[page.exercise.audio_id] ?? null)
-      : null;
-  const recordAndTranscribe =
-    page?.kind === 'exercise' && page.exercise.operation === 'speak'
-      ? transcribeSpeech
-      : undefined;
-
-  useEffect(() => {
-    if (isComplete) {
-      void persistCompletion();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isComplete]);
 
   if (!hasStarted) {
     return (
@@ -120,12 +86,12 @@ export function LessonDetailSession({
         progressPercent={100}
         pages={pages}
       >
-        <FlashCardLessonEnd
-          className={sessionCardClassName}
+        <LessonCompletion
           desktopExpanded={isDesktop}
-          isSubmitting={isSubmitting}
+          completionStatus={state.completionStatus}
           completedCount={exercisePageCount}
-          onFinished={handleLessonComplete}
+          onPrimaryAction={handleLessonComplete}
+          onRetrySave={retryCompletion}
         />
       </LessonLayout>
     );
@@ -150,27 +116,25 @@ export function LessonDetailSession({
           key={page.id}
           section={page.section}
           audioById={audioById}
-          className={sessionCardClassName}
           desktopExpanded={isDesktop}
           isSubmitting={isSubmitting}
           onContinue={state.advance}
         />
       ) : (
-        <ExerciseModeProvider allowRetry>
-          <ExerciseView
-            key={page.id}
-            exercise={page.exercise}
-            className={sessionCardClassName}
-            desktopExpanded={isDesktop}
-            isSubmitting={isSubmitting}
-            judgeWrite={judgeWrite}
-            audio={exerciseAudio}
-            recordAndTranscribe={recordAndTranscribe}
-            draftOwnerKey={`user-${userId ?? 'anonymous'}-lesson-${lesson.id}`}
-            onContinue={state.advance}
-            onFinished={() => handleExerciseFinished(page.exerciseId)}
-          />
-        </ExerciseModeProvider>
+        <ExerciseHost
+          key={page.id}
+          adapter={buildLessonExerciseAdapter({
+            lessonId: lesson.id,
+            schemaVersion: lesson.packet.schema_version,
+            exercise: page.exercise,
+            userId,
+            storyJudgeWrite,
+            onUnsupported: () => void handleExerciseFinished(page.exerciseId),
+          })}
+          desktopExpanded={isDesktop}
+          isSubmitting={isSubmitting}
+          onFinished={() => handleExerciseFinished(page.exerciseId)}
+        />
       )}
     </LessonLayout>
   );

@@ -185,8 +185,8 @@ describe('TokenBoard', () => {
     const placedButtons = screen
       .getAllByTestId('token-chip')
       .filter((el) => el.tagName === 'BUTTON');
-    expect(placedButtons[0]).toHaveAttribute('data-state', 'wrong');
-    expect(placedButtons[1]).toHaveAttribute('data-state', 'wrong');
+    expect(placedButtons[0]).toHaveAttribute('data-state', 'incorrect');
+    expect(placedButtons[1]).toHaveAttribute('data-state', 'incorrect');
     expect(placedButtons[2]).toHaveAttribute('data-state', 'correct');
   });
 

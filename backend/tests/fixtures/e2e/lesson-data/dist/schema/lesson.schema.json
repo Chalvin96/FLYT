@@ -2146,143 +2146,6 @@
       "title": "SectionPacket",
       "type": "object"
     },
-    "SpeakExercise": {
-      "additionalProperties": false,
-      "properties": {
-        "kind": {
-          "const": "exercise",
-          "title": "Kind",
-          "type": "string"
-        },
-        "id": {
-          "title": "Id",
-          "type": "string"
-        },
-        "objective_id": {
-          "title": "Objective Id",
-          "type": "string"
-        },
-        "prompt": {
-          "items": {
-            "discriminator": {
-              "mapping": {
-                "code": "#/$defs/CodeSpan",
-                "emphasis": "#/$defs/EmphasisSpan",
-                "foreign_term": "#/$defs/ForeignTermSpan",
-                "strong": "#/$defs/StrongSpan",
-                "text": "#/$defs/TextSpan"
-              },
-              "propertyName": "kind"
-            },
-            "oneOf": [
-              {
-                "$ref": "#/$defs/TextSpan"
-              },
-              {
-                "$ref": "#/$defs/EmphasisSpan"
-              },
-              {
-                "$ref": "#/$defs/StrongSpan"
-              },
-              {
-                "$ref": "#/$defs/CodeSpan"
-              },
-              {
-                "$ref": "#/$defs/ForeignTermSpan"
-              }
-            ]
-          },
-          "title": "Prompt",
-          "type": "array"
-        },
-        "explanation": {
-          "anyOf": [
-            {
-              "items": {
-                "discriminator": {
-                  "mapping": {
-                    "code": "#/$defs/CodeSpan",
-                    "emphasis": "#/$defs/EmphasisSpan",
-                    "foreign_term": "#/$defs/ForeignTermSpan",
-                    "strong": "#/$defs/StrongSpan",
-                    "text": "#/$defs/TextSpan"
-                  },
-                  "propertyName": "kind"
-                },
-                "oneOf": [
-                  {
-                    "$ref": "#/$defs/TextSpan"
-                  },
-                  {
-                    "$ref": "#/$defs/EmphasisSpan"
-                  },
-                  {
-                    "$ref": "#/$defs/StrongSpan"
-                  },
-                  {
-                    "$ref": "#/$defs/CodeSpan"
-                  },
-                  {
-                    "$ref": "#/$defs/ForeignTermSpan"
-                  }
-                ]
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Explanation"
-        },
-        "audio_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Audio Id"
-        },
-        "operation": {
-          "const": "speak",
-          "title": "Operation",
-          "type": "string"
-        },
-        "payload": {
-          "$ref": "#/$defs/SpeakPayload"
-        }
-      },
-      "required": [
-        "kind",
-        "id",
-        "objective_id",
-        "prompt",
-        "explanation",
-        "operation",
-        "payload"
-      ],
-      "title": "SpeakExercise",
-      "type": "object"
-    },
-    "SpeakPayload": {
-      "additionalProperties": false,
-      "properties": {
-        "target": {
-          "minLength": 1,
-          "title": "Target",
-          "type": "string"
-        }
-      },
-      "required": [
-        "target"
-      ],
-      "title": "SpeakPayload",
-      "type": "object"
-    },
     "StrongSpan": {
       "additionalProperties": false,
       "properties": {
@@ -2811,7 +2674,6 @@
             "judge": "#/$defs/JudgeExercise",
             "match_pairs": "#/$defs/MatchPairsExercise",
             "recall_fill": "#/$defs/RecallFillExercise",
-            "speak": "#/$defs/SpeakExercise",
             "write": "#/$defs/WriteExercise"
           },
           "propertyName": "operation"
@@ -2837,9 +2699,6 @@
           },
           {
             "$ref": "#/$defs/CategorizeExercise"
-          },
-          {
-            "$ref": "#/$defs/SpeakExercise"
           },
           {
             "$ref": "#/$defs/WriteExercise"

@@ -1,28 +1,32 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { readDraft, removeDraft, saveDraft } from './draftStorage';
+import {
+  readDraftMigratingLegacy,
+  removeDraftAndLegacy,
+  saveDraft,
+} from './draftStorage';
 
 export type DraftStatus = 'saved' | 'unavailable';
 
-/**
- * Owns the learner's draft text and its device-persistence status.
- * `initialResponse` (lesson restore flow) is persisted eagerly so the
- * draft survives a reload even before the learner types.
- */
 export function useWriteResponseState({
   draftKeyValue,
+  legacyDraftKeyValue,
   initialResponse,
 }: {
   draftKeyValue: string;
+  legacyDraftKeyValue?: string;
   initialResponse?: string;
 }) {
+  const [savedDraft] = useState(() =>
+    initialResponse === undefined
+      ? readDraftMigratingLegacy(draftKeyValue, legacyDraftKeyValue)
+      : null,
+  );
   const [response, setResponse] = useState(
-    () => initialResponse ?? readDraft(draftKeyValue) ?? '',
+    () => initialResponse ?? savedDraft ?? '',
   );
   const [draftStatus, setDraftStatus] = useState<DraftStatus | null>(() =>
-    initialResponse === undefined && readDraft(draftKeyValue) !== null
-      ? 'saved'
-      : null,
+    savedDraft !== null ? 'saved' : null,
   );
 
   useEffect(() => {
@@ -30,9 +34,9 @@ export function useWriteResponseState({
     if (initialResponse.trim()) {
       saveDraft(draftKeyValue, initialResponse);
     } else {
-      removeDraft(draftKeyValue);
+      removeDraftAndLegacy(draftKeyValue, legacyDraftKeyValue);
     }
-  }, [draftKeyValue, initialResponse]);
+  }, [draftKeyValue, initialResponse, legacyDraftKeyValue]);
 
   const updateResponse = useCallback(
     (next: string) => {
@@ -42,17 +46,21 @@ export function useWriteResponseState({
         return;
       }
       setDraftStatus(
-        removeDraft(draftKeyValue) === 'removed' ? null : 'unavailable',
+        removeDraftAndLegacy(draftKeyValue, legacyDraftKeyValue) === 'removed'
+          ? null
+          : 'unavailable',
       );
     },
-    [draftKeyValue],
+    [draftKeyValue, legacyDraftKeyValue],
   );
 
   const clearDraft = useCallback(() => {
     setDraftStatus(
-      removeDraft(draftKeyValue) === 'removed' ? null : 'unavailable',
+      removeDraftAndLegacy(draftKeyValue, legacyDraftKeyValue) === 'removed'
+        ? null
+        : 'unavailable',
     );
-  }, [draftKeyValue]);
+  }, [draftKeyValue, legacyDraftKeyValue]);
 
   return { clearDraft, draftStatus, response, updateResponse };
 }

@@ -10,6 +10,7 @@ from fastapi import Query
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flyt.apps.reading.deps import admit_import_request
 from flyt.apps.reading.constants import PROCESS_IMPORT_JOB
 from flyt.apps.reading.constants import DEFAULT_PAGE_LIMIT
 from flyt.apps.reading.constants import MAX_PAGE_LIMIT
@@ -24,11 +25,13 @@ from flyt.apps.reading.models import ImportStatus
 from flyt.apps.reading.schemas import ExtensionImportCreate
 from flyt.apps.reading.schemas import ImportItemRead
 from flyt.apps.reading.schemas import ImportListResponse
+from flyt.apps.reading.schemas import ImportTitleUpdate
 from flyt.apps.reading.schemas import PasteImportCreate
 from flyt.apps.reading.schemas import RetryImportResponse
 from flyt.apps.reading.import_service import ImportService
 from flyt.apps.users.deps import get_current_user
 from flyt.apps.users.models import User
+from flyt.core.http import build_error_responses
 from flyt.core.db import get_async_db
 from flyt.core.queue import enqueue_job
 from flyt.core.http import http_error
@@ -43,7 +46,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/imports", tags=["imports"])
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(admit_import_request)],
+    responses=build_error_responses(401, 403, 429),
+)
 async def create_paste_import(
     body: PasteImportCreate,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -72,7 +80,12 @@ async def create_paste_import(
         raise http_error(error) from error
 
 
-@router.post("/extension", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/extension",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(admit_import_request)],
+    responses=build_error_responses(401, 403, 429),
+)
 async def create_extension_import(
     body: ExtensionImportCreate,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -99,12 +112,12 @@ async def create_extension_import(
         raise http_error(error) from error
 
 
-@router.get("")
+@router.get("", responses=build_error_responses(401))
 async def list_imports(
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[ImportService, Depends(get_import_service)],
     status_filter: Annotated[ImportStatus | None, Query(alias="status")] = None,
-    q: Annotated[str | None, Query()] = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
     cursor: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_LIMIT)] = DEFAULT_PAGE_LIMIT,
 ) -> ImportListResponse:
@@ -120,7 +133,7 @@ async def list_imports(
         raise http_error(error) from error
 
 
-@router.get("/{import_uuid}")
+@router.get("/{import_uuid}", responses=build_error_responses(401, 404))
 async def get_import(
     import_uuid: UUID,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -134,9 +147,29 @@ async def get_import(
         raise http_error(error) from error
 
 
+@router.patch("/{import_uuid}", responses=build_error_responses(401, 403, 404))
+async def rename_import(
+    import_uuid: UUID,
+    body: ImportTitleUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    service: Annotated[ImportService, Depends(get_import_service)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+) -> ImportItemRead:
+    try:
+        item = await service.rename(
+            user_id=current_user.id, import_uuid=import_uuid, title=body.title
+        )
+    except ImportNotFoundError as error:
+        raise http_error(error) from error
+    await db.commit()  # ume-ignore: UME-FAPI001
+    return item
+
+
 @router.post(
     "/{import_uuid}/retry",
+    dependencies=[Depends(admit_import_request)],
     status_code=status.HTTP_202_ACCEPTED,
+    responses=build_error_responses(401, 403, 404, 409, 429),
 )
 async def retry_import_endpoint(
     import_uuid: UUID,
@@ -154,7 +187,11 @@ async def retry_import_endpoint(
     return RetryImportResponse(status="retrying")
 
 
-@router.delete("/{import_uuid}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{import_uuid}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=build_error_responses(401, 403, 404),
+)
 async def delete_import(
     import_uuid: UUID,
     current_user: Annotated[User, Depends(get_current_user)],

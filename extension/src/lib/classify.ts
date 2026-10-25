@@ -11,6 +11,13 @@ import type { MsgResult } from './messages';
 // canonical error code first, HTTP status only as a fallback. A non-ApiError
 // (fetch threw) is a real network failure.
 export function classify(e: unknown): MsgResult {
+  const failure = classifyKind(e);
+  return !failure.ok && e instanceof ApiError && e.userMessage
+    ? { ...failure, message: e.userMessage }
+    : failure;
+}
+
+function classifyKind(e: unknown): MsgResult {
   if (e instanceof ApiError) {
     switch (e.code) {
       case 'IMPORT_TOO_LARGE':

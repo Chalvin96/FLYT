@@ -38,11 +38,14 @@ describe('DashboardHero', () => {
     );
 
     expect(
-      await screen.findByText('Review before midnight'),
+      await screen.findByText('A few cards keeps it going'),
     ).toBeInTheDocument();
     expect(screen.getByText('4-day streak')).toBeInTheDocument();
     expect(
-      screen.getByRole('link', { name: 'Quick session ->' }),
+      screen.getByRole('link', { name: 'Quick session' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Full review ->' }),
     ).toBeInTheDocument();
   });
 
@@ -83,11 +86,6 @@ describe('DashboardHero', () => {
 
     const heading = await screen.findByText('Welcome to Flyt!');
     expect(heading).toBeInTheDocument();
-    expect(screen.getByTestId('hero-card-section')).toHaveClass(
-      'bg-secondary-10',
-      'border-dashed',
-      'border-secondary-30',
-    );
     expect(
       screen.getByRole('link', { name: 'Start first lesson' }),
     ).toHaveAttribute('href', '/lesson');

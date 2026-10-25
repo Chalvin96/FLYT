@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test';
-
+import { expect, test } from './fixtures';
 import { loginAs } from './helpers/auth';
 
 // Dictionary lookup from the app shell. The entry point and lemma surface
@@ -47,8 +46,18 @@ test('desktop: selecting a search result opens the lemma in the anchored popover
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog).not.toBeEmpty();
-  await expect(dialog).toHaveClass(/top-20/);
-  await expect(dialog).not.toHaveClass(/bottom-4/);
+
+  // Where the surface opens is the perceivable difference: an anchored popover
+  // sits in the upper half of the viewport, a bottom sheet rises into the
+  // lower half, below the fold the learner just searched from.
+  const bounds = await dialog.boundingBox();
+  const viewport = page.viewportSize();
+  if (bounds === null || viewport === null) {
+    throw new Error(
+      'The lookup dialog and the viewport must both have geometry before the popover position can be placed.',
+    );
+  }
+  expect(bounds.y).toBeLessThan(viewport.height / 2);
 });
 
 test('mobile: selecting a search result opens the lemma bottom sheet', async ({

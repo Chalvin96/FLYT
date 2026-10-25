@@ -88,10 +88,17 @@ async def resolve_user_from_token(token: str, db: AsyncSession) -> User | None:
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
         user_uuid = UUID(payload["sub"])
+        session_version = payload["session_version"]
+        if type(session_version) is not int:
+            return None
     except (jwt.InvalidTokenError, KeyError, ValueError, TypeError):
         return None
 
-    return await db.scalar(select(User).where(User.uuid == user_uuid))
+    return await db.scalar(
+        select(User).where(
+            User.uuid == user_uuid, User.session_version == session_version
+        )
+    )
 
 
 def build_bearer_authorization(

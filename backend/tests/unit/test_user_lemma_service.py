@@ -1,5 +1,6 @@
 import pytest
 from sqlalchemy import func
+from sqlalchemy import inspect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +33,8 @@ async def test_sync_lemma_mastery_from_user_card_given_review_and_stable_expect_
         lemma=lemma,
         is_mastered=False,
     )
+    async_session.expunge_all()
+    assert "pool" in inspect(user_card).unloaded
 
     await UserLemmaService(async_session).sync_lemma_mastery_from_user_card(user_card)
 
@@ -131,14 +134,14 @@ async def test_sync_lemma_mastery_from_user_card_given_pool_without_lemma_expect
     assert user_lemma is None
 
 
-async def test_ensure_lemma_for_user_creates_missing_row(
+async def test_ensure_lemmas_for_user_given_missing_row_expect_created(
     async_session: AsyncSession,
 ) -> None:
     service = UserLemmaService(async_session)
     user = await UserFactory.create()
     lemma = await LemmaFactory.create()
 
-    await service.ensure_lemma_for_user(user.id, lemma.id)
+    await service.ensure_lemmas_for_user(user.id, [lemma.id])
 
     row = await async_session.scalar(
         select(UserLemma).where(
@@ -150,7 +153,7 @@ async def test_ensure_lemma_for_user_creates_missing_row(
     assert row.is_mastered is False
 
 
-async def test_ensure_lemma_for_user_preserves_mastered(
+async def test_ensure_lemmas_for_user_given_mastered_row_expect_preserved(
     async_session: AsyncSession,
 ) -> None:
     service = UserLemmaService(async_session)
@@ -159,7 +162,7 @@ async def test_ensure_lemma_for_user_preserves_mastered(
     async_session.add(UserLemma(user_id=user.id, lemma_id=lemma.id, is_mastered=True))
     await async_session.flush()
 
-    await service.ensure_lemma_for_user(user.id, lemma.id)
+    await service.ensure_lemmas_for_user(user.id, [lemma.id])
 
     row = await async_session.scalar(
         select(UserLemma).where(
@@ -171,15 +174,15 @@ async def test_ensure_lemma_for_user_preserves_mastered(
     assert row.is_mastered is True
 
 
-async def test_ensure_lemma_for_user_is_idempotent(
+async def test_ensure_lemmas_for_user_given_repeated_call_expect_one_row(
     async_session: AsyncSession,
 ) -> None:
     service = UserLemmaService(async_session)
     user = await UserFactory.create()
     lemma = await LemmaFactory.create()
 
-    await service.ensure_lemma_for_user(user.id, lemma.id)
-    await service.ensure_lemma_for_user(user.id, lemma.id)
+    await service.ensure_lemmas_for_user(user.id, [lemma.id])
+    await service.ensure_lemmas_for_user(user.id, [lemma.id])
 
     count = await async_session.scalar(
         select(func.count())

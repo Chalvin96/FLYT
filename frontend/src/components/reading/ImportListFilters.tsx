@@ -1,3 +1,5 @@
+import { Chip } from '@flyt/ui';
+
 import { cn } from '@/lib/utils';
 
 import {
@@ -5,17 +7,20 @@ import {
   IMPORT_FILTER_VALUES,
   type ImportFilterValue,
 } from './importDisplay';
+import { formatReadingNumber } from './readingDisplay';
 
 interface ImportListFiltersProps {
   value: ImportFilterValue;
   onChange: (value: ImportFilterValue) => void;
   className?: string;
+  counts: Record<ImportFilterValue, number>;
 }
 
 export function ImportListFilters({
   value,
   onChange,
   className,
+  counts,
 }: ImportListFiltersProps) {
   return (
     <div
@@ -26,20 +31,14 @@ export function ImportListFilters({
       {IMPORT_FILTER_VALUES.map((filterValue) => {
         const isActive = value === filterValue;
         return (
-          <button
+          <Chip
             key={filterValue}
-            type="button"
-            aria-pressed={isActive}
             onClick={() => onChange(filterValue)}
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-full border radius-field px-3 py-1.5 type-caption-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-              isActive
-                ? 'border-secondary-90 bg-secondary-90 text-white-100'
-                : 'border-border bg-white-100 text-muted-foreground hover:bg-secondary-10 hover:text-foreground',
-            )}
+            pressed={isActive}
           >
-            <span>{IMPORT_FILTER_LABELS[filterValue]}</span>
-          </button>
+            {IMPORT_FILTER_LABELS[filterValue]}{' '}
+            {formatReadingNumber(counts[filterValue])}
+          </Chip>
         );
       })}
     </div>

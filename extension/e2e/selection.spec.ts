@@ -3,6 +3,7 @@ import {
   API_URL,
   loginAs,
   lookupIcon as icon,
+  resolveSelection,
   selectText,
   test,
   waitForContentScript,
@@ -31,7 +32,7 @@ test('selecting a word mounts a styled affordance beside it and opens the popup'
   // A mousedown outside a selection collapses it. Without the button's
   // preventDefault the range would be gone before the click handler ran, and
   // the popup would have nothing to resolve or position against.
-  await icon(page).click();
+  await resolveSelection(page);
 
   await expect(icon(page)).toBeHidden();
   await expect(
@@ -103,7 +104,7 @@ test('test_sentence_selection_given_authenticated_learner_expect_translation_and
   await expect(dialog.getByText('I read a book every day.')).toBeVisible();
   expect(translationAuthorization).toMatch(/^Bearer /);
 
-  await page.locator('.flyt-source-word').filter({ hasText: 'bok' }).click();
+  await dialog.getByRole('button', { name: 'bok' }).click();
   await expect(
     page.getByRole('button', { name: 'Add to review' }).first(),
   ).toBeVisible();

@@ -37,14 +37,17 @@ class StatsQueryService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_dashboard_stats(self, user_id: int) -> StatsRead:
-        due_counts = await self.get_due_counts(user_id=user_id)
+    async def get_dashboard_stats(
+        self, user_id: int, now_dt: datetime | None = None
+    ) -> StatsRead:
+        current_time = now_dt or now()
+        due_counts = await self.get_due_counts(user_id=user_id, now_dt=current_time)
         lesson_count = await self.get_lesson_count(user_id=user_id)
         card_counts = await self.get_card_counts(user_id=user_id)
-        accuracy_7d = await self.get_accuracy_7d(user_id=user_id)
+        accuracy_7d = await self.get_accuracy_7d(user_id=user_id, now_dt=current_time)
         words_practiced = await self.get_words_practiced_count(user_id=user_id)
-        streak = await self.get_streak(user_id=user_id)
-        snapshot = await self.get_snapshot(user_id=user_id)
+        streak = await self.get_streak(user_id=user_id, now_dt=current_time)
+        snapshot = await self.get_snapshot(user_id=user_id, now_dt=current_time)
 
         return StatsRead(
             dueCount=due_counts.total,
@@ -59,8 +62,10 @@ class StatsQueryService:
             snapshot=snapshot,
         )
 
-    async def get_due_counts(self, user_id: int) -> DueCountsResult:
-        counts = await query_count_due_states(self.db, user_id)
+    async def get_due_counts(
+        self, user_id: int, now_dt: datetime | None = None
+    ) -> DueCountsResult:
+        counts = await query_count_due_states(self.db, user_id, now_dt)
         return DueCountsResult(
             total=counts.new + counts.learning + counts.review,
             new_count=counts.new,
@@ -113,8 +118,10 @@ class StatsQueryService:
             or 0
         )
 
-    async def get_accuracy_7d(self, user_id: int) -> float | None:
-        window_start = now() - timedelta(days=7)
+    async def get_accuracy_7d(
+        self, user_id: int, now_dt: datetime | None = None
+    ) -> float | None:
+        window_start = (now_dt or now()) - timedelta(days=7)
         row = (
             await self.db.execute(
                 select(
@@ -132,8 +139,8 @@ class StatsQueryService:
             return None
         return row.good / row.total
 
-    async def get_streak(self, user_id: int) -> int:
-        today = now().date()
+    async def get_streak(self, user_id: int, now_dt: datetime | None = None) -> int:
+        today = (now_dt or now()).date()
         yesterday = today - timedelta(days=1)
         reviewed_on = cast(StatsReviewLog.reviewed_at, Date)
         review_days = (
@@ -200,8 +207,10 @@ class StatsQueryService:
         )
         return int(streak or 0)
 
-    async def get_snapshot(self, user_id: int) -> StatsSnapshotRead:
-        today = now().date()
+    async def get_snapshot(
+        self, user_id: int, now_dt: datetime | None = None
+    ) -> StatsSnapshotRead:
+        today = (now_dt or now()).date()
         start_of_week = today - timedelta(days=today.weekday())
         window_start = start_of_week - timedelta(weeks=3)
         window_end = start_of_week + timedelta(days=7)

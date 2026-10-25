@@ -1,17 +1,25 @@
-import { expect, test } from '@playwright/test';
-
+import { expect, test } from './fixtures';
 import { loginAs } from './helpers/auth';
 
-test('test_chatgpt_ui_given_account_page_expect_hidden', async ({ page }) => {
-  let chatGPTRequestCount = 0;
-  await page.route('**/chatgpt/link**', async (route) => {
-    chatGPTRequestCount += 1;
-    await route.abort();
-  });
-
+test('test_chatgpt_ui_given_unlinked_account_expect_connect_action', async ({
+  page,
+}) => {
   await loginAs(page, 'chatgpt-hidden@example.com');
+  const linkResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/chatgpt/link' &&
+      response.request().method() === 'GET',
+  );
   await page.goto('/account');
+  expect((await linkResponse).ok()).toBe(true);
 
-  await expect(page.getByText('ChatGPT', { exact: true })).toHaveCount(0);
-  expect(chatGPTRequestCount).toBe(0);
+  await expect(
+    page.getByRole('heading', { name: 'ChatGPT', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Connect', exact: true }),
+  ).toBeEnabled();
+  await expect(
+    page.getByText('Not connected', { exact: true }).first(),
+  ).toBeVisible();
 });

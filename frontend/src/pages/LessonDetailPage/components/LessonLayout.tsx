@@ -1,6 +1,6 @@
+import { Card, Heading, Text } from '@flyt/ui';
 import type { ReactNode } from 'react';
 
-import { AppCard } from '@/components/common/AppCard/AppCard';
 import { kindPosition, type LessonPage } from '@/lib/lessonPages';
 
 import { LessonProgressBar } from './LessonProgressBar';
@@ -43,22 +43,25 @@ function LessonProgressHeader({
   } as const;
 
   return (
-    <AppCard className="p-4">
+    <Card padding="compact">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <div className="min-w-0">
-          <p className="type-label text-muted-foreground">Lesson</p>
-          <h1 className="line-clamp-2 type-section font-semibold text-foreground">
-            {title}
-          </h1>
+          <Heading as="div" size="xxsmall" tone="subtle">
+            Lesson
+          </Heading>
+          <div className="line-clamp-2">
+            <Heading as="h1" size="medium" tone="default">
+              {title}
+            </Heading>
+          </div>
         </div>
-        <p
-          aria-live="polite"
-          className="type-caption text-muted-foreground sm:shrink-0"
-        >
-          {isComplete
-            ? 'Complete'
-            : `${pages?.[progressCurrent]?.kind === 'exercise' ? 'Practice' : 'Part'} ${labelPosition} of ${labelTotal}`}
-        </p>
+        <div className="text-subtle sm:shrink-0">
+          <Text as="p" size="medium" aria-live="polite">
+            {isComplete
+              ? 'Complete'
+              : `${pages?.[progressCurrent]?.kind === 'exercise' ? 'Practice' : 'Part'} ${labelPosition} of ${labelTotal}`}
+          </Text>
+        </div>
       </div>
       <div className="mt-3">
         {hasSegments && pages ? (
@@ -73,17 +76,19 @@ function LessonProgressHeader({
           </>
         ) : (
           <div
-            className="h-2 w-full overflow-hidden rounded-full bg-progress-primary-locked"
+            className="h-2 w-full overflow-hidden rounded-full bg-progress-locked"
             {...progressbar}
           >
             <div
-              className="h-full origin-left rounded-full bg-progress-primary-complete transition-transform duration-300 ease-out"
-              style={{ transform: `scaleX(${progressPercent / 100})` }}
+              className="h-full w-full rounded-full border border-[var(--progress-border)] bg-progress-primary-complete transition-[clip-path] duration-300 ease-out"
+              style={{
+                clipPath: `inset(0 calc(100% - ${progressPercent}%) 0 0 round 9999px)`,
+              }}
             />
           </div>
         )}
       </div>
-    </AppCard>
+    </Card>
   );
 }
 

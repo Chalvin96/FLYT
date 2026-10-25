@@ -1,0 +1,35 @@
+:root {
+  --progress-primary-complete: var(--secondary-40);
+  --progress-primary-current: var(--secondary-30);
+  --progress-locked: color-mix(in srgb, var(--text-subtle) 55%, transparent);
+  --progress-secondary-complete: var(--primary-40);
+  --progress-secondary-current: var(--primary-30);
+  --chart-neutral-1: var(--secondary-40);
+  --chart-neutral-2: var(--secondary-60);
+  --chart-neutral-3: var(--secondary-80);
+  --chart-success: var(--secondary-50);
+  --page-grid-line: color-mix(in srgb, var(--secondary-100) 8%, transparent);
+  --selection-background: var(--primary-30);
+  --selection-foreground: var(--text-default);
+
+  --hero-brand-surface: var(--primary-10);
+  --hero-calm-surface: var(--secondary-10);
+  --hero-deep-surface: var(--secondary-20);
+  --hero-text: var(--secondary-100);
+  --hero-muted-text: var(--secondary-80);
+  --hero-badge-surface: var(--white-100);
+  --hero-progress-track: var(--white-100);
+
+  --hero-quiet-text: var(--secondary-100);
+  --hero-quiet-muted-text: var(--secondary-90);
+
+  --progress-border: var(--secondary-80);
+
+  --surface-mat: var(--secondary-10);
+
+  --shadow-color-mat-1: oklch(100% 0 0 / 0.7);
+  --shadow-color-mat-2: oklch(20% 0.02 220 / 0.05);
+  --shadow-color-mat-3: oklch(20% 0.04 220 / 0.22);
+  --shadow-color-lift: oklch(20% 0.06 280 / 0.3);
+  --shadow-color-commit: oklch(28% 0.12 285 / 0.4);
+}

@@ -70,11 +70,11 @@ describe('StoryParagraphView', () => {
 
     await user.click(screen.getByRole('button', { name: 'Hei' }));
 
-    expect(onOpenLemma).toHaveBeenCalledWith('lemma-1', 'Hei');
+    expect(onOpenLemma).toHaveBeenCalledWith('lemma-1', 'Hei', '0-0');
   });
 
   it('test_story_paragraph_given_punctuation_token_expect_plain_span', () => {
-    render(
+    const { container } = render(
       <StoryParagraphView
         paragraph={PARAGRAPH}
         paragraphIndex={0}
@@ -82,7 +82,25 @@ describe('StoryParagraphView', () => {
       />,
     );
 
-    // A token with no letter is not clickable even though isToken is true.
     expect(screen.getAllByRole('button')).toHaveLength(2);
+    expect(container).toHaveTextContent('Hei verden.');
+  });
+
+  it('test_story_paragraph_given_punctuation_gap_expect_source_text_and_word_only_lookup', async () => {
+    const user = userEvent.setup();
+    const onOpenLemma = vi.fn();
+    const { container } = render(
+      <StoryParagraphView
+        paragraph={[
+          { text: 'Kaffe', lemmaUuid: 'kaffe', state: 'new', isToken: true },
+          { text: ', te.', lemmaUuid: null, state: 'mastered', isToken: false },
+        ]}
+        paragraphIndex={0}
+        onOpenLemma={onOpenLemma}
+      />,
+    );
+    expect(container).toHaveTextContent('Kaffe, te.');
+    await user.click(screen.getByRole('button', { name: 'Kaffe' }));
+    expect(onOpenLemma).toHaveBeenCalledWith('kaffe', 'Kaffe', '0-0');
   });
 });

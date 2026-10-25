@@ -63,8 +63,10 @@ async def test_get_stats_given_cards_logs_and_lessons_expect_frontend_contract(
 
     service = StatsQueryService(async_session)
 
-    stats = await service.get_dashboard_stats(user_id=fixture.user_id)
-    expected_accuracy = _expected_accuracy(fixture.events)
+    stats = await service.get_dashboard_stats(
+        user_id=fixture.user_id, now_dt=fixture.current_time
+    )
+    expected_accuracy = _expected_accuracy(fixture.events, fixture.current_time)
 
     assert stats.dueCount == EXPECTED_STATS_DUE_COUNT
     assert stats.dueNew == 1
@@ -74,9 +76,9 @@ async def test_get_stats_given_cards_logs_and_lessons_expect_frontend_contract(
     assert stats.relearning == 1
     assert stats.accuracy7d == pytest.approx(expected_accuracy)
     assert stats.wordsPracticed == EXPECTED_STATS_WORDS_PRACTICED
-    assert stats.streak == _expected_streak(fixture.events, fixture.today_date)
+    assert stats.streak == _expected_streak(fixture.events, fixture.current_time.date())
     assert stats.snapshot.model_dump() == _expected_snapshot(
-        fixture.events, fixture.today_date
+        fixture.events, fixture.current_time.date()
     )
 
 
@@ -87,7 +89,7 @@ ReviewEvent = tuple[UserCard, datetime, int]
 class StatsFixture:
     user_id: int
     events: list[ReviewEvent]
-    today_date: date
+    current_time: datetime
 
 
 async def _create_stats_fixture() -> StatsFixture:
@@ -95,8 +97,9 @@ async def _create_stats_fixture() -> StatsFixture:
     lessons = await _create_stats_lessons()
     pools = await _create_stats_pools(lessons)
     cards = await _create_stats_cards(user, pools)
-    events = await _create_stats_review_events(cards)
-    return StatsFixture(user.id, events, now().date())
+    current_time = now()
+    events = await _create_stats_review_events(cards, current_time)
+    return StatsFixture(user.id, events, current_time)
 
 
 async def _create_stats_lessons() -> tuple[Lesson, Lesson, Lesson]:
@@ -153,19 +156,20 @@ async def _create_stats_cards(
         ),
     )
     await UserLessonProgressFactory.create(
-        user=user, lesson=pools[2].lesson, completed_at=None
+        user=user, lesson_id=pools[2].lesson_id, completed_at=None
     )
     await UserLessonProgressFactory.create(
-        user=user, lesson=pools[3].lesson, completed_at=now()
+        user=user, lesson_id=pools[3].lesson_id, completed_at=now()
     )
     return cards
 
 
 async def _create_stats_review_events(
     cards: tuple[UserCard, UserCard, UserCard, UserCard],
+    current_time: datetime,
 ) -> list[ReviewEvent]:
     _, learning_card, relearning_card, review_card = cards
-    today = datetime.combine(now().date(), time(hour=12))
+    today = datetime.combine(current_time.date(), time(hour=12))
     yesterday = today - timedelta(days=1)
     start_of_week = today.date() - timedelta(days=today.weekday())
     last_week = datetime.combine(start_of_week - timedelta(days=1), time(hour=12))
@@ -196,8 +200,8 @@ def _expected_snapshot(
     return snapshot
 
 
-def _expected_accuracy(events: list[ReviewEvent]) -> float:
-    cutoff = now() - timedelta(days=7)
+def _expected_accuracy(events: list[ReviewEvent], current_time: datetime) -> float:
+    cutoff = current_time - timedelta(days=7)
     ratings = [rating for _, reviewed_at, rating in events if reviewed_at >= cutoff]
     return sum(rating >= Rating.Good for rating in ratings) / len(ratings)
 

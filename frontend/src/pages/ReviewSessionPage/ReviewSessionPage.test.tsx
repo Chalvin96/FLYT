@@ -1,13 +1,14 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { toast } from 'sonner';
+import { http, HttpResponse } from 'msw/http';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-import type { QueueCounts } from '@/lib/sessionQueue';
+import type { ReviewSessionState } from '@/hooks/review/useReviewSession';
+import { server } from '@/test/msw/server';
 import type { UserCard } from '@/types/api';
 import { LESSON_PACKET_SCHEMA_VERSION } from '@/types/lesson-contracts';
 
-import { IDLE_LOAD_STATE } from './reviewSessionLoadState';
 import { ReviewSessionPage } from './ReviewSessionPage';
 
 const mockNavigate = vi.fn();
@@ -16,7 +17,6 @@ vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<typeof import('@tanstack/react-router')>(
     '@tanstack/react-router',
   );
-
   return {
     ...actual,
     Navigate: (props: unknown) => {
@@ -27,17 +27,7 @@ vi.mock('@tanstack/react-router', async () => {
   };
 });
 
-vi.mock('sonner', () => ({
-  toast: {
-    error: vi.fn(),
-  },
-}));
-
-const EMPTY_COUNTS: QueueCounts = { new: 0, learning: 0, review: 0 };
-
-const ACCEPTED = vi.fn().mockResolvedValue({ accepted: true });
-
-function makeDefinitionCard(id: number, word: string): UserCard {
+function definitionCard(id: number): UserCard {
   return {
     id,
     user_id: 1,
@@ -46,6 +36,7 @@ function makeDefinitionCard(id: number, word: string): UserCard {
     fsrs_difficulty: null,
     fsrs_stability: null,
     fsrs_step: null,
+    review_version: 0,
     last_review_at: null,
     state: 'review',
     card: {
@@ -53,14 +44,14 @@ function makeDefinitionCard(id: number, word: string): UserCard {
       deck_id: 1,
       type: 'definition',
       payload: {
-        word,
+        word: 'hund',
         pos: 'noun',
-        primary_translation: `${word} translation`,
+        primary_translation: 'dog',
         definitions: [
           {
-            uuid: `def-${word}-1`,
-            definition: `${word} definition`,
-            translation: `${word} translation`,
+            uuid: 'def-hund-1',
+            definition: 'hund definition',
+            translation: 'dog',
             examples_json: [],
           },
         ],
@@ -69,21 +60,24 @@ function makeDefinitionCard(id: number, word: string): UserCard {
   };
 }
 
-function makeSchemaChooseCard(id: number): UserCard {
+function chooseCard(
+  schemaVersion: string = LESSON_PACKET_SCHEMA_VERSION,
+): UserCard {
   return {
-    id,
+    id: 2,
     user_id: 1,
-    pool_id: id,
+    pool_id: 2,
     due_at: '2026-03-14T09:00:00Z',
     fsrs_difficulty: null,
     fsrs_stability: null,
     fsrs_step: null,
+    review_version: 0,
     last_review_at: null,
     state: 'review',
     card: {
-      id,
+      id: 2,
       deck_id: 1,
-      schema_version: LESSON_PACKET_SCHEMA_VERSION,
+      schema_version: schemaVersion,
       type: 'choose',
       payload: {
         kind: 'exercise',
@@ -108,20 +102,21 @@ function makeSchemaChooseCard(id: number): UserCard {
   };
 }
 
-function makeWriteCard(id: number): UserCard {
+function writeCard(): UserCard {
   return {
-    id,
+    id: 3,
     user_id: 1,
-    pool_id: id,
+    pool_id: 3,
     lesson_id: 42,
     due_at: '2026-03-14T09:00:00Z',
     fsrs_difficulty: null,
     fsrs_stability: null,
     fsrs_step: null,
+    review_version: 0,
     last_review_at: null,
     state: 'review',
     card: {
-      id,
+      id: 3,
       deck_id: 1,
       schema_version: LESSON_PACKET_SCHEMA_VERSION,
       type: 'write',
@@ -137,58 +132,46 @@ function makeWriteCard(id: number): UserCard {
           min_words: 1,
           max_words: 10,
           judge_prompt: 'Judge the response.',
-          criteria: [
-            {
-              id: 'criterion-1',
-              instruction: 'Writes a Norwegian sentence.',
-            },
-          ],
+          criteria: [{ id: 'criterion-1', instruction: 'Writes a sentence.' }],
         },
       },
     },
   };
 }
 
-async function answerCurrentCard(buttonLabel: RegExp) {
-  await userEvent.click(
-    await screen.findByRole('button', { name: /^(show|check) answer$/i }),
-  );
-  await userEvent.click(screen.getByRole('button', { name: buttonLabel }));
+function cardSession(
+  card: UserCard,
+  overrides: Partial<Extract<ReviewSessionState, { kind: 'card' }>> = {},
+): Extract<ReviewSessionState, { kind: 'card' }> {
+  return {
+    kind: 'card',
+    card,
+    presentationKey: `${card.id}-0`,
+    ahead: false,
+    counts: { new: 1, learning: 0, review: 0 },
+    summary: { reviewedCount: 0, accuracy: null },
+    isSubmitting: false,
+    submitOutcome: vi.fn().mockResolvedValue(true),
+    ...overrides,
+  };
 }
 
 describe('ReviewSessionPage', () => {
   beforeEach(() => {
     mockNavigate.mockReset();
-    vi.mocked(toast.error).mockClear();
-    ACCEPTED.mockClear();
-    ACCEPTED.mockResolvedValue({ accepted: true });
     globalThis.localStorage.clear();
   });
 
-  it('renders the current card', async () => {
-    render(
-      <ReviewSessionPage
-        currentCard={makeDefinitionCard(1, 'hund')}
-        status="card"
-        counts={{ new: 1, learning: 0, review: 0 }}
-        submitReview={ACCEPTED}
-      />,
-    );
-
-    expect((await screen.findAllByText('hund')).length).toBeGreaterThan(0);
-  });
-
   it('test_review_page_given_initial_issuance_failure_expect_retry_without_completion', async () => {
-    const onRetry = vi.fn().mockResolvedValue(undefined);
+    const retry = vi.fn().mockResolvedValue(undefined);
     render(
       <ReviewSessionPage
-        currentCard={undefined}
-        status="error"
-        counts={EMPTY_COUNTS}
-        loadState={{ ...IDLE_LOAD_STATE, isError: true }}
-        error={new Error('Could not reach the review queue.')}
-        onRetry={onRetry}
-        submitReview={vi.fn()}
+        session={{
+          kind: 'error',
+          message: 'Unavailable',
+          isRetrying: false,
+          retry,
+        }}
       />,
     );
 
@@ -196,493 +179,183 @@ describe('ReviewSessionPage', () => {
       'Could not start review',
     );
     expect(screen.queryByText('Session complete')).not.toBeInTheDocument();
-    expect(mockNavigate).not.toHaveBeenCalled();
-
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(onRetry).toHaveBeenCalledOnce();
+    expect(retry).toHaveBeenCalledOnce();
   });
 
-  it('renders the remaining counts counter with data-testids', () => {
-    render(
-      <ReviewSessionPage
-        currentCard={makeDefinitionCard(1, 'hund')}
-        status="card"
-        counts={{ new: 3, learning: 2, review: 1 }}
-        submitReview={ACCEPTED}
-      />,
-    );
+  it('test_review_page_given_empty_issuance_expect_return_to_review', () => {
+    render(<ReviewSessionPage session={{ kind: 'empty' }} />);
+    expect(mockNavigate).toHaveBeenCalledWith({
+      replace: true,
+      search: { mode: 'full' },
+      to: '/review',
+    });
+  });
+
+  it('test_review_page_given_card_expect_counts_ahead_signal_and_outcome_pass_through', async () => {
+    const session = cardSession(definitionCard(1), {
+      ahead: true,
+      counts: { new: 3, learning: 2, review: 1 },
+    });
+    const { rerender } = render(<ReviewSessionPage session={session} />);
 
     expect(screen.getByTestId('count-new')).toHaveTextContent('3 new');
     expect(screen.getByTestId('count-learning')).toHaveTextContent(
       '2 learning',
     );
     expect(screen.getByTestId('count-review')).toHaveTextContent('1 review');
-  });
-
-  it('test_review_session_given_answered_card_expect_submits_graded_outcome', async () => {
-    render(
-      <ReviewSessionPage
-        currentCard={makeDefinitionCard(1, 'hund')}
-        status="card"
-        counts={{ new: 1, learning: 0, review: 0 }}
-        submitReview={ACCEPTED}
-      />,
+    expect(screen.getByTestId('ahead-signal')).toHaveTextContent(
+      'Studying ahead',
     );
-
-    await answerCurrentCard(/good/i);
-
-    await waitFor(() => {
-      expect(ACCEPTED).toHaveBeenCalledWith({
-        submission: { outcome: 'graded', rating: 3 },
-      });
-    });
-  });
-
-  it('test_review_session_given_write_card_expect_uses_lesson_judge', async () => {
-    const judgeWrite = vi.fn().mockResolvedValue({
-      criteria: [{ criterion_id: 'c1', met: true, evidence: 'Jeg' }],
-    });
-    const user = userEvent.setup();
-    render(
-      <ReviewSessionPage
-        currentCard={makeWriteCard(42)}
-        status="card"
-        counts={{ new: 1, learning: 0, review: 0 }}
-        judgeWrite={judgeWrite}
-        submitReview={ACCEPTED}
-      />,
-    );
-
-    await user.type(screen.getByRole('textbox'), 'Jeg skriver nå.');
-    await user.click(screen.getByRole('button', { name: /^check$/i }));
-
-    await waitFor(() => {
-      expect(judgeWrite).toHaveBeenCalledWith('Jeg skriver nå.');
-    });
-  });
-
-  it('shows completion screen when status is done', () => {
-    render(
-      <ReviewSessionPage
-        currentCard={undefined}
-        status="done"
-        counts={{ new: 0, learning: 0, review: 1 }}
-        submitReview={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText('Session complete')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /back to review/i }),
-    ).toBeInTheDocument();
-  });
-
-  it('renders the "More cards due later today" hint when done with learning cards remaining', () => {
-    render(
-      <ReviewSessionPage
-        currentCard={undefined}
-        status="done"
-        counts={{ new: 0, learning: 2, review: 0 }}
-        submitReview={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText('Session complete')).toBeInTheDocument();
-    expect(screen.getByText(/more cards due later today/i)).toBeInTheDocument();
-  });
-
-  it('omits the "More cards due later today" hint when done with no learning cards', () => {
-    render(
-      <ReviewSessionPage
-        currentCard={undefined}
-        status="done"
-        counts={{ new: 0, learning: 0, review: 1 }}
-        submitReview={vi.fn()}
-      />,
-    );
-
-    expect(
-      screen.queryByText(/more cards due later today/i),
-    ).not.toBeInTheDocument();
-  });
-
-  it('navigates to review page when clicking back to review', async () => {
-    render(
-      <ReviewSessionPage
-        currentCard={undefined}
-        status="done"
-        counts={{ new: 0, learning: 0, review: 1 }}
-        submitReview={vi.fn()}
-      />,
-    );
-
     await userEvent.click(
-      screen.getByRole('button', { name: /back to review/i }),
+      await screen.findByRole('button', { name: 'Check answer' }),
     );
-
-    expect(mockNavigate).toHaveBeenCalledWith({
-      search: { mode: 'full' },
-      to: '/review',
+    await userEvent.click(screen.getByRole('button', { name: /good/i }));
+    expect(session.submitOutcome).toHaveBeenCalledWith({
+      kind: 'graded',
+      correct: true,
+      rating: 3,
     });
-  });
-
-  it('redirects to review page when done with no reviewed cards', async () => {
-    render(
-      <ReviewSessionPage
-        currentCard={undefined}
-        status="done"
-        counts={EMPTY_COUNTS}
-        loadState={IDLE_LOAD_STATE}
-        submitReview={vi.fn()}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith({
-        replace: true,
-        search: { mode: 'full' },
-        to: '/review',
-      });
-    });
-  });
-
-  it('does NOT redirect when done with no reviews but learning cards remain due later today', async () => {
-    // showNext reports `done` with reviewedCount===0 when only
-    // learning/relearning cards remain beyond the learn-ahead window. The
-    // queue is not empty, so redirecting would bounce back here in a loop
-    // (Start practice stays enabled while those cards sit in /due). The
-    // completion screen with the "More cards due later today." hint handles
-    // this case instead.
-    render(
-      <ReviewSessionPage
-        currentCard={undefined}
-        status="done"
-        counts={{ new: 0, learning: 2, review: 0 }}
-        loadState={IDLE_LOAD_STATE}
-        submitReview={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText('Session complete')).toBeInTheDocument();
-    expect(screen.getByText(/more cards due later today/i)).toBeInTheDocument();
-
-    // Give the redirect effect a chance to run (it must not).
-    await waitFor(() => {
-      expect(mockNavigate).not.toHaveBeenCalled();
-    });
-  });
-
-  it('shows backend code and message when review submission fails', async () => {
-    render(
-      <ReviewSessionPage
-        currentCard={makeDefinitionCard(1, 'hund')}
-        status="card"
-        counts={{ new: 1, learning: 0, review: 0 }}
-        submitReview={vi.fn().mockRejectedValue({
-          isAxiosError: true,
-          message: 'Request failed',
-          response: {
-            data: {
-              detail: {
-                code: 'INVALID_REVIEW_RATING',
-                message: 'Pick a valid rating.',
-              },
-            },
-          },
-        })}
-      />,
-    );
-
-    await answerCurrentCard(/good/i);
-
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith(
-        'INVALID_REVIEW_RATING - Pick a valid rating.',
-      );
-    });
-    expect(screen.queryByText('Session complete')).not.toBeInTheDocument();
-  });
-
-  it('reveals schema exercise feedback before submitting the review result', async () => {
-    render(
-      <ReviewSessionPage
-        currentCard={makeSchemaChooseCard(1)}
-        status="card"
-        counts={{ new: 1, learning: 0, review: 0 }}
-        submitReview={ACCEPTED}
-      />,
-    );
-
-    await userEvent.click(screen.getByRole('radio', { name: /snakker/i }));
-    await userEvent.click(screen.getByRole('button', { name: /check/i }));
-
-    expect(ACCEPTED).not.toHaveBeenCalled();
-    expect(screen.getByText('Correct')).toBeInTheDocument();
-    expect(screen.getByText('This is the correct option.')).toBeInTheDocument();
-    expect(screen.getByText('Matches the subject.')).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: /continue/i }));
-
-    await waitFor(() => {
-      expect(ACCEPTED).toHaveBeenCalledWith({
-        submission: { outcome: 'graded', rating: 4 },
-      });
-    });
-  });
-
-  it('test_write_review_given_judge_expect_judges_before_review_submission', async () => {
-    const user = userEvent.setup();
-    const judgeWrite = vi.fn().mockResolvedValue({
-      criteria: [
-        {
-          criterion_id: 'criterion-1',
-          met: true,
-          evidence: 'Jeg lærer norsk.',
-        },
-      ],
-    });
-
-    render(
-      <ReviewSessionPage
-        currentCard={makeWriteCard(1)}
-        status="card"
-        counts={{ new: 1, learning: 0, review: 0 }}
-        judgeWrite={judgeWrite}
-        submitReview={ACCEPTED}
-      />,
-    );
-
-    await user.type(
-      screen.getByRole('textbox', { name: /your response in norwegian/i }),
-      'Jeg lærer norsk.',
-    );
-    await user.click(screen.getByRole('button', { name: /^check$/i }));
-
-    await waitFor(() => {
-      expect(judgeWrite).toHaveBeenCalledWith('Jeg lærer norsk.');
-    });
-    expect(ACCEPTED).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole('button', { name: /^continue$/i }));
-
-    await waitFor(() => {
-      expect(ACCEPTED).toHaveBeenCalledWith({
-        submission: { outcome: 'graded', rating: 4 },
-      });
-    });
-  });
-
-  it('test_write_draft_given_review_rejected_expect_preserved', async () => {
-    const user = userEvent.setup();
-    const submitReview = vi.fn().mockResolvedValue({ accepted: false });
-    const draftKey = 'flyt.write.draft.1-card-1.review-write';
-
-    render(
-      <ReviewSessionPage
-        currentCard={makeWriteCard(1)}
-        status="card"
-        counts={{ new: 1, learning: 0, review: 0 }}
-        submitReview={submitReview}
-      />,
-    );
-
-    await user.type(
-      screen.getByRole('textbox', { name: /your response in norwegian/i }),
-      'Jeg lærer norsk.',
-    );
-    await user.click(screen.getByRole('button', { name: /skip for now/i }));
-
-    await waitFor(() => {
-      expect(submitReview).toHaveBeenCalledWith({
-        submission: { outcome: 'skipped' },
-      });
-    });
-    expect(globalThis.localStorage.getItem(draftKey)).toBe('Jeg lærer norsk.');
-  });
-
-  it('test_ungraded_review_given_completion_expect_accuracy_excludes_card', async () => {
-    const user = userEvent.setup();
-    const { rerender } = render(
-      <ReviewSessionPage
-        currentCard={makeWriteCard(1)}
-        status="card"
-        counts={{ new: 1, learning: 0, review: 0 }}
-        submitReview={ACCEPTED}
-      />,
-    );
-
-    await user.click(screen.getByRole('button', { name: /skip for now/i }));
-
-    await waitFor(() => {
-      expect(ACCEPTED).toHaveBeenCalledWith({
-        submission: { outcome: 'skipped' },
-      });
-    });
-
-    rerender(
-      <ReviewSessionPage
-        currentCard={undefined}
-        status="done"
-        counts={EMPTY_COUNTS}
-        submitReview={ACCEPTED}
-      />,
-    );
-
-    expect(await screen.findByText('Session complete')).toBeInTheDocument();
-    expect(screen.getByText('1 card reviewed')).toBeInTheDocument();
-    expect(screen.getByText('No graded answers')).toBeInTheDocument();
-    expect(screen.queryByText('0% accuracy')).not.toBeInTheDocument();
-  });
-
-  it('renders the static "Studying ahead" badge when currentCardAhead is true', () => {
-    render(
-      <ReviewSessionPage
-        currentCard={makeDefinitionCard(1, 'hund')}
-        status="card"
-        counts={{ new: 0, learning: 1, review: 0 }}
-        currentCardAhead={true}
-        submitReview={vi.fn()}
-      />,
-    );
-
-    const signal = screen.getByTestId('ahead-signal');
-    expect(signal).toHaveTextContent(/studying ahead/i);
-    // Static badge — no countdown / "due in" text.
-    expect(signal).not.toHaveTextContent(/due in/i);
-  });
-
-  it('omits the "Studying ahead" signal when currentCardAhead is false', () => {
-    render(
-      <ReviewSessionPage
-        currentCard={makeDefinitionCard(1, 'hund')}
-        status="card"
-        counts={{ new: 0, learning: 1, review: 0 }}
-        currentCardAhead={false}
-        submitReview={vi.fn()}
-      />,
-    );
-
+    rerender(<ReviewSessionPage session={{ ...session, ahead: false }} />);
     expect(screen.queryByTestId('ahead-signal')).not.toBeInTheDocument();
   });
 
-  it('re-show of the same card id with incremented presentationSeq resets the card to the front (Check answer visible)', () => {
-    const card = makeDefinitionCard(1, 'hund');
-
-    const { rerender } = render(
-      <ReviewSessionPage
-        currentCard={card}
-        status="card"
-        counts={{ new: 0, learning: 1, review: 0 }}
-        presentationSeq={0}
-        submitReview={ACCEPTED}
-      />,
+  it('test_review_page_given_completion_expect_summary_and_refreshed_next_step', async () => {
+    server.use(
+      http.get('*/me/cards/due', () => HttpResponse.json([definitionCard(2)])),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReviewSessionPage
+          session={{
+            kind: 'complete',
+            counts: { new: 0, learning: 1, review: 0 },
+            summary: { reviewedCount: 2, accuracy: 50 },
+          }}
+        />
+      </QueryClientProvider>,
     );
 
-    // Flip the card to reveal rating buttons on the back.
     expect(
-      screen.getByRole('button', { name: /check answer/i }),
+      screen.getByText('2 cards reviewed · 50% accuracy'),
     ).toBeInTheDocument();
+    expect(await screen.findByText('1 card due now')).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Continue reviewing' }),
+    );
+    expect(mockNavigate).toHaveBeenCalledWith({
+      search: { mode: 'full' },
+      to: '/review/session',
+      state: { reviewSessionId: expect.any(String) },
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Back to Home' }));
+    expect(mockNavigate).toHaveBeenLastCalledWith({ to: '/' });
+  });
 
-    // Simulate the hook bumping presentationSeq after an accepted review, then
-    // the same card id being re-shown via learn-ahead. The remounted card
-    // must present the front (Check answer) again, not the rating buttons.
+  it('test_review_page_given_choose_card_expect_feedback_before_outcome', async () => {
+    const session = cardSession(chooseCard());
+    render(<ReviewSessionPage session={session} />);
+
+    await userEvent.click(screen.getByRole('radio', { name: /snakker/i }));
+    await userEvent.click(screen.getByRole('button', { name: /check/i }));
+    expect(session.submitOutcome).not.toHaveBeenCalled();
+    expect(screen.getByText('Correct')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /continue/i }));
+    await waitFor(() => {
+      expect(session.submitOutcome).toHaveBeenCalledWith({
+        kind: 'graded',
+        correct: true,
+        rating: 4,
+      });
+    });
+  });
+
+  it('test_review_page_given_unsupported_card_expect_ungraded_unsupported_only', async () => {
+    const session = cardSession(chooseCard('unsupported'));
+    render(<ReviewSessionPage session={session} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(session.submitOutcome).toHaveBeenCalledOnce();
+    expect(session.submitOutcome).toHaveBeenCalledWith({
+      kind: 'ungraded',
+      outcome: 'unsupported',
+    });
+  });
+
+  it('test_review_page_given_write_card_expect_lesson_judge_before_outcome', async () => {
+    const session = cardSession(writeCard());
+    const judgeWrite = vi.fn();
+    server.use(
+      http.post(
+        '*/lessons/42/exercises/review-write/judge-write',
+        async ({ request }) => {
+          judgeWrite(await request.json());
+          return HttpResponse.json({
+            criteria: [
+              { criterion_id: 'criterion-1', met: true, evidence: 'Jeg' },
+            ],
+          });
+        },
+      ),
+    );
+    const user = userEvent.setup();
+    render(<ReviewSessionPage session={session} />);
+
+    await user.type(screen.getByRole('textbox'), 'Jeg lærer norsk.');
+    await user.click(screen.getByRole('button', { name: /^check$/i }));
+    await waitFor(() =>
+      expect(judgeWrite).toHaveBeenCalledWith({ response: 'Jeg lærer norsk.' }),
+    );
+    expect(session.submitOutcome).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: /^continue$/i }));
+    await waitFor(() => expect(session.submitOutcome).toHaveBeenCalledOnce());
+  });
+
+  it('test_review_page_given_write_skip_rejected_expect_draft_preserved', async () => {
+    const session = cardSession(writeCard(), {
+      submitOutcome: vi.fn().mockResolvedValue(false),
+    });
+    const user = userEvent.setup();
+    render(<ReviewSessionPage session={session} />);
+
+    await user.type(screen.getByRole('textbox'), 'Jeg lærer norsk.');
+    await user.click(screen.getByRole('button', { name: /skip for now/i }));
+    await waitFor(() => {
+      expect(session.submitOutcome).toHaveBeenCalledWith({
+        kind: 'ungraded',
+        outcome: 'skipped',
+      });
+    });
+    expect(
+      localStorage.getItem('flyt.write.draft.user-1-card-3.review-write'),
+    ).toBe('Jeg lærer norsk.');
+  });
+
+  it('test_review_page_given_same_card_presented_again_expect_front_reset', async () => {
+    const card = definitionCard(1);
+    const { rerender } = render(
+      <ReviewSessionPage session={cardSession(card)} />,
+    );
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Check answer' }),
+    );
+    expect(screen.getByRole('button', { name: 'Again' })).toBeInTheDocument();
+
     rerender(
       <ReviewSessionPage
-        currentCard={card}
-        status="card"
-        counts={{ new: 0, learning: 1, review: 0 }}
-        presentationSeq={1}
-        submitReview={ACCEPTED}
+        session={cardSession(card, { presentationKey: '1-1' })}
       />,
     );
-
-    // Front side is shown again after remount.
     expect(
-      screen.getByRole('button', { name: /check answer/i }),
+      screen.getByRole('button', { name: 'Check answer' }),
     ).toBeInTheDocument();
-    // Rating buttons (back side) must not be visible before flipping.
     expect(
       screen.queryByRole('button', { name: 'Again' }),
     ).not.toBeInTheDocument();
-  });
-
-  it('tracks reviewed count and accuracy across multiple reviews then shows completion', async () => {
-    // Drive the page through two reviews by switching currentCard and then
-    // transitioning to done. The parent (hook) owns the queue; the page only
-    // tracks reviewed/correct counts locally.
-    const { rerender } = render(
-      <ReviewSessionPage
-        currentCard={makeDefinitionCard(1, 'hund')}
-        status="card"
-        counts={{ new: 2, learning: 0, review: 0 }}
-        submitReview={ACCEPTED}
-      />,
-    );
-
-    await answerCurrentCard(/good/i);
-    await waitFor(() =>
-      expect(ACCEPTED).toHaveBeenCalledWith({
-        submission: { outcome: 'graded', rating: 3 },
-      }),
-    );
-
-    rerender(
-      <ReviewSessionPage
-        currentCard={makeDefinitionCard(2, 'katt')}
-        status="card"
-        counts={{ new: 1, learning: 0, review: 0 }}
-        submitReview={ACCEPTED}
-      />,
-    );
-
-    await answerCurrentCard(/easy/i);
-    await waitFor(() =>
-      expect(ACCEPTED).toHaveBeenCalledWith({
-        submission: { outcome: 'graded', rating: 4 },
-      }),
-    );
-
-    rerender(
-      <ReviewSessionPage
-        currentCard={undefined}
-        status="done"
-        counts={EMPTY_COUNTS}
-        submitReview={ACCEPTED}
-      />,
-    );
-
-    expect(await screen.findByText('Session complete')).toBeInTheDocument();
-    expect(screen.getByText('2 cards reviewed')).toBeInTheDocument();
-    expect(screen.getByText('100% accuracy')).toBeInTheDocument();
-  });
-
-  it('uses singular card label for a single completed card', async () => {
-    const { rerender } = render(
-      <ReviewSessionPage
-        currentCard={makeDefinitionCard(1, 'hund')}
-        status="card"
-        counts={{ new: 1, learning: 0, review: 0 }}
-        submitReview={ACCEPTED}
-      />,
-    );
-
-    await answerCurrentCard(/good/i);
-    await waitFor(() =>
-      expect(ACCEPTED).toHaveBeenCalledWith({
-        submission: { outcome: 'graded', rating: 3 },
-      }),
-    );
-
-    rerender(
-      <ReviewSessionPage
-        currentCard={undefined}
-        status="done"
-        counts={EMPTY_COUNTS}
-        submitReview={ACCEPTED}
-      />,
-    );
-
-    expect(await screen.findByText('1 card reviewed')).toBeInTheDocument();
-    expect(screen.queryByText('1 cards reviewed')).not.toBeInTheDocument();
   });
 });

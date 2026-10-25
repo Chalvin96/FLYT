@@ -13,11 +13,11 @@ from flyt.apps.story_generation.exceptions import ProviderUnavailableRefused
 from flyt.apps.story_generation.exceptions import WeeklyBudgetExhaustedRefused
 from flyt.apps.story_generation.models import Generation
 from flyt.apps.story_generation.models import GenerationOutcome
-from flyt.apps.story_generation.prompt import build_prompt
-from flyt.apps.story_generation.prompt import build_provider_request
+from flyt.apps.story_generation.prompt import build_story_request
 from flyt.apps.story_generation.prompt import topic_suggestions
 from flyt.apps.story_generation.prompt import validate_topic
 from flyt.apps.story_generation.retention import retention_cutoff
+from flyt.apps.story_generation.constants import K_DEFAULT_STORY_TITLE
 from flyt.apps.story_generation.schemas import AnchorChoiceRead
 from flyt.apps.story_generation.schemas import GenerationCreateResponse
 from flyt.apps.story_generation.schemas import GenerationCurrentRead
@@ -130,7 +130,7 @@ class GenerationService:
             raise AnchorExhaustedRefused()
 
         if provider_selection.funded_by_flyt:
-            prompt = build_prompt(
+            request = build_story_request(
                 base_words=selection.base_words,
                 target_words=selection.target_words,
                 length=length,
@@ -140,7 +140,7 @@ class GenerationService:
             usage_service = AiUsageService(self._db)
             if not await usage_service.is_request_admitted(
                 user_id,
-                build_provider_request(prompt, length),
+                request,
             ):
                 raise WeeklyBudgetExhaustedRefused()
 
@@ -185,12 +185,18 @@ class GenerationService:
                 code="STORY_GENERATION_NOT_FOUND",
             )
 
+        import_title = (
+            (title or "").strip()
+            or generation.title
+            or generation.topic
+            or K_DEFAULT_STORY_TITLE
+        )
         import_service = ImportService(self._db)
         return await import_service.create_from_generation(
             user_id=user_id,
             text=generation.text,
             pages=_deserialize_pages(generation.pages),
-            title=title,
+            title=import_title,
         )
 
     async def finalize_import(self, draft: ImportDraft) -> ImportItemRead:

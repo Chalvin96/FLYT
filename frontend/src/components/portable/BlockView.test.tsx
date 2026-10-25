@@ -159,6 +159,84 @@ describe('BlockView', () => {
     ).toBeInTheDocument();
   });
 
+  it('test_example_group_given_mixed_roles_expect_role_cues_and_continuous_numbering', () => {
+    const audio: AudioAsset = {
+      id: 'audio-1',
+      url: 'https://media.example.test/audio/lesson-a/audio-1.wav',
+      path: 'audio/lessons/lesson-a/00000000-0000-4000-8000-000000000001.wav',
+      mime: 'audio/wav',
+      duration_ms: 400,
+      status: 'synthesized',
+    };
+
+    render(
+      <ExampleGroupView
+        blocks={[
+          {
+            kind: 'example',
+            id: 'incorrect-example',
+            no: [{ kind: 'text', value: 'Jeg har sett filmen i går.' }],
+            en: [{ kind: 'text', value: 'I watched the film yesterday.' }],
+            teaching_role: 'incorrect',
+            audio_id: 'audio-1',
+          },
+          {
+            kind: 'example',
+            id: 'caution-example',
+            no: [{ kind: 'text', value: 'Det kan brukes, men sjelden.' }],
+            en: [{ kind: 'text', value: 'It can be used, but rarely.' }],
+            teaching_role: 'caution',
+            audio_id: 'audio-1',
+          },
+          {
+            kind: 'example',
+            id: 'model-example',
+            no: [{ kind: 'text', value: 'Jeg så filmen i går.' }],
+            en: [{ kind: 'text', value: 'I watched the film yesterday.' }],
+          },
+        ]}
+        audioById={{ 'audio-1': audio }}
+      />,
+    );
+
+    const rows = screen.getAllByRole('listitem');
+    expect(rows.map((row) => row.dataset.teachingRole)).toEqual([
+      'incorrect',
+      'caution',
+      'model',
+    ]);
+    expect(screen.getAllByTestId('example-role-marker')).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent('Incorrect example:');
+    expect(rows[1]).toHaveTextContent('Use with care:');
+    // The marker is announced, not shown; the row carries its role as data.
+    expect(screen.getByText('Incorrect example:')).toHaveClass('sr-only');
+    expect(screen.getByText('Use with care:')).toHaveClass('sr-only');
+    expect(screen.getByText('01')).toBeInTheDocument();
+    expect(screen.getByText('02')).toBeInTheDocument();
+    expect(screen.getByText('03')).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('button', { name: 'Play example' }),
+    ).toHaveLength(1);
+  });
+
+  it('test_example_given_single_incorrect_role_expect_visible_label_without_ordinal', () => {
+    render(
+      <BlockView
+        block={{
+          kind: 'example',
+          id: 'incorrect-example',
+          no: [{ kind: 'text', value: 'Jeg går ikke hjem i går.' }],
+          en: [{ kind: 'text', value: 'I did not go home yesterday.' }],
+          teaching_role: 'incorrect',
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Incorrect')).toBeInTheDocument();
+    expect(screen.queryByText('Incorrect example:')).not.toBeInTheDocument();
+    expect(screen.queryByText('01')).not.toBeInTheDocument();
+  });
+
   it('test_block_view_given_grouped_examples_expect_authored_items_rendered', () => {
     render(
       <BlockView

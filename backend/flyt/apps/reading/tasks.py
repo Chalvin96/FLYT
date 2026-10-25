@@ -4,30 +4,35 @@ import logging
 from typing import Any
 
 from sqlalchemy import delete
+from sqlalchemy.orm import undefer
 
 from flyt.apps.reading.annotation import build_pages
 from flyt.apps.reading.import_service import ImportService
 from flyt.apps.reading.models import Story
 from flyt.apps.reading.models import StoryPage
+from flyt.apps.reading.services import ReadingService
 from flyt.core.db import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
 
-async def generate_story_pages(ctx: dict[str, Any], story_id: int) -> None:
+async def generate_story_pages(
+    ctx: dict[str, Any], story_id: int, is_ready: bool | None = None
+) -> None:
     """Paginate + annotate a curated story into StoryPage rows. Idempotent (replaces)."""
     async with AsyncSessionLocal() as db:
-        story = await db.get(Story, story_id)
+        story = await db.get(
+            Story, story_id, options=[undefer(Story.content)], populate_existing=True
+        )
         if story is None:
             raise ValueError(f"Story {story_id} not found")
 
         if story.content is None:
-            # Curated ingest always populates Story.content. A missing value here is
-            # a data-integrity error, not an import (imports go through the
-            # story-import worker, which also reads Story.content).
             raise ValueError(f"Story {story_id} has no inline content to paginate")
 
         pages = await build_pages(db, story.content)
+        if not pages:
+            raise ValueError(f"Story {story_id} has no pages")
         await db.execute(delete(StoryPage).where(StoryPage.story_id == story_id))
         for page in pages:
             db.add(
@@ -39,6 +44,10 @@ async def generate_story_pages(ctx: dict[str, Any], story_id: int) -> None:
                     word_count=page.word_count,
                 )
             )
+        await db.flush()
+        await ReadingService(db).set_story_ready(
+            story, story.is_ready if is_ready is None else is_ready
+        )
         await db.commit()
 
 

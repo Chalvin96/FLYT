@@ -1,5 +1,10 @@
-import { http, HttpResponse } from 'msw';
+import { http, HttpResponse } from 'msw/http';
 
+import {
+  CHATBOT_MODEL_ACTIONS,
+  CHATBOT_MODEL_IDS,
+  CHATBOT_MODEL_REASONS,
+} from '@/api/chatbot';
 import type { ImportItem, ImportListResponse } from '@/types/api';
 
 // Happy-path defaults only; handlers never reproduce server-side validation.
@@ -49,7 +54,7 @@ export const handlers = [
     HttpResponse.json({
       models: [
         {
-          id: 'flyt',
+          id: CHATBOT_MODEL_IDS.FLYT,
           label: 'Flyt',
           detail: 'GLM 5.3 Flash',
           model: 'z-ai/glm-5.3-flash',
@@ -59,33 +64,33 @@ export const handlers = [
           requiresOpenRouterKey: false,
         },
         {
-          id: 'chatgpt',
+          id: CHATBOT_MODEL_IDS.CHATGPT,
           label: 'ChatGPT',
           detail: 'powered by Luna',
           model: 'gpt-5.6-luna',
           available: false,
-          reason: 'chatgpt_link_required',
-          action: 'link_account',
+          reason: CHATBOT_MODEL_REASONS.NOT_LINKED,
+          action: CHATBOT_MODEL_ACTIONS.LINK_ACCOUNT,
           requiresOpenRouterKey: false,
         },
         {
-          id: 'deepseek',
+          id: CHATBOT_MODEL_IDS.DEEPSEEK,
           label: 'DeepSeek',
           detail: 'via OpenRouter',
           model: 'deepseek/deepseek-v4-flash-0731',
           available: false,
-          reason: 'openrouter_key_required',
-          action: 'add_openrouter_key',
+          reason: CHATBOT_MODEL_REASONS.OPENROUTER_KEY_REQUIRED,
+          action: CHATBOT_MODEL_ACTIONS.ADD_OPENROUTER_KEY,
           requiresOpenRouterKey: true,
         },
         {
-          id: 'glm',
+          id: CHATBOT_MODEL_IDS.GLM,
           label: 'GLM 5.3 Flash',
           detail: 'via OpenRouter',
           model: 'z-ai/glm-5.3-flash',
           available: false,
-          reason: 'openrouter_key_required',
-          action: 'add_openrouter_key',
+          reason: CHATBOT_MODEL_REASONS.OPENROUTER_KEY_REQUIRED,
+          action: CHATBOT_MODEL_ACTIONS.ADD_OPENROUTER_KEY,
           requiresOpenRouterKey: true,
         },
       ],

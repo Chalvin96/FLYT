@@ -10,6 +10,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AxiosError } from 'axios';
 
+import { gradedOutcome } from '@/lib/operationResult';
 import type { WriteExercise, WriteJudgement } from '@/types/lesson-contracts';
 
 import { K_OPERATION_REQUEST_TIMEOUT_MS } from '../operationRequest';
@@ -55,10 +56,17 @@ describe('FlashCardWrite', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('test_explanation_given_write_before_check_expect_hidden_and_prompt_private', () => {
-    render(<FlashCardWrite exercise={exercise} initialResponse={response} />);
+    render(
+      <FlashCardWrite
+        allowRetry
+        exercise={exercise}
+        initialResponse={response}
+      />,
+    );
 
     expect(screen.getByTestId('exercise-prompt')).toHaveTextContent(
       'Describe your morning.',
@@ -90,6 +98,7 @@ describe('FlashCardWrite', () => {
     const user = userEvent.setup();
     render(
       <FlashCardWrite
+        allowRetry
         exercise={exercise}
         initialResponse={response}
         judgeWrite={judgeWrite}
@@ -106,7 +115,7 @@ describe('FlashCardWrite', () => {
     expect(await screen.findByTestId('exercise-explanation')).toHaveTextContent(
       /present-tense verbs/i,
     );
-    expect(screen.getAllByText(/all criteria met/i)).toHaveLength(1);
+    expect(screen.getByText(/all criteria met/i)).toBeInTheDocument();
     expect(screen.getByTestId('write-criteria')).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /what (gets|was) checked/i }),
@@ -124,7 +133,7 @@ describe('FlashCardWrite', () => {
       },
     };
 
-    render(<FlashCardWrite exercise={unboundedExercise} />);
+    render(<FlashCardWrite allowRetry exercise={unboundedExercise} />);
 
     expect(screen.queryByText(/0 \/ 1\+/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/more word/i)).not.toBeInTheDocument();
@@ -139,6 +148,7 @@ describe('FlashCardWrite', () => {
     const user = userEvent.setup();
     render(
       <FlashCardWrite
+        allowRetry
         exercise={exercise}
         initialResponse={response}
         judgeWrite={() => Promise.reject(new Error('offline'))}
@@ -160,6 +170,7 @@ describe('FlashCardWrite', () => {
     vi.useFakeTimers();
     render(
       <FlashCardWrite
+        allowRetry
         exercise={exercise}
         initialResponse={response}
         judgeWrite={() => new Promise<WriteJudgement>(() => undefined)}
@@ -183,6 +194,7 @@ describe('FlashCardWrite', () => {
     const user = userEvent.setup();
     render(
       <FlashCardWrite
+        allowRetry
         exercise={exercise}
         initialResponse={response}
         judgeWrite={() => Promise.reject(new Error('offline'))}
@@ -203,7 +215,9 @@ describe('FlashCardWrite', () => {
     const user = userEvent.setup();
     const draftExercise = { ...exercise, id: 'write-draft-lifecycle-1' };
     const draftKey = 'flyt.write.draft.anonymous.write-draft-lifecycle-1';
-    render(<FlashCardWrite exercise={draftExercise} initialResponse="" />);
+    render(
+      <FlashCardWrite allowRetry exercise={draftExercise} initialResponse="" />,
+    );
 
     await user.type(screen.getByRole('textbox'), response);
 
@@ -219,7 +233,7 @@ describe('FlashCardWrite', () => {
     const draftExercise = { ...exercise, id: 'write-unmount-draft-1' };
     const draftKey = 'flyt.write.draft.anonymous.write-unmount-draft-1';
     const { rerender } = render(
-      <FlashCardWrite exercise={draftExercise} initialResponse="" />,
+      <FlashCardWrite allowRetry exercise={draftExercise} initialResponse="" />,
     );
 
     await user.type(screen.getByRole('textbox'), response);
@@ -227,7 +241,7 @@ describe('FlashCardWrite', () => {
 
     rerender(<div />);
 
-    rerender(<FlashCardWrite exercise={draftExercise} />);
+    rerender(<FlashCardWrite allowRetry exercise={draftExercise} />);
 
     expect(screen.getByRole('textbox')).toHaveValue(response);
   });
@@ -238,7 +252,9 @@ describe('FlashCardWrite', () => {
       .mockImplementation(() => undefined);
     const user = userEvent.setup();
 
-    render(<FlashCardWrite exercise={exercise} initialResponse="" />);
+    render(
+      <FlashCardWrite allowRetry exercise={exercise} initialResponse="" />,
+    );
     await user.type(screen.getByRole('textbox'), response);
 
     expect(screen.getByText('Draft saved on this device')).toBeInTheDocument();
@@ -260,6 +276,7 @@ describe('FlashCardWrite', () => {
     const onFinished = vi.fn().mockResolvedValue(false);
     render(
       <FlashCardWrite
+        allowRetry
         exercise={draftExercise}
         initialResponse={response}
         initialPhase="result"
@@ -284,6 +301,7 @@ describe('FlashCardWrite', () => {
     const user = userEvent.setup();
     render(
       <FlashCardWrite
+        allowRetry
         exercise={exercise}
         initialResponse={response}
         initialPhase="result"
@@ -302,11 +320,83 @@ describe('FlashCardWrite', () => {
   it('test_write_draft_given_empty_response_expect_no_storage_entry', () => {
     const draftExercise = { ...exercise, id: 'write-empty-draft-1' };
     const draftKey = 'flyt.write.draft.anonymous.write-empty-draft-1';
+    const legacyKey = 'flyt.write.draft.old-owner.write-empty-draft-1';
     globalThis.localStorage.setItem(draftKey, response);
+    globalThis.localStorage.setItem(legacyKey, response);
 
-    render(<FlashCardWrite exercise={draftExercise} initialResponse="" />);
+    render(
+      <FlashCardWrite
+        allowRetry
+        exercise={draftExercise}
+        initialResponse=""
+        legacyDraftOwnerKey="old-owner"
+      />,
+    );
 
     expect(globalThis.localStorage.getItem(draftKey)).toBeNull();
+    expect(globalThis.localStorage.getItem(legacyKey)).toBeNull();
+  });
+
+  it('test_write_draft_given_failed_migration_expect_legacy_removed_after_skip', async () => {
+    const user = userEvent.setup();
+    const draftExercise = { ...exercise, id: 'write-failed-migration-1' };
+    const newKey = 'flyt.write.draft.user-9-card-7.write-failed-migration-1';
+    const legacyKey = 'flyt.write.draft.9-card-7.write-failed-migration-1';
+    localStorage.setItem(legacyKey, response);
+    const originalSetItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key, value) => {
+      if (key === newKey) throw new Error('storage unavailable');
+      originalSetItem.call(localStorage, key, value);
+    });
+
+    const { rerender } = render(
+      <FlashCardWrite
+        allowRetry
+        draftOwnerKey="user-9-card-7"
+        exercise={draftExercise}
+        legacyDraftOwnerKey="9-card-7"
+      />,
+    );
+
+    expect(screen.getByRole('textbox')).toHaveValue(response);
+    expect(localStorage.getItem(legacyKey)).toBe(response);
+
+    await user.click(screen.getByRole('button', { name: /skip for now/i }));
+
+    expect(localStorage.getItem(legacyKey)).toBeNull();
+    rerender(<div />);
+    rerender(
+      <FlashCardWrite
+        allowRetry
+        draftOwnerKey="user-9-card-7"
+        exercise={draftExercise}
+        legacyDraftOwnerKey="9-card-7"
+      />,
+    );
+    expect(screen.getByRole('textbox')).toHaveValue('');
+  });
+
+  it('test_write_draft_given_legacy_entry_expect_removed_when_response_cleared', async () => {
+    const user = userEvent.setup();
+    const draftExercise = { ...exercise, id: 'write-clear-legacy-1' };
+    const newKey = 'flyt.write.draft.user-9-card-7.write-clear-legacy-1';
+    const legacyKey = 'flyt.write.draft.9-card-7.write-clear-legacy-1';
+    localStorage.setItem(newKey, response);
+    localStorage.setItem(legacyKey, response);
+
+    render(
+      <FlashCardWrite
+        allowRetry
+        draftOwnerKey="user-9-card-7"
+        exercise={draftExercise}
+        legacyDraftOwnerKey="9-card-7"
+      />,
+    );
+
+    await user.clear(screen.getByRole('textbox'));
+
+    expect(localStorage.getItem(newKey)).toBeNull();
+    expect(localStorage.getItem(legacyKey)).toBeNull();
   });
 
   it('test_write_draft_given_restored_response_cleared_expect_storage_entry_removed', async () => {
@@ -315,7 +405,7 @@ describe('FlashCardWrite', () => {
     const draftKey = 'flyt.write.draft.anonymous.write-clear-draft-1';
     globalThis.localStorage.setItem(draftKey, response);
 
-    render(<FlashCardWrite exercise={draftExercise} />);
+    render(<FlashCardWrite allowRetry exercise={draftExercise} />);
 
     await user.clear(screen.getByRole('textbox'));
 
@@ -327,7 +417,11 @@ describe('FlashCardWrite', () => {
     const draftExercise = { ...exercise, id: 'write-ungraded-draft-1' };
     const draftKey = 'flyt.write.draft.anonymous.write-ungraded-draft-1';
     render(
-      <FlashCardWrite exercise={draftExercise} initialResponse={response} />,
+      <FlashCardWrite
+        allowRetry
+        exercise={draftExercise}
+        initialResponse={response}
+      />,
     );
 
     await user.click(screen.getByRole('button', { name: /^check$/i }));
@@ -344,6 +438,7 @@ describe('FlashCardWrite', () => {
     const draftKey = 'flyt.write.draft.anonymous.write-graded-draft-1';
     render(
       <FlashCardWrite
+        allowRetry
         exercise={draftExercise}
         initialResponse={response}
         initialPhase="result"
@@ -360,6 +455,7 @@ describe('FlashCardWrite', () => {
     const user = userEvent.setup();
     render(
       <FlashCardWrite
+        allowRetry
         exercise={exercise}
         initialResponse={response}
         judgeWrite={() => Promise.resolve(judgement)}
@@ -383,6 +479,7 @@ describe('FlashCardWrite', () => {
     };
     render(
       <FlashCardWrite
+        allowRetry
         exercise={longExercise}
         initialResponse={'a '.repeat(251)}
         judgeWrite={vi.fn()}
@@ -402,6 +499,7 @@ describe('FlashCardWrite', () => {
     const user = userEvent.setup();
     render(
       <FlashCardWrite
+        allowRetry
         exercise={longExercise}
         initialResponse={`${'a'.repeat(499)}😀`}
         judgeWrite={judgeWrite}
@@ -434,6 +532,7 @@ describe('FlashCardWrite', () => {
     );
     render(
       <FlashCardWrite
+        allowRetry
         exercise={exercise}
         initialResponse={response}
         judgeWrite={() => Promise.reject(error)}
@@ -461,7 +560,11 @@ describe('FlashCardWrite', () => {
     };
     const user = userEvent.setup();
     render(
-      <FlashCardWrite exercise={longTaskExercise} initialResponse={response} />,
+      <FlashCardWrite
+        allowRetry
+        exercise={longTaskExercise}
+        initialResponse={response}
+      />,
     );
 
     const heading = screen.getByRole('heading', { level: 2, name: /write/i });
@@ -487,7 +590,13 @@ describe('FlashCardWrite', () => {
   });
 
   it('test_write_criteria_given_composing_expect_static_guidance_without_verdicts', () => {
-    render(<FlashCardWrite exercise={exercise} initialResponse={response} />);
+    render(
+      <FlashCardWrite
+        allowRetry
+        exercise={exercise}
+        initialResponse={response}
+      />,
+    );
 
     const criteria = screen.getByTestId('write-criteria');
 
@@ -500,6 +609,7 @@ describe('FlashCardWrite', () => {
   it('test_write_criteria_given_partial_judgement_expect_single_summary_and_unmet_marks', () => {
     render(
       <FlashCardWrite
+        allowRetry
         exercise={exercise}
         initialResponse={response}
         initialPhase="result"
@@ -520,6 +630,7 @@ describe('FlashCardWrite', () => {
   it('test_write_evidence_given_met_criterion_quoting_the_response_expect_no_duplicate_answer', () => {
     render(
       <FlashCardWrite
+        allowRetry
         exercise={exercise}
         initialResponse={response}
         initialPhase="result"
@@ -544,6 +655,7 @@ describe('FlashCardWrite', () => {
   it('test_write_evidence_given_unmet_criterion_expect_gap_quote_retained', () => {
     render(
       <FlashCardWrite
+        allowRetry
         exercise={exercise}
         initialResponse={response}
         initialPhase="result"
@@ -563,7 +675,13 @@ describe('FlashCardWrite', () => {
   });
 
   it('test_write_editor_given_short_response_expect_no_character_counter', () => {
-    render(<FlashCardWrite exercise={exercise} initialResponse={response} />);
+    render(
+      <FlashCardWrite
+        allowRetry
+        exercise={exercise}
+        initialResponse={response}
+      />,
+    );
 
     expect(screen.queryByText(/\/ 500/)).not.toBeInTheDocument();
     expect(screen.getByText('4 / 3–8')).toBeInTheDocument();
@@ -571,14 +689,24 @@ describe('FlashCardWrite', () => {
 
   it('test_write_editor_given_response_near_character_limit_expect_character_counter', () => {
     render(
-      <FlashCardWrite exercise={exercise} initialResponse={'a'.repeat(450)} />,
+      <FlashCardWrite
+        allowRetry
+        exercise={exercise}
+        initialResponse={'a'.repeat(450)}
+      />,
     );
 
     expect(screen.getByText('450 / 500')).toBeInTheDocument();
   });
 
   it('test_write_surface_given_composing_expect_shared_criteria_and_editor_surface', () => {
-    render(<FlashCardWrite exercise={exercise} initialResponse={response} />);
+    render(
+      <FlashCardWrite
+        allowRetry
+        exercise={exercise}
+        initialResponse={response}
+      />,
+    );
 
     const surface = screen.getByTestId('write-surface');
     const criteria = screen.getByTestId('write-criteria');
@@ -586,7 +714,6 @@ describe('FlashCardWrite', () => {
 
     expect(surface).toContainElement(criteria);
     expect(surface).toContainElement(editor);
-    expect(editor).toHaveClass('flex-1');
     expect(within(surface).getByText('Your response')).toBeInTheDocument();
     expect(within(surface).getByText('Write in Norwegian')).toBeInTheDocument();
     expect(screen.getByTestId('write-criteria-summary')).toHaveAttribute(
@@ -598,6 +725,7 @@ describe('FlashCardWrite', () => {
   it('test_write_result_given_all_criteria_met_expect_one_verdict_without_shell_banner', () => {
     render(
       <FlashCardWrite
+        allowRetry
         exercise={exercise}
         initialResponse={response}
         initialPhase="result"
@@ -617,6 +745,7 @@ describe('FlashCardWrite', () => {
   it('test_write_result_given_unmet_criteria_expect_revise_cue_instead_of_generic_verdict', () => {
     render(
       <FlashCardWrite
+        allowRetry
         exercise={exercise}
         initialResponse={response}
         initialPhase="result"
@@ -639,6 +768,7 @@ describe('FlashCardWrite', () => {
   it('test_write_given_terminal_judgement_expect_verdicts_and_explanation', () => {
     render(
       <FlashCardWrite
+        allowRetry
         exercise={exercise}
         initialResponse={response}
         initialPhase="result"
@@ -653,5 +783,125 @@ describe('FlashCardWrite', () => {
     expect(
       screen.queryByText(/private model instruction/i),
     ).not.toBeInTheDocument();
+  });
+
+  it('test_write_given_unmet_observation_expect_gating_pass_and_visible_verdict', async () => {
+    const onFinished = vi.fn().mockResolvedValue(true);
+    const user = userEvent.setup();
+    const observationExercise: WriteExercise = {
+      ...exercise,
+      id: 'write-observation-pass-1',
+      payload: {
+        ...exercise.payload,
+        criteria: [
+          { id: 'routine', instruction: 'Describes a routine.' },
+          { id: 'style-observation', instruction: 'Varies sentence openings.' },
+        ],
+      },
+    };
+    render(
+      <FlashCardWrite
+        allowRetry
+        exercise={observationExercise}
+        initialResponse={response}
+        initialPhase="result"
+        initialJudgement={{
+          criteria: [
+            { criterion_id: 'routine', met: true, evidence: 'står opp' },
+            { criterion_id: 'style-observation', met: false, evidence: null },
+          ],
+        }}
+        onFinished={onFinished}
+      />,
+    );
+
+    expect(screen.getByText(/varies sentence openings/i)).toBeInTheDocument();
+    expect(screen.getByText(/— not met/)).toBeInTheDocument();
+    expect(screen.getByText(/task requirements met/i)).toBeInTheDocument();
+    expect(screen.getByTestId('flashcard-action-status')).toHaveTextContent(
+      /continue when you are ready/i,
+    );
+
+    await user.click(screen.getByRole('button', { name: /^continue$/i }));
+
+    expect(onFinished).toHaveBeenCalledWith(gradedOutcome({ correct: true }));
+  });
+
+  it('test_write_given_unmet_gating_with_met_observation_expect_failure', async () => {
+    const onFinished = vi.fn().mockResolvedValue(true);
+    const user = userEvent.setup();
+    const observationExercise: WriteExercise = {
+      ...exercise,
+      id: 'write-observation-gating-1',
+      payload: {
+        ...exercise.payload,
+        criteria: [
+          { id: 'routine', instruction: 'Describes a routine.' },
+          { id: 'style-observation', instruction: 'Varies sentence openings.' },
+        ],
+      },
+    };
+    render(
+      <FlashCardWrite
+        allowRetry
+        exercise={observationExercise}
+        initialResponse={response}
+        initialPhase="result"
+        initialJudgement={{
+          criteria: [
+            { criterion_id: 'routine', met: false, evidence: null },
+            { criterion_id: 'style-observation', met: true, evidence: 'står' },
+          ],
+        }}
+        onFinished={onFinished}
+      />,
+    );
+
+    expect(screen.getByTestId('write-criteria-summary')).toHaveTextContent(
+      /0 of 1 required criteria met/i,
+    );
+    expect(screen.getByTestId('flashcard-action-status')).toHaveTextContent(
+      /revise your response or continue/i,
+    );
+
+    await user.click(screen.getByRole('button', { name: /^continue$/i }));
+
+    expect(onFinished).toHaveBeenCalledWith(gradedOutcome({ correct: false }));
+  });
+
+  it('test_write_given_only_observation_criteria_expect_pass', async () => {
+    const onFinished = vi.fn().mockResolvedValue(true);
+    const user = userEvent.setup();
+    const observationExercise: WriteExercise = {
+      ...exercise,
+      id: 'write-observation-only-1',
+      payload: {
+        ...exercise.payload,
+        criteria: [
+          { id: 'style-observation', instruction: 'Varies sentence openings.' },
+        ],
+      },
+    };
+    render(
+      <FlashCardWrite
+        allowRetry
+        exercise={observationExercise}
+        initialResponse={response}
+        initialPhase="result"
+        initialJudgement={{
+          criteria: [
+            { criterion_id: 'style-observation', met: false, evidence: null },
+          ],
+        }}
+        onFinished={onFinished}
+      />,
+    );
+
+    expect(screen.getByText(/task requirements met/i)).toBeInTheDocument();
+    expect(screen.getByText(/— not met/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^continue$/i }));
+
+    expect(onFinished).toHaveBeenCalledWith(gradedOutcome({ correct: true }));
   });
 });

@@ -2,23 +2,35 @@ import { useEffect, useRef, useState } from "react";
 
 import { MSG_KIND, MSG_RESULT_KIND, sendMessage } from "../lib/messages";
 import type { ResolveResponse } from "../lib/resolve-types";
+import type { PopupFailure } from "./buildPopupError";
+
+export type TokenIdentity = {
+  word: string;
+  /** Which repeat of the word was tapped; absent when the lookup started outside the sentence. */
+  occurrence?: number;
+};
 
 export type WordLookup =
-  { kind: "idle" } | { kind: "loading" | "error" | "notFound"; word: string };
+  | { kind: "idle" }
+  | {
+      kind: "loading" | "notFound" | "resolved";
+      token: TokenIdentity;
+    }
+  | { kind: "error"; token: TokenIdentity; failure: PopupFailure };
 
-/**
- * Word-level lookup inside a sentence selection: runs resolve requests,
- * invalidates stale responses via a request counter, and stops applying
- * results after unmount.
- */
-export function usePopupWordLookup(onResolved: (res: ResolveResponse) => void) {
+export function usePopupWordLookup(
+  onResolved: (res: ResolveResponse) => void,
+  onNotFound?: (word: string) => void,
+) {
   const [wordLookup, setWordLookup] = useState<WordLookup>({ kind: "idle" });
   const resolveRequestRef = useRef(0);
   const aliveRef = useRef(true);
   const onResolvedRef = useRef(onResolved);
+  const onNotFoundRef = useRef(onNotFound);
 
   useEffect(() => {
     onResolvedRef.current = onResolved;
+    onNotFoundRef.current = onNotFound;
   });
 
   useEffect(() => {
@@ -28,30 +40,39 @@ export function usePopupWordLookup(onResolved: (res: ResolveResponse) => void) {
     };
   }, []);
 
-  const resolveWord = async (word: string) => {
+  const resolveWord = async (word: string, occurrence?: number) => {
+    const token: TokenIdentity = { word, occurrence };
     const requestId = ++resolveRequestRef.current;
-    setWordLookup({ kind: "loading", word });
+    setWordLookup({ kind: "loading", token });
     try {
       const result = await sendMessage({ kind: MSG_KIND.RESOLVE, word });
       if (requestId !== resolveRequestRef.current) return;
       if (result.ok && result.kind === MSG_RESULT_KIND.RESOLVE) {
         if (result.data.candidates.length > 0) {
           if (aliveRef.current) onResolvedRef.current(result.data);
-          setWordLookup({ kind: "idle" });
+          setWordLookup({ kind: "resolved", token });
         } else {
-          setWordLookup({ kind: "notFound", word });
+          if (aliveRef.current) onNotFoundRef.current?.(word);
+          setWordLookup({ kind: "notFound", token });
         }
         return;
       }
-      setWordLookup({ kind: "error", word });
+      setWordLookup({
+        kind: "error",
+        token,
+        failure: result.ok ? { ok: false, error: "unknown" } : result,
+      });
     } catch {
       if (requestId === resolveRequestRef.current) {
-        setWordLookup({ kind: "error", word });
+        setWordLookup({
+          kind: "error",
+          token,
+          failure: { ok: false, error: "network" },
+        });
       }
     }
   };
 
-  /** Cancels any in-flight lookup (search reset / back navigation). */
   const invalidateLookup = () => {
     resolveRequestRef.current += 1;
   };

@@ -1,4 +1,5 @@
-import type { CardState, UserCard } from '@/types/api';
+import type { CardState, ReviewResult, UserCard } from '@/types/api';
+import { parseUtcTimestamp } from '@/utils/date';
 
 /**
  * Learn-ahead window. A learning/relearning card whose due falls within this
@@ -63,7 +64,7 @@ export function showNext(
   if (all.length === 0) return { kind: 'done' };
 
   const dueNow = all
-    .filter((c) => Date.parse(c.due_at) <= nowMs)
+    .filter((c) => parseUtcTimestamp(c.due_at) <= nowMs)
     .sort(compareByPriorityThenDue);
 
   const aheadCutoff = nowMs + LEARN_AHEAD_MS;
@@ -71,8 +72,8 @@ export function showNext(
     .filter(
       (c) =>
         (c.state === 'learning' || c.state === 'relearning') &&
-        Date.parse(c.due_at) > nowMs &&
-        Date.parse(c.due_at) <= aheadCutoff,
+        parseUtcTimestamp(c.due_at) > nowMs &&
+        parseUtcTimestamp(c.due_at) <= aheadCutoff,
     )
     .sort(compareByDueThenId);
 
@@ -90,7 +91,11 @@ export function showNext(
     pick = showable[1];
   }
 
-  return { kind: 'card', card: pick, ahead: Date.parse(pick.due_at) > nowMs };
+  return {
+    kind: 'card',
+    card: pick,
+    ahead: parseUtcTimestamp(pick.due_at) > nowMs,
+  };
 }
 
 /**
@@ -103,13 +108,14 @@ export function showNext(
 export function applyReview(
   q: SessionQueue,
   userCardId: number,
-  newState: CardState,
-  newDueAtMs: number,
+  result: Pick<ReviewResult, 'card_state' | 'due_at' | 'review_version'>,
   nowMs: number,
 ): SessionQueue {
   const existing = q.cards.get(userCardId);
   if (existing === undefined) return q;
 
+  const newState = result.card_state;
+  const newDueAtMs = parseUtcTimestamp(result.due_at);
   const keep =
     (newState === 'learning' || newState === 'relearning') &&
     newDueAtMs < startOfNextUtcDay(nowMs);
@@ -120,6 +126,7 @@ export function applyReview(
       ...existing,
       state: newState,
       due_at: new Date(newDueAtMs).toISOString(),
+      review_version: result.review_version,
     });
   } else {
     next.delete(userCardId);
@@ -165,8 +172,8 @@ function compareByPriorityThenDue(a: UserCard, b: UserCard): number {
 }
 
 function compareByDueThenId(a: UserCard, b: UserCard): number {
-  const da = Date.parse(a.due_at);
-  const db = Date.parse(b.due_at);
+  const da = parseUtcTimestamp(a.due_at);
+  const db = parseUtcTimestamp(b.due_at);
   if (da !== db) return da - db;
   return a.id - b.id;
 }

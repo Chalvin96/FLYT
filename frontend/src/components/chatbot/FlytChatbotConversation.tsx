@@ -1,3 +1,4 @@
+import { Heading, Text } from '@flyt/ui';
 import { Bot, User } from 'lucide-react';
 
 import { Bubble, BubbleContent } from '@/components/chatbot/ui/bubble';
@@ -25,9 +26,9 @@ export function FollowUpActions({
 
   return (
     <section aria-label="Keep going" className="mt-6">
-      <h3 className="type-label-sm font-semibold text-muted-foreground">
+      <Heading as="h3" size="xxsmall" tone="subtle">
         Keep going
-      </h3>
+      </Heading>
       <div className="mt-3">
         <PromptActions onPromptSelect={onPromptSelect} prompts={prompts} />
       </div>
@@ -57,8 +58,8 @@ export function MessageRow({
         className={cn(
           'mt-0.5 size-5 min-w-5',
           isUser
-            ? 'bg-secondary-10 text-secondary-80'
-            : 'bg-primary-10 text-primary-80',
+            ? 'bg-neutral-subtle text-subtle'
+            : 'bg-brand-subtle text-selected',
         )}
       >
         {isUser ? (
@@ -68,8 +69,10 @@ export function MessageRow({
         )}
       </MessageAvatar>
       <MessageContent className="gap-0">
-        <MessageHeader className="px-0 type-label-sm text-muted-foreground">
-          {isUser ? 'You' : messageChatbotLabel}
+        <MessageHeader className="px-0">
+          <Heading as="div" size="xxsmall" tone="subtle">
+            {isUser ? 'You' : messageChatbotLabel}
+          </Heading>
         </MessageHeader>
         <Bubble className="max-w-full">
           <ChatbotMessageBody message={message} />
@@ -82,16 +85,20 @@ export function MessageRow({
 function ChatbotMessageBody({ message }: { message: FlytChatbotMessage }) {
   if (typeof message.content !== 'string') {
     return (
-      <BubbleContent className="mt-1 type-body leading-7 text-foreground">
-        {message.content}
+      <BubbleContent className="mt-1">
+        <Text as="div" size="large" tone="default">
+          {message.content}
+        </Text>
       </BubbleContent>
     );
   }
 
   if (message.role === 'user') {
     return (
-      <BubbleContent className="mt-1 whitespace-pre-wrap break-words type-body leading-7 text-foreground">
-        {message.content}
+      <BubbleContent className="mt-1 whitespace-pre-wrap break-words">
+        <Text as="div" size="large" tone="default">
+          {message.content}
+        </Text>
       </BubbleContent>
     );
   }

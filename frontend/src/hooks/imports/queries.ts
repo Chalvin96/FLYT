@@ -10,8 +10,10 @@ import {
   createPasteImport,
   deleteImport,
   listImports,
+  renameImport,
   retryImport,
 } from '@/api/imports';
+import { readingKeys } from '@/hooks/reading/queries';
 import { getApiErrorCode } from '@/lib/apiError';
 import { showApiError } from '@/lib/errors';
 import {
@@ -21,6 +23,8 @@ import {
   type ImportStatusFilter,
   type PasteImportCreate,
 } from '@/types/api';
+
+export const OPTIMISTIC_IMPORT_ID_PREFIX = 'optimistic:';
 
 export const importKeys = {
   lists: () => ['imports', 'list'] as const,
@@ -123,7 +127,7 @@ export function useImports(params: UseImportsParams) {
 
 function buildOptimisticItem(payload: PasteImportCreate): ImportItem {
   return {
-    id: `optimistic:${crypto.randomUUID()}`,
+    id: `${OPTIMISTIC_IMPORT_ID_PREFIX}${crypto.randomUUID()}`,
     storyUuid: 'optimistic',
     title: payload.title?.trim() || 'Importing…',
     sourceUrl: null,
@@ -287,6 +291,23 @@ export function useRetryImport() {
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: importKeys.lists() });
+    },
+  });
+}
+
+export function useRenameImport() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: renameImport,
+    onSuccess: (item) => {
+      updateListCaches(queryClient, (cached) =>
+        replaceItemInList(cached, item.id, item),
+      );
+      void queryClient.invalidateQueries({ queryKey: importKeys.lists() });
+      void queryClient.invalidateQueries({
+        queryKey: readingKeys.story(item.storyUuid),
+      });
     },
   });
 }

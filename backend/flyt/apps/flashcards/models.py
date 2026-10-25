@@ -23,8 +23,6 @@ from sqlalchemy.orm import relationship
 from flyt.core.base import BaseModel
 from flyt.core.base import DateTimeMixin
 
-LESSON_REVIEW_AUDIO_KEY = "_lesson_review_audio"
-
 
 class CardType(PyEnum):
     DEFINITION = "definition"
@@ -35,7 +33,6 @@ class CardType(PyEnum):
     BUILD = "build"
     JUDGE = "judge"
     FIND_FIX = "find_fix"
-    SPEAK = "speak"
     WRITE = "write"
 
 
@@ -60,7 +57,7 @@ class Deck(BaseModel, DateTimeMixin):
     license: Mapped[str | None] = mapped_column(Text, nullable=True)
     cefr_range: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    cards = relationship("FlashCard", back_populates="deck", lazy="selectin")
+    cards = relationship("FlashCard", back_populates="deck", lazy="raise")
 
     def __str__(self):
         return self.name
@@ -91,9 +88,9 @@ class CardPool(BaseModel, DateTimeMixin):
         Integer, nullable=True, index=True
     )
 
-    lesson = relationship("Lesson", back_populates="pools", lazy="selectin")
-    lemma = relationship("Lemma", back_populates=None, lazy="selectin")
-    cards = relationship("FlashCard", back_populates="pool", lazy="selectin")
+    lesson = relationship("Lesson", back_populates="pools", lazy="raise")
+    lemma = relationship("Lemma", back_populates=None, lazy="raise")
+    cards = relationship("FlashCard", back_populates="pool", lazy="raise")
 
     __table_args__ = (
         CheckConstraint(
@@ -124,8 +121,8 @@ class FlashCard(BaseModel, DateTimeMixin):
         Uuid(as_uuid=True), nullable=True, unique=True
     )
 
-    deck = relationship("Deck", back_populates="cards", lazy="selectin")
-    pool = relationship("CardPool", back_populates="cards", lazy="selectin")
+    deck = relationship("Deck", back_populates="cards", lazy="raise")
+    pool = relationship("CardPool", back_populates="cards", lazy="raise")
 
     __table_args__ = (
         Index(
@@ -174,6 +171,9 @@ class UserCard(BaseModel, DateTimeMixin):
         nullable=True,
         index=True,
     )
+    review_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     fsrs_stability: Mapped[float | None] = mapped_column(Float, nullable=True)
     fsrs_difficulty: Mapped[float | None] = mapped_column(Float, nullable=True)
     fsrs_step: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -194,14 +194,12 @@ class UserCard(BaseModel, DateTimeMixin):
         server_default="active",
     )
 
-    user = relationship("User", foreign_keys=[user_id], lazy="selectin")
-    pool = relationship("CardPool", foreign_keys=[pool_id], lazy="selectin")
+    user = relationship("User", foreign_keys=[user_id], lazy="raise")
+    pool = relationship("CardPool", foreign_keys=[pool_id], lazy="raise")
     last_shown_card = relationship(
-        "FlashCard", foreign_keys=[last_shown_card_id], lazy="selectin"
+        "FlashCard", foreign_keys=[last_shown_card_id], lazy="raise"
     )
-    active_card = relationship(
-        "FlashCard", foreign_keys=[active_card_id], lazy="selectin"
-    )
+    active_card = relationship("FlashCard", foreign_keys=[active_card_id], lazy="raise")
 
     __table_args__ = (
         UniqueConstraint("user_id", "pool_id", name="uq_user_card_pool"),
@@ -236,8 +234,8 @@ class StatsReviewLog(BaseModel, DateTimeMixin):
     rating: Mapped[int] = mapped_column(Integer, nullable=False)
     reviewed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
-    user = relationship("User", foreign_keys=[user_id], lazy="selectin")
-    user_card = relationship("UserCard", foreign_keys=[user_card_id], lazy="selectin")
+    user = relationship("User", foreign_keys=[user_id], lazy="raise")
+    user_card = relationship("UserCard", foreign_keys=[user_card_id], lazy="raise")
 
     __table_args__ = (
         Index(

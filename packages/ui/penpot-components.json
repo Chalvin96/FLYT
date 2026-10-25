@@ -1,0 +1,63 @@
+{
+  "Badge": {
+    "shape": ["pill", "rounded"],
+    "size": ["md", "sm"],
+    "tone": ["brand", "danger", "neutral", "success", "warning"]
+  },
+  "BottomSheetDialogContent": {
+    "anchor": ["centered", "edge", "floating"],
+    "height": ["default", "tall"],
+    "layout": ["column", "grid"],
+    "padding": ["none", "roomy"]
+  },
+  "Button": {
+    "align": ["center", "start"],
+    "shape": ["pill", "rounded"],
+    "size": ["icon", "icon-sm", "lg", "md", "sm"],
+    "variant": [
+      "danger",
+      "ghost",
+      "inverse",
+      "link",
+      "outline",
+      "primary",
+      "secondary"
+    ],
+    "width": ["auto", "full", "full-on-mobile"]
+  },
+  "Card": {
+    "clipContent": ["false", "true"],
+    "elevation": ["flat", "raised"],
+    "fillHeight": ["false", "true"],
+    "groupInteractive": ["false", "true"],
+    "padding": ["compact", "default", "none", "roomy"],
+    "surface": ["brand", "danger", "default", "solid", "warning"]
+  },
+  "Chip": {
+    "variant": ["filter", "suggestion"]
+  },
+  "ChoiceTile": {
+    "layout": ["inline", "row", "stack"]
+  },
+  "InlineTrigger": {
+    "current": ["false", "true"]
+  },
+  "Input": {
+    "adornments": ["both", "leading", "none"],
+    "presentation": ["default", "quiet", "solid"],
+    "size": ["lg", "md"]
+  },
+  "Row": {
+    "insetFocusRing": ["false", "true"],
+    "layout": ["inline", "row"],
+    "selected": ["false", "true"],
+    "size": ["lg", "md", "sm"],
+    "surface": ["framed", "outline", "plain"]
+  },
+  "Skeleton": {
+    "length": ["full", "long", "medium", "short"],
+    "shape": ["field", "pill", "rounded", "section"],
+    "size": ["2xl", "3xl", "lg", "md", "sm", "xl"],
+    "variant": ["block", "control", "heading", "text"]
+  }
+}

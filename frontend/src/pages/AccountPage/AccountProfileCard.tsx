@@ -1,29 +1,32 @@
-import { LogOut, Mail, UserRound } from 'lucide-react';
-
-import { AppCard } from '@/components/common/AppCard/AppCard';
-import { Button } from '@/components/common/Button/Button';
 import {
+  Button,
+  Card,
   CardContent,
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+  Heading,
+  Text,
+} from '@flyt/ui';
+import { LogOut, Mail, UserRound } from 'lucide-react';
+
 import type { useMe, useUpdateMe } from '@/hooks/auth/queries';
+import { parseUtcTimestamp } from '@/utils/date';
 
 import { DisplayNameForm } from './DisplayNameForm';
 
 const LAST_LOGIN_FORMATTER = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
   timeStyle: 'short',
+  timeZone: 'UTC',
 });
 
 function formatLastLogin(lastLogin: string | null) {
   if (!lastLogin) return 'Not recorded yet';
 
-  return LAST_LOGIN_FORMATTER.format(new Date(lastLogin));
+  return LAST_LOGIN_FORMATTER.format(parseUtcTimestamp(lastLogin));
 }
 
-/** Profile card: avatar, editable display name, email, last sign in, sign out. */
 export function AccountProfileCard({
   user,
   isSigningOut,
@@ -39,10 +42,10 @@ export function AccountProfileCard({
   const initial = displayName.trim().charAt(0).toUpperCase() || 'F';
 
   return (
-    <AppCard data-testid="account-profile-card">
-      <CardHeader className="gap-4">
+    <Card data-testid="account-profile-card">
+      <CardHeader>
         <div className="flex items-center gap-4">
-          <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary-30 bg-primary-20 type-lead font-bold text-primary-90">
+          <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-brand-subtle bg-selected-hovered text-selected">
             {user?.avatar_url ? (
               <img
                 alt=""
@@ -50,42 +53,58 @@ export function AccountProfileCard({
                 src={user.avatar_url}
               />
             ) : (
-              <span>{initial}</span>
+              <Heading as="span" size="medium">
+                {initial}
+              </Heading>
             )}
           </div>
           <div className="min-w-0">
-            <p className="type-label text-muted-foreground">Account</p>
-            <CardTitle className="truncate type-title">{displayName}</CardTitle>
+            <Heading as="div" size="xxsmall" tone="subtle">
+              Account
+            </Heading>
+            <CardTitle size="title" truncate>
+              {displayName}
+            </CardTitle>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-3">
-        <DisplayNameForm updateMe={updateMe} user={user} />
+      <CardContent>
+        <div className="space-y-3">
+          <DisplayNameForm updateMe={updateMe} user={user} />
 
-        <div className="radius-field flex items-center gap-3 border border-border bg-white-100 p-3">
-          <Mail className="icon-sm shrink-0 text-muted-foreground" />
-          <div className="min-w-0">
-            <p className="type-label-xs text-muted-foreground">Email</p>
-            <p className="truncate font-semibold text-foreground">
-              {user?.email ?? 'Loading...'}
-            </p>
+          <div className="radius-field flex items-center gap-3 border border-default bg-overlay p-3">
+            <Mail className="icon-sm shrink-0 text-subtle" />
+            <div className="min-w-0">
+              <Heading as="div" size="xxsmall" tone="subtle">
+                Email
+              </Heading>
+              <div className="truncate">
+                <Text as="p" size="large" weight="semibold">
+                  {user?.email ?? 'Loading...'}
+                </Text>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div className="radius-field flex items-center gap-3 border border-border bg-white-100 p-3">
-          <UserRound className="icon-sm shrink-0 text-muted-foreground" />
-          <div className="min-w-0">
-            <p className="type-label-xs text-muted-foreground">Last sign in</p>
-            <p className="font-semibold text-foreground">
-              {formatLastLogin(user?.last_login ?? null)}
-            </p>
+          <div className="radius-field flex items-center gap-3 border border-default bg-overlay p-3">
+            <UserRound className="icon-sm shrink-0 text-subtle" />
+            <div className="min-w-0">
+              <Heading as="div" size="xxsmall" tone="subtle">
+                Last sign in
+              </Heading>
+              <div className="truncate">
+                <Text as="p" size="large" weight="semibold">
+                  {formatLastLogin(user?.last_login ?? null)}
+                </Text>
+              </div>
+            </div>
           </div>
         </div>
       </CardContent>
-      <CardFooter className="border-t border-border pt-4">
+      <CardFooter divided>
         <Button
-          className="h-11 w-full sm:w-auto"
+          width="full-on-mobile"
           disabled={isSigningOut}
           onClick={onSignOut}
           type="button"
@@ -95,6 +114,6 @@ export function AccountProfileCard({
           {isSigningOut ? 'Signing out…' : 'Sign out'}
         </Button>
       </CardFooter>
-    </AppCard>
+    </Card>
   );
 }

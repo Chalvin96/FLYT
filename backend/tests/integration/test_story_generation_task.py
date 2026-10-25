@@ -1,5 +1,6 @@
 import asyncio
 from datetime import timedelta
+from http import HTTPStatus
 from unittest.mock import AsyncMock
 from unittest.mock import patch
 from uuid import uuid4
@@ -9,8 +10,12 @@ from sqlalchemy import delete
 from sqlalchemy import select
 from sqlalchemy import update
 
+from flyt.apps.ai_usage.constants import K_AI_USAGE_ESTIMATION_OVERHEAD_TOKENS
+from flyt.apps.ai_usage.models import FlytAiAggregateUsage
 from flyt.apps.ai_usage.models import FlytAiUsage
 from flyt.apps.ai_usage.service import AiUsageService
+from flyt.apps.ai_usage.types import AggregateUsageScope
+from flyt.apps.ai_usage.types import AiUsageAdmission
 from flyt.apps.lexicons.models import Lemma
 from flyt.apps.lexicons.models import LemmaPos
 from flyt.apps.story_generation.constants import StoryGenerationErrorCode
@@ -24,6 +29,7 @@ from flyt.apps.story_generation.vocabulary import AnchorType
 from flyt.apps.users.models import User
 from flyt.apps.users.models import UserLemma
 from flyt.apps.users.types import UserRole
+from flyt.clients.provider import GenerationRequest
 from flyt.clients.provider import GenerationResult
 from flyt.clients.provider import ProviderFailure
 from flyt.clients.provider import ProviderFailureClass
@@ -39,6 +45,7 @@ pytestmark = pytest.mark.anyio
 
 K_POST_DISPATCH_COMMIT = 2
 K_EXPECTED_COMMIT_CALLS = 3
+K_EXPECTED_OUTPUT_TOKENS = 750
 
 
 class FakeSessionLocal:
@@ -864,6 +871,110 @@ async def test_generate_story_given_flyt_success_expect_usage_debited(
     assert usage.remaining_tokens < usage.budget_tokens
 
 
+async def test_generate_story_given_unchanged_vocabulary_expect_preflight_and_dispatch_requests_match(
+    db, monkeypatch
+) -> None:
+    user = await UserFactory.create_async()
+    await seed_teachable_frequency_anchor(db, user.id)
+    preflight_requests: list[GenerationRequest] = []
+    admitted_requests: list[GenerationRequest] = []
+    dispatched_requests: list[GenerationRequest] = []
+    aggregate_scopes: list[AggregateUsageScope | None] = []
+    original_preflight = AiUsageService.is_request_admitted
+    original_admit = AiUsageService.admit_request
+
+    async def is_request_admitted(
+        self: AiUsageService, user_id: int, request: GenerationRequest
+    ) -> bool:
+        preflight_requests.append(request)
+        return await original_preflight(self, user_id, request)
+
+    async def admit_request(
+        self: AiUsageService,
+        user_id: int,
+        request: GenerationRequest,
+        aggregate: AggregateUsageScope | None = None,
+    ) -> AiUsageAdmission:
+        admitted_requests.append(request)
+        aggregate_scopes.append(aggregate)
+        return await original_admit(self, user_id, request, aggregate=aggregate)
+
+    class CapturingProvider(ReadyFlytProvider):
+        async def generate(
+            self, user_id: int, request: GenerationRequest
+        ) -> GenerationResult:
+            dispatched_requests.append(request)
+            return await super().generate(user_id, request)
+
+    provider = CapturingProvider()
+
+    class Registry:
+        async def resolve(self, name, user_id):
+            return ProviderSelection(provider=provider, funded_by_flyt=True)
+
+    monkeypatch.setattr(AiUsageService, "is_request_admitted", is_request_admitted)
+    monkeypatch.setattr(AiUsageService, "admit_request", admit_request)
+    monkeypatch.setattr(
+        "flyt.apps.story_generation.service.ProviderRegistry", lambda _db: Registry()
+    )
+    monkeypatch.setattr(
+        "flyt.apps.story_generation.execution.ProviderRegistry", lambda _db: Registry()
+    )
+    monkeypatch.setattr(
+        "flyt.apps.story_generation.tasks.AsyncSessionLocal", FakeSessionLocal(db)
+    )
+    monkeypatch.setattr(
+        "flyt.apps.story_generation.execution.build_pages", AsyncMock(return_value=[])
+    )
+
+    accepted = await GenerationService(db).request_generation(
+        user_id=user.id,
+        provider_name=provider.name,
+        anchor=AnchorType.FREQUENCY,
+        length=250,
+        topic="En tur",
+    )
+    await db.commit()
+    assert await get_usage_row(db, user.id) is None
+    assert admitted_requests == []
+    assert dispatched_requests == []
+
+    await generate_story({}, accepted.generationId)
+
+    assert len(preflight_requests) == 1
+    assert len(admitted_requests) == 1
+    assert len(dispatched_requests) == 1
+    request = dispatched_requests[0]
+    assert preflight_requests[0] == admitted_requests[0] == request
+    assert admitted_requests[0] is request
+    assert request.max_tokens == K_EXPECTED_OUTPUT_TOKENS
+    assert request.temperature is None
+    generation = await db.get(Generation, accepted.generationId)
+    assert generation is not None
+    await db.refresh(generation)
+    assert generation.outcome is GenerationOutcome.READY
+
+    debited_tokens = (
+        len(request.instructions.encode("utf-8"))
+        + len(request.prompt.encode("utf-8"))
+        + K_AI_USAGE_ESTIMATION_OVERHEAD_TOKENS
+        + K_EXPECTED_OUTPUT_TOKENS
+    )
+    usage = await get_usage_row(db, user.id)
+    assert usage is not None
+    assert usage.remaining_tokens == usage.budget_tokens - debited_tokens
+    scope = aggregate_scopes[0]
+    assert scope is not None
+    aggregate = await db.scalar(
+        select(FlytAiAggregateUsage).where(
+            FlytAiAggregateUsage.provider == scope.provider,
+            FlytAiAggregateUsage.window_start == scope.window_start,
+        )
+    )
+    assert aggregate is not None
+    assert aggregate.remaining_tokens == aggregate.budget_tokens - debited_tokens
+
+
 async def test_generate_story_given_exhausted_weekly_budget_expect_refused_before_provider(
     db, monkeypatch
 ) -> None:
@@ -1208,6 +1319,116 @@ async def test_generate_story_given_claim_and_debit_before_supersession_expect_d
         assert provider_calls == 1
     finally:
         await _cleanup_committed_sync_test(user_id)
+
+
+@pytest.mark.parametrize(
+    ("provider_text", "topic", "expected_title"),
+    [
+        (
+            '{"title":"Kattens eventyr","text":"Det var en gang en katt."}',
+            "En katt",
+            "Kattens eventyr",
+        ),
+        (
+            '```json\n{"title":"Kattens eventyr","text":"Det var en gang en katt."}\n```',
+            "En katt",
+            "Kattens eventyr",
+        ),
+        (
+            '```\n{"title":"Kattens eventyr","text":"Det var en gang en katt."}\n```',
+            "En katt",
+            "Kattens eventyr",
+        ),
+        (
+            '```json\r\n{"title":"Kattens eventyr","text":"Det var en gang en katt."}\r\n```',
+            "En katt",
+            "Kattens eventyr",
+        ),
+        (
+            'Her er historien:\n{"title":"Kattens eventyr","text":"Det var en gang en katt."}',
+            "En katt",
+            "Kattens eventyr",
+        ),
+        ('{"text":"Det var en gang en katt."}', "En katt", "En katt"),
+        ("Det var en gang en katt.", "En katt", "En katt"),
+        ("Det var en gang en katt.", None, "Generated story"),
+        ('{"title":"  ","text":"Det var en gang en katt."}', "En katt", "En katt"),
+    ],
+)
+async def test_saved_generation_given_provider_output_expect_model_title_or_topic(
+    client, db, monkeypatch, provider_text, topic, expected_title
+) -> None:
+    from flyt.apps.reading.tokenization import PageData
+    from tests.helpers.auth import authenticate
+
+    user = await UserFactory.create_async()
+    await seed_teachable_frequency_anchor(db, user.id)
+    gen = await create_generation(db, user.id, topic=topic)
+    monkeypatch.setattr(
+        "flyt.apps.story_generation.tasks.AsyncSessionLocal", FakeSessionLocal(db)
+    )
+    text = "Det var en gang en katt."
+    pages = [PageData(index=0, content=text, tokens=[], word_count=6)]
+    with (
+        patch(
+            "flyt.clients.openrouter.OpenRouterProvider.generate",
+            new=AsyncMock(return_value=GenerationResult(text=provider_text)),
+        ),
+        patch(
+            "flyt.apps.story_generation.execution.build_pages",
+            new=AsyncMock(return_value=pages),
+        ) as annotate,
+    ):
+        await generate_story({}, gen.id)
+
+    await authenticate(client, user)
+    db.expunge_all()
+    response = await client.post(
+        "/story-generation/generations/current/import", json={}
+    )
+
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    assert response.json()["title"] == expected_title
+    annotate.assert_awaited_once_with(db, text)
+
+
+@pytest.mark.parametrize(
+    "provider_text",
+    [
+        '{"title":"En katt","text":""}',
+        '{"title":"En katt","text":" \\r\\n\\t "}',
+        '{"title":"En katt","text":"**__**"}',
+        '{"title":"En katt","content":"Katten kom hjem."}',
+        '{"title":"En katt","text":"Katten kom',
+    ],
+)
+async def test_generate_story_given_invalid_structured_output_expect_failed_without_content(
+    db, monkeypatch, provider_text
+) -> None:
+    user = await UserFactory.create_async()
+    user_id = user.id
+    await seed_teachable_frequency_anchor(db, user_id)
+    generation = await create_generation(db, user_id)
+    monkeypatch.setattr(
+        "flyt.apps.story_generation.tasks.AsyncSessionLocal", FakeSessionLocal(db)
+    )
+
+    with patch(
+        "flyt.clients.openrouter.OpenRouterProvider.generate",
+        new=AsyncMock(return_value=GenerationResult(text=provider_text)),
+    ):
+        await generate_story({}, generation.id)
+
+    generation = await refresh_generation(db, generation)
+    assert generation.outcome is GenerationOutcome.FAILED
+    assert generation.failure_code == StoryGenerationErrorCode.GENERATION_FAILED
+    assert generation.title is None
+    assert generation.text is None
+    assert generation.pages is None
+
+    usage = await get_usage_row(db, user_id)
+    assert usage is not None
+    assert usage.remaining_tokens < usage.budget_tokens
 
 
 async def _create_committed_generation_for_sync_test() -> tuple[int, int]:

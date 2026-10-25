@@ -1,153 +1,226 @@
-import { useState } from 'react';
+import { Button, Card, Heading, Modal, Row, Text } from '@flyt/ui';
+import { ChevronRight, Pencil } from 'lucide-react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 
-import { AppCard } from '@/components/common/AppCard/AppCard';
-import { Button } from '@/components/common/Button/Button';
-import { Modal } from '@/components/common/Modal/Modal';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useDeleteImport, useRetryImport } from '@/hooks/imports/queries';
-import { cn } from '@/lib/utils';
-import { type ImportItem } from '@/types/api';
-
 import {
-  formatImportShortDate,
-  formatImportWordCount,
-  getImportCardStatus,
-  getImportCoverLabel,
-} from './importDisplay';
+  OPTIMISTIC_IMPORT_ID_PREFIX,
+  useDeleteImport,
+  useRetryImport,
+} from '@/hooks/imports/queries';
+import type { ImportItem } from '@/types/api';
+
+import { getImportCardStatus, getImportCoverLabel } from './importDisplay';
+import { ImportRenameForm } from './ImportRenameForm';
 import { ImportStatusChip } from './ImportStatusChip';
+import {
+  formatReadingNumber,
+  formatReadingPublishedShortDate,
+  formatReadingWordCount,
+} from './readingDisplay';
 
 interface ImportStatusCardProps {
   item: ImportItem;
-  variant?: 'shelf' | 'grid';
 }
 
-export function ImportStatusCard({
-  item,
-  variant = 'shelf',
-}: ImportStatusCardProps) {
+function ImportTitle({ item }: { item: ImportItem }) {
+  return (
+    <div className="line-clamp-2 break-words">
+      <Heading as="h3" size="small" lang="nb" title={item.title}>
+        {item.title}
+      </Heading>
+    </div>
+  );
+}
+
+function ImportSource({ item }: { item: ImportItem }) {
+  return (
+    <span className="min-w-0 truncate" title={item.sourceUrl ?? 'Pasted text'}>
+      <Text as="span" size="small" tone="subtle">
+        {item.sourceUrl ? getImportCoverLabel(item) : 'Pasted text'}
+      </Text>
+    </span>
+  );
+}
+
+export function ImportStatusCard({ item }: ImportStatusCardProps) {
   const status = getImportCardStatus(item);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const renameButtonRef = useRef<HTMLButtonElement>(null);
+  const renameButton = (
+    <Button
+      ref={renameButtonRef}
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      aria-label={`Rename ${item.title}`}
+      aria-expanded={isRenaming}
+      onClick={() => setIsRenaming(true)}
+      disabled={isRenaming || item.id.startsWith(OPTIMISTIC_IMPORT_ID_PREFIX)}
+    >
+      <Pencil className="icon-sm" aria-hidden />
+    </Button>
+  );
+  const renameForm = isRenaming ? (
+    <ImportRenameForm
+      item={item}
+      onClose={() => {
+        setIsRenaming(false);
+        requestAnimationFrame(() => renameButtonRef.current?.focus());
+      }}
+    />
+  ) : null;
+
+  if (status === 'ready') {
+    return (
+      <ReadyImportCard
+        item={item}
+        renameButton={renameButton}
+        renameForm={renameForm}
+      />
+    );
+  }
+
+  return (
+    <Card
+      padding="compact"
+      surface="solid"
+      elevation="flat"
+      aria-label={`${item.title}: ${status === 'processing' ? 'processing' : 'import failed'}`}
+      aria-busy={status === 'processing' ? true : undefined}
+    >
+      <div className="space-y-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <ImportStatusChip item={item} />
+          <ImportSource item={item} />
+        </div>
+        <div className="flex items-start justify-between gap-2">
+          <ImportTitle item={item} />
+          {renameButton}
+        </div>
+        {renameForm}
+        {status === 'processing' ? (
+          <Text as="p" size="small" tone="subtle">
+            Turning it into a tap-to-read text. Usually under a minute.
+          </Text>
+        ) : (
+          <FailedImportDetails item={item} />
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function ReadyImportCard({
+  item,
+  renameButton,
+  renameForm,
+}: {
+  item: ImportItem;
+  renameButton: ReactNode;
+  renameForm: ReactNode;
+}) {
+  return (
+    <Card padding="none" surface="solid" elevation="flat">
+      <div className="flex items-center">
+        <div className="min-w-0 flex-1">
+          <Row
+            asChild
+            size="md"
+            surface="plain"
+            trailing={
+              <ChevronRight className="icon-sm text-icon-default" aria-hidden />
+            }
+          >
+            <Link
+              to="/reading/story/$uuid"
+              params={{ uuid: item.storyUuid }}
+              title={item.title}
+            >
+              <div className="space-y-1">
+                <div className="flex">
+                  <ImportSource item={item} />
+                </div>
+                <ImportTitle item={item} />
+                <Text as="p" size="small" tone="subtle">
+                  <span
+                    title={`${item.wordCount.toLocaleString('en-US')} words`}
+                  >
+                    {[
+                      formatReadingWordCount(item.wordCount),
+                      item.pageCount == null
+                        ? null
+                        : `${formatReadingNumber(item.pageCount)} ${item.pageCount === 1 ? 'page' : 'pages'}`,
+                      formatReadingPublishedShortDate(item.createdAt),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                </Text>
+              </div>
+            </Link>
+          </Row>
+        </div>
+        <div className="pr-3">{renameButton}</div>
+      </div>
+      {renameForm ? <div className="px-4 pb-4">{renameForm}</div> : null}
+    </Card>
+  );
+}
+
+function FailedImportDetails({ item }: { item: ImportItem }) {
   const retryImport = useRetryImport();
   const deleteImport = useDeleteImport();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
-  const cardClassName = cn(
-    'relative flex h-full min-h-[264px] flex-col overflow-hidden border-border bg-white-100 p-0 transition-[border-color,background-color,transform] duration-200 sm:min-h-[292px]',
-    variant === 'shelf' && 'w-[232px] shrink-0 sm:w-[280px]',
-  );
-
-  // Busy: non-interactive.
-  if (status === 'processing') {
-    return (
-      <AppCard
-        className={cardClassName}
-        aria-busy="true"
-        aria-label={`${item.title}: processing`}
-      >
-        <ImportStatusChip item={item} className="absolute right-2 top-2 z-10" />
-        <div className="import-cover-shimmer relative h-[120px] w-full shrink-0 overflow-hidden bg-secondary-20 sm:h-[140px]" />
-        <div className="flex flex-1 flex-col gap-3 bg-white-100 p-4">
-          <h3 className="type-body font-semibold text-muted-foreground">
-            {item.title}
-          </h3>
-          <div className="space-y-2" aria-hidden>
-            <Skeleton className="h-3 w-[90%]" />
-            <Skeleton className="h-3 w-[68%]" />
-          </div>
-          <p className="mt-auto type-caption-sm text-muted-foreground">
-            Auto-updates when ready
-          </p>
-        </div>
-      </AppCard>
-    );
-  }
-
-  if (status === 'failed') {
-    return (
-      <AppCard
-        className={cardClassName}
-        aria-label={`${item.title}: import failed`}
-      >
-        <ImportStatusChip item={item} className="absolute right-2 top-2 z-10" />
-        <div className="flex h-[120px] w-full shrink-0 items-end bg-gradient-to-br from-destructive-70 to-warning-60 px-3 pb-3 type-caption font-semibold text-white-100 sm:h-[140px]">
-          Import failed
-        </div>
-        <div className="flex flex-1 flex-col gap-3 bg-white-100 p-4">
-          <h3 className="type-body font-semibold text-foreground">
-            {item.title}
-          </h3>
-          <p className="line-clamp-2 type-caption leading-6 text-muted-foreground">
-            {item.errorMessage ?? 'This text could not be processed.'}
-          </p>
-          <div className="mt-auto flex items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              className="h-8 px-3"
-              disabled={retryImport.isPending}
-              onClick={() => retryImport.mutate(item.id)}
-            >
-              {retryImport.isPending ? 'Retrying…' : 'Retry'}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 px-3"
-              disabled={deleteImport.isPending}
-              onClick={() => setIsConfirmOpen(true)}
-            >
-              {deleteImport.isPending ? 'Deleting…' : 'Delete'}
-            </Button>
-          </div>
-          <DeleteConfirmDialog
-            isOpen={isConfirmOpen}
-            onOpenChange={setIsConfirmOpen}
-            title={item.title}
-            isPending={deleteImport.isPending}
-            onConfirm={() => {
-              deleteImport.mutate(item.id, {
-                onSettled: () => setIsConfirmOpen(false),
-              });
-            }}
-          />
-        </div>
-      </AppCard>
-    );
-  }
-
-  // Ready: open the reused reader (C-07).
   return (
-    <Link
-      to="/reading/story/$uuid"
-      params={{ uuid: item.storyUuid }}
-      className="group block focus-visible:outline-none"
-    >
-      <AppCard
-        className={cn(
-          cardClassName,
-          'cursor-pointer group-hover:-translate-y-0.5 group-hover:border-primary-70 group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background',
-        )}
+    <>
+      <div
+        className="line-clamp-2 break-words"
+        title={item.errorMessage ?? undefined}
       >
-        <ImportStatusChip item={item} className="absolute right-2 top-2 z-10" />
-        <div className="flex h-[120px] w-full shrink-0 items-end bg-gradient-to-br from-secondary-80 to-secondary-60 px-3 pb-3 type-caption font-semibold text-white-100 sm:h-[140px]">
-          <span className="truncate">{getImportCoverLabel(item)}</span>
+        <Text as="p" size="small" tone="danger">
+          {item.errorMessage ?? 'This text could not be processed.'}
+        </Text>
+      </div>
+      {item.errorCode ? (
+        <div className="break-all">
+          <Text as="p" font="mono" size="small" tone="danger">
+            {item.errorCode}
+          </Text>
         </div>
-        <div className="flex flex-1 flex-col gap-3 bg-white-100 p-4">
-          <h3 className="type-body font-semibold text-foreground">
-            {item.title}
-          </h3>
-          <p className="mt-auto type-caption-sm text-muted-foreground">
-            {formatImportWordCount(item.wordCount)}
-            {item.pageCount
-              ? ` · ${item.pageCount} ${item.pageCount === 1 ? 'page' : 'pages'}`
-              : ''}
-            {' · '}
-            {formatImportShortDate(item.createdAt)}
-          </p>
-        </div>
-      </AppCard>
-    </Link>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          disabled={retryImport.isPending}
+          onClick={() => retryImport.mutate(item.id)}
+        >
+          {retryImport.isPending ? 'Retrying...' : 'Retry'}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={deleteImport.isPending}
+          onClick={() => setIsConfirmOpen(true)}
+        >
+          {deleteImport.isPending ? 'Deleting...' : 'Delete'}
+        </Button>
+      </div>
+      <DeleteConfirmDialog
+        isOpen={isConfirmOpen}
+        onOpenChange={setIsConfirmOpen}
+        title={item.title}
+        isPending={deleteImport.isPending}
+        onConfirm={() =>
+          deleteImport.mutate(item.id, {
+            onSettled: () => setIsConfirmOpen(false),
+          })
+        }
+      />
+    </>
   );
 }
 
@@ -184,16 +257,18 @@ function DeleteConfirmDialog({
           </Button>
           <Button
             type="button"
-            variant="destructive"
+            variant="danger"
             onClick={onConfirm}
             disabled={isPending}
           >
-            {isPending ? 'Deleting…' : 'Delete'}
+            {isPending ? 'Deleting...' : 'Delete'}
           </Button>
         </>
       }
     >
-      <p className="type-caption text-muted-foreground">Import: {title}</p>
+      <Text size="medium" tone="subtle">
+        Import: <span lang="nb">{title}</span>
+      </Text>
     </Modal>
   );
 }

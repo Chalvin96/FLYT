@@ -1,6 +1,5 @@
-@import 'tailwindcss';
-@import '@flyt/ui/styles/tokens.css';
-@import "../src/popup/popup.css";
+@import '@flyt/ui/styles/entry.css';
+@import '@flyt/ui/styles/shadow-surface.css';
 
 @source "../src/**/*.{ts,tsx}";
 @source "../../packages/ui/src/**/*.{ts,tsx}";

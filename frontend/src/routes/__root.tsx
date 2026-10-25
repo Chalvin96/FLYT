@@ -4,6 +4,7 @@ import { createRootRouteWithContext, Outlet } from '@tanstack/react-router';
 
 import { ErrorBoundary } from '@/components/common/ErrorBoundary/ErrorBoundary';
 import { LookupProvider } from '@/components/lookup/LookupProvider';
+import { routeErrorComponent } from '@/lib/routeErrorComponent';
 
 const TanStackRouterDevtools = import.meta.env.PROD
   ? () => null
@@ -40,7 +41,5 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       showError={false}
     />
   ),
-  errorComponent: ({ error, reset }) => (
-    <ErrorBoundary error={error} reset={reset} homeTo="/home" />
-  ),
+  errorComponent: routeErrorComponent(),
 });

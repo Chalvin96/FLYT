@@ -19,7 +19,7 @@ export function MessageAvatar({
   return (
     <div
       className={cn(
-        'flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted',
+        'flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-subtle',
         className,
       )}
       data-slot="message-avatar"
@@ -50,10 +50,7 @@ export function MessageHeader({
 }: React.ComponentProps<'div'>) {
   return (
     <div
-      className={cn(
-        'flex max-w-full min-w-0 items-center px-3 type-label-sm font-medium text-muted-foreground',
-        className,
-      )}
+      className={cn('flex max-w-full min-w-0 items-center px-3', className)}
       data-slot="message-header"
       {...props}
     />

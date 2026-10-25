@@ -22,9 +22,6 @@ const POS_MAP: Record<LemmaPos, string> = {
   unknown: 'unknown',
 };
 
-// ── POS → English badge text ────────────────────────────────────────────────
-// Design rule: POS + grammatical tags render in ENGLISH (NOUN, VERB, …).
-
 const POS_EN_BADGE: Record<LemmaPos, string> = {
   noun: 'NOUN',
   verb: 'VERB',
@@ -36,7 +33,7 @@ const POS_EN_BADGE: Record<LemmaPos, string> = {
   interjection: 'INTERJ',
   determiner: 'DET',
   numeral: 'NUM',
-  expression: 'Expression',
+  expression: 'EXPR',
   unknown: 'UNKNOWN',
 };
 
@@ -58,7 +55,7 @@ const GENDER_SIMPLE_LABELS: Record<string, string> = {
   Masc: 'Masculine',
   Fem: 'Feminine',
   Neuter: 'Neuter',
-  'Masc/Fem': 'Masculine/Feminine',
+  'Masc/Fem': 'Masculine/feminine',
 };
 
 const GENDER_ARTICLES: Record<string, string> = {
@@ -104,7 +101,7 @@ export function getInflectionClassLabel(inflectionClass: string): string {
     v2: '-te class',
     v3: '-de class',
     v4: '-dde class',
-    verb: 'Strong/Irregular',
+    verb: 'Strong/irregular',
   };
   return map[inflectionClass.toLowerCase()] || inflectionClass;
 }
@@ -167,11 +164,34 @@ export function normalizeLookupQuery(text: string): string {
   return hasLetterOrDigit ? normalized : '';
 }
 
+/**
+ * Presentation form of a canonical headword: bracket alternatives stay visible
+ * and their `|` separator renders as ` / `. The canonical value is unchanged —
+ * pass it separately to accessible names and selection callbacks.
+ */
 export function formatLookupLabel(text: string): string {
   return text
-    .replace(/\[[^\]]+\]/g, ' ')
+    .replace(/\[([^\]]*)\]/g, (_, alternatives: string) => {
+      const separated = alternatives
+        .split('|')
+        .map((alternative) => alternative.trim())
+        .filter(Boolean)
+        .join(' / ');
+      return separated ? `[${separated}]` : ' ';
+    })
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+export type HeadwordForms = {
+  /** Stored headword: accessible names and submitted selections. */
+  canonical: string;
+  /** Readable headword: visible learner text. */
+  display: string;
+};
+
+export function buildHeadwordForms(canonical: string): HeadwordForms {
+  return { canonical, display: formatLookupLabel(canonical) };
 }
 
 export function hasValidNorwegianChars(text: string): boolean {

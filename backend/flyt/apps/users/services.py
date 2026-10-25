@@ -7,11 +7,13 @@ import jwt
 from pydantic import BaseModel
 from pydantic import EmailStr
 from sqlalchemy import select
+from sqlalchemy import update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from flyt.apps.flashcards.constants import K_DEFAULT_STUDY_LIMIT
+from flyt.apps.flashcards.models import CardPool
 from flyt.apps.flashcards.models import CardState
 from flyt.apps.flashcards.models import UserCard
 from flyt.apps.lexicons.models import Lemma
@@ -43,9 +45,9 @@ class OAuthClaims(BaseModel):
 
 class AuthService:
     def create_access_token(
-        self, data: dict, expires_delta: timedelta | None = None
+        self, user: User, expires_delta: timedelta | None = None
     ) -> str:
-        to_encode = data.copy()
+        to_encode = {"sub": str(user.uuid), "session_version": user.session_version}
         if expires_delta:
             expire = now_aware() + expires_delta
         else:
@@ -127,6 +129,13 @@ class UserService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def revoke_sessions(self, user_id: int) -> None:
+        await self.db.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(session_version=User.session_version + 1)
+        )
+
     async def update_display_name(self, user: User, display_name: str) -> User:
         user.display_name = display_name
         await self.db.flush()
@@ -156,17 +165,16 @@ class UserLemmaService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def ensure_lemma_for_user(self, user_id: int, lemma_id: int) -> None:
-        """Idempotently ensure a UserLemma row exists using ON CONFLICT DO NOTHING.
-
-        Database-native idempotent insert so concurrent activation paths cannot
-        violate the (user_id, lemma_id) unique constraint. An existing row is
-        left untouched, including is_mastered=True.
-        """
+    async def ensure_lemmas_for_user(
+        self, user_id: int, lemma_ids: Sequence[int]
+    ) -> None:
+        if not lemma_ids:
+            return
         stmt = pg_insert(UserLemma).values(
-            user_id=user_id,
-            lemma_id=lemma_id,
-            is_mastered=False,
+            [
+                {"user_id": user_id, "lemma_id": lemma_id, "is_mastered": False}
+                for lemma_id in sorted(set(lemma_ids))
+            ]
         )
         stmt = stmt.on_conflict_do_nothing(
             index_elements=[UserLemma.user_id, UserLemma.lemma_id],
@@ -191,9 +199,6 @@ class UserLemmaService:
         await self.db.execute(stmt)
 
     async def sync_lemma_mastery_from_user_card(self, user_card: UserCard) -> None:
-        pool = user_card.pool
-        if pool.lemma_id is None:
-            return
         if user_card.state is not CardState.REVIEW:
             return
         if user_card.fsrs_stability is None:
@@ -201,9 +206,15 @@ class UserLemmaService:
         if user_card.fsrs_stability < K_MASTERED_STABILITY_DAYS:
             return
 
+        lemma_id = await self.db.scalar(
+            select(CardPool.lemma_id).where(CardPool.id == user_card.pool_id)
+        )
+        if lemma_id is None:
+            return
+
         await self.set_lemma_mastery_state(
             user_card.user_id,
-            pool.lemma_id,
+            lemma_id,
             True,
         )
 

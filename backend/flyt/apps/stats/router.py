@@ -9,13 +9,14 @@ from flyt.apps.stats.queries import StatsQueryService
 from flyt.apps.stats.schemas import StatsRead
 from flyt.apps.users.deps import get_current_user
 from flyt.apps.users.models import User
+from flyt.core.http import build_error_responses
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/me/dashboard", tags=["stats"])
 
 
-@router.get("/stats")
+@router.get("/stats", responses=build_error_responses(401))
 async def get_dashboard_stats(
     current_user: Annotated[User, Depends(get_current_user)],
     query_service: Annotated[StatsQueryService, Depends(get_stats_query_service)],

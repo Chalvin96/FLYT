@@ -1,24 +1,17 @@
 import type { ExerciseOutcome } from '@/lib/operationResult';
-import type {
-  AudioAsset,
-  Exercise,
-  SpeechCheck,
-  WriteJudgement,
-} from '@/types/lesson-contracts';
+import type { Exercise, WriteJudgement } from '@/types/lesson-contracts';
+
+import type { FlashCardFrameLayout } from './FlashCardFrame';
 
 export type WriteJudgeFn = (response: string) => Promise<WriteJudgement>;
-export type SpeechRecorderFn = (audio: Blob) => Promise<SpeechCheck>;
 export type FinishResult = void | boolean | Promise<void | boolean>;
 export type FinishHandler<T> = (value: T) => FinishResult;
 
 export type OperationComponentProps<T = Exercise> = {
   exercise: T;
+  allowRetry: boolean;
   onFinished?: FinishHandler<ExerciseOutcome>;
   isSubmitting?: boolean;
-  className?: string;
+  layout?: FlashCardFrameLayout;
   desktopExpanded?: boolean;
-  judgeWrite?: WriteJudgeFn;
-  audio?: AudioAsset | null;
-  recordAndTranscribe?: SpeechRecorderFn;
-  draftOwnerKey?: string;
 };

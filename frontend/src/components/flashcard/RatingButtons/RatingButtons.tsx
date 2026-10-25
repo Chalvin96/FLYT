@@ -1,7 +1,6 @@
+import { Button, Text } from '@flyt/ui';
 import { useEffect, useEffectEvent, useId, useRef } from 'react';
 
-import { Button } from '@/components/common/Button/Button';
-import { cn } from '@/lib/utils';
 import type { RatingPreviews } from '@/types/api';
 
 export interface RatingButtonsProps {
@@ -9,7 +8,6 @@ export interface RatingButtonsProps {
   /** Per-rating interval labels (e.g. "1m") shown under each button. */
   previews?: RatingPreviews;
   disabled?: boolean;
-  className?: string;
 }
 
 const RATINGS = [
@@ -23,7 +21,6 @@ export const RatingButtons = ({
   onRate,
   previews,
   disabled = false,
-  className = '',
 }: RatingButtonsProps) => {
   const scopeRef = useRef<HTMLDivElement>(null);
   const descriptionId = useId();
@@ -43,9 +40,8 @@ export const RatingButtons = ({
   });
 
   useEffect(() => {
-    // Call the effect event from a plain listener instead of handing its
-    // reference to the DOM — effect events are only guaranteed callable from
-    // inside effects.
+    // An effect event is only callable from inside an effect, so the DOM gets a
+    // plain listener rather than its reference.
     const handleKeyDown = (event: KeyboardEvent) => handleRatingKey(event);
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -53,7 +49,7 @@ export const RatingButtons = ({
 
   return (
     <div
-      className={cn('mx-auto w-full max-w-[30rem] space-y-2', className)}
+      className="mx-auto w-full max-w-[30rem] space-y-2"
       ref={scopeRef}
       role="group"
       aria-label="Rate this card"
@@ -63,27 +59,31 @@ export const RatingButtons = ({
       </p>
       <div className="flex w-full gap-2">
         {RATINGS.map(({ rating, label, key }) => (
-          <Button
+          <div
+            className={key === 'again' ? 'mr-1 flex-1 sm:mr-2' : 'flex-1'}
             key={rating}
-            type="button"
-            variant="outline"
-            aria-describedby={descriptionId}
-            aria-label={previews ? `${label}, next in ${previews[key]}` : label}
-            className={cn(
-              'flex h-12 min-w-0 flex-1 flex-col gap-0.5 px-1.5 py-1.5 type-caption shadow-none transition-colors hover:translate-y-0 active:translate-y-px focus-visible:z-10 max-[359px]:h-11',
-              key === 'again' &&
-                'mr-1 border-destructive-20 text-destructive-90 hover:border-destructive-30 hover:bg-destructive-0 hover:text-destructive-90 sm:mr-2',
-            )}
-            onClick={() => onRate(rating)}
-            disabled={disabled}
           >
-            <span>{label}</span>
-            {previews ? (
-              <span className="type-caption font-normal text-muted-foreground">
-                {previews[key]}
+            <Button
+              aria-describedby={descriptionId}
+              aria-label={
+                previews ? `${label}, next in ${previews[key]}` : label
+              }
+              disabled={disabled}
+              onClick={() => onRate(rating)}
+              size="lg"
+              variant="outline"
+              width="full"
+            >
+              <span className="flex flex-col items-center gap-0.5">
+                <span>{label}</span>
+                {previews ? (
+                  <Text as="span" size="medium" tone="subtle">
+                    {previews[key]}
+                  </Text>
+                ) : null}
               </span>
-            ) : null}
-          </Button>
+            </Button>
+          </div>
         ))}
       </div>
     </div>

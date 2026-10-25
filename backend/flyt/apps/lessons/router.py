@@ -19,9 +19,12 @@ from flyt.apps.lessons.schemas import serialize_lesson_progress
 from flyt.apps.lessons.runtime_service import LessonService
 from flyt.apps.users.deps import get_current_user
 from flyt.apps.users.models import User
+from flyt.core.http import build_error_responses
 from flyt.core.db import get_async_db
 from flyt.core.http import EmptyResponse
 from flyt.core.http import error_response
+from flyt.core.schemas import DatabaseId
+from flyt.content.schemas import LessonKind
 
 lessons_router = APIRouter(prefix="/lessons", tags=["lessons"])
 
@@ -37,17 +40,18 @@ ERROR_STATUS = {
 }
 
 
-@lessons_router.get("")
+@lessons_router.get("", responses=build_error_responses(401))
 async def list_lessons(
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[LessonService, Depends(get_lesson_service)],
+    kind: LessonKind | None = None,
 ) -> list[LessonSummaryRead]:
-    return await service.list_lessons(user_id=current_user.id)
+    return await service.list_lessons(user_id=current_user.id, kind=kind)
 
 
-@lessons_router.get("/{lesson_id}")
+@lessons_router.get("/{lesson_id}", responses=build_error_responses(401, 404))
 async def get_lesson(
-    lesson_id: int,
+    lesson_id: DatabaseId,
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[LessonService, Depends(get_lesson_service)],
 ) -> LessonDetailRead:
@@ -60,9 +64,11 @@ async def get_lesson(
         ) from error
 
 
-@lessons_router.post("/{lesson_id}/start")
+@lessons_router.post(
+    "/{lesson_id}/start", responses=build_error_responses(401, 403, 404)
+)
 async def start_lesson(
-    lesson_id: int,
+    lesson_id: DatabaseId,
     db: Annotated[AsyncSession, Depends(get_async_db)],
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[LessonService, Depends(get_lesson_service)],
@@ -79,9 +85,12 @@ async def start_lesson(
         ) from error
 
 
-@lessons_router.post("/{lesson_id}/exercises/{exercise_id}/complete")
+@lessons_router.post(
+    "/{lesson_id}/exercises/{exercise_id}/complete",
+    responses=build_error_responses(401, 403, 404),
+)
 async def complete_exercise(
-    lesson_id: int,
+    lesson_id: DatabaseId,
     exercise_id: str,
     db: Annotated[AsyncSession, Depends(get_async_db)],
     current_user: Annotated[User, Depends(get_current_user)],
@@ -121,12 +130,10 @@ async def admit_exercise_evaluation_request(
 
 @lessons_router.post(
     "/{lesson_id}/exercises/{exercise_id}/judge-write",
-    responses={
-        429: {"description": "write-judge request window exhausted"},
-    },
+    responses=build_error_responses(401, 403, 404, 429, 503),
 )
 async def judge_write_exercise(
-    lesson_id: int,
+    lesson_id: DatabaseId,
     exercise_id: str,
     body: ExerciseResponseRequest,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -144,9 +151,11 @@ async def judge_write_exercise(
         ) from error
 
 
-@lessons_router.post("/{lesson_id}/complete")
+@lessons_router.post(
+    "/{lesson_id}/complete", responses=build_error_responses(401, 403, 404)
+)
 async def complete_lesson(
-    lesson_id: int,
+    lesson_id: DatabaseId,
     db: Annotated[AsyncSession, Depends(get_async_db)],
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[LessonService, Depends(get_lesson_service)],

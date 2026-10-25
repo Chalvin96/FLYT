@@ -3,6 +3,7 @@ from http import HTTPStatus
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from flyt.apps.flashcards.models import CardState
 from flyt.libs.utils.date import now
@@ -20,6 +21,8 @@ pytestmark = pytest.mark.anyio
 
 async def test_get_dashboard_stats_given_authenticated_user_expect_frontend_contract(
     client: AsyncClient,
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     user = await UserFactory.create()
     review_time = now()
@@ -74,6 +77,8 @@ async def test_get_dashboard_stats_given_authenticated_user_expect_frontend_cont
         reviewed_at=review_time,
         rating=4,
     )
+    db.expunge_all()
+    monkeypatch.setattr("flyt.apps.stats.queries.now", lambda: review_time)
 
     response = await client.get("/me/dashboard/stats")
 

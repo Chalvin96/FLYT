@@ -10,6 +10,7 @@ from starlette_admin.auth import AuthProvider
 from starlette_admin.exceptions import LoginFailed
 
 from flyt.apps.users.deps import resolve_user_from_token
+from flyt.apps.users.services import UserService
 from flyt.apps.users.types import UserRole
 from flyt.apps.users.utils import clear_access_cookie
 from flyt.core.config import settings
@@ -61,8 +62,13 @@ class AdminAuthProvider(AuthProvider):
         return RedirectResponse(_OAUTH_START_PATH)
 
     async def logout(self, request: Request) -> Response:
-        # Clear with the same domain/path the app sets, or a configured
-        # ACCESS_COOKIE_DOMAIN/PATH leaves the cookie (and session) intact.
+        token = request.cookies.get(settings.ACCESS_COOKIE_NAME)
+        if token:
+            async with self._session() as db:
+                user = await resolve_user_from_token(token, db)
+                if user is not None:
+                    await UserService(db).revoke_sessions(user.id)
+                    await db.commit()
         response = RedirectResponse("/admin")
         clear_access_cookie(response)
         return response

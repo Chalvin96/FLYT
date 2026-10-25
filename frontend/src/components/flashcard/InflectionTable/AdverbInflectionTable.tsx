@@ -1,29 +1,20 @@
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from '@flyt/ui';
+
 import type { WordFormRead } from '@/types/api';
 
-import {
-  buildDesktopClassName,
-  buildMobileClassName,
-  dataCellCls,
-  dividerCls,
-  headerCellCls,
-  panelCls,
-  tdCls,
-  thCls,
-  type InflectionLayout,
-} from './inflectionStyles';
+import { dividerCls, type InflectionLayout } from './inflectionStyles';
+import { InflectionMobileRow, InflectionSurface } from './InflectionSurface';
 
 const COLUMNS = [
-  { label: 'positiv', key: 'pos' },
-  { label: 'komparativ', key: 'cmp' },
-  { label: 'superlativ', key: 'sup' },
+  { label: 'Positiv', key: 'pos' },
+  { label: 'Komparativ', key: 'cmp' },
+  { label: 'Superlativ', key: 'sup' },
 ] as const;
 
 export function AdverbInflectionTable({
@@ -39,56 +30,40 @@ export function AdverbInflectionTable({
     else if (wf.tags_json.includes('Cmp')) forms['cmp'] = wf.form;
     else if (wf.tags_json.includes('Sup')) forms['sup'] = wf.form;
   }
+  const present = COLUMNS.filter((col) => forms[col.key]);
 
   return (
-    <div className="w-full type-caption">
-      <div className={buildDesktopClassName(layout)}>
-        <div className={panelCls}>
-          <Table className="min-w-max border-collapse">
-            <TableHeader className="[&_tr]:border-0">
-              <TableRow className="border-0 hover:bg-transparent">
-                {COLUMNS.map(
-                  (col) =>
-                    forms[col.key] && (
-                      <TableHead key={col.key} className={thCls}>
-                        {col.label}
-                      </TableHead>
-                    ),
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow className="border-0 hover:bg-transparent">
-                {COLUMNS.map(
-                  (col) =>
-                    forms[col.key] && (
-                      <TableCell key={col.key} className={tdCls}>
-                        {forms[col.key]}
-                      </TableCell>
-                    ),
-                )}
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
-      <div
-        data-testid="inflection-mobile"
-        className={buildMobileClassName(layout)}
-      >
+    <InflectionSurface
+      layout={layout}
+      desktop={
+        <>
+          <TableHeader>
+            <TableRow>
+              {present.map((col) => (
+                <TableHead key={col.key}>{col.label}</TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow>
+              {present.map((col) => (
+                <TableCell key={col.key}>{forms[col.key]}</TableCell>
+              ))}
+            </TableRow>
+          </TableBody>
+        </>
+      }
+      mobile={
         <div className={dividerCls}>
-          {COLUMNS.map(
-            (col) =>
-              forms[col.key] && (
-                <div key={col.key} className="flex">
-                  <div className={headerCellCls}>{col.label}</div>
-                  <div className={dataCellCls}>{forms[col.key]}</div>
-                </div>
-              ),
-          )}
+          {present.map((col) => (
+            <InflectionMobileRow
+              key={col.key}
+              label={col.label}
+              value={forms[col.key]}
+            />
+          ))}
         </div>
-      </div>
-    </div>
+      }
+    />
   );
 }

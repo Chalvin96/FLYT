@@ -9,6 +9,24 @@ from tests.helpers.lesson_packets import packet_minimal
 from tests.helpers.lesson_packets import packet_with_exercise
 
 
+def test_parse_lesson_packet_given_omitted_kind_expect_unknown_classification() -> None:
+    data = packet_minimal()
+    data.pop("kind")
+
+    packet = parse_lesson_packet_or_raise(data)
+
+    assert packet.kind is None
+
+
+@pytest.mark.parametrize("kind", ["", "unknown", "Communicative"])
+def test_parse_lesson_packet_given_unsupported_kind_expect_rejection(kind: str) -> None:
+    data = packet_minimal()
+    data["kind"] = kind
+
+    with pytest.raises(LessonPacketError, match="kind"):
+        parse_lesson_packet_or_raise(data)
+
+
 def test_parse_lesson_packet_given_minimal_v4_packet_expect_round_trip() -> None:
     packet = parse_lesson_packet_or_raise(packet_minimal())
     assert packet.schema_version == "4.0"
@@ -44,6 +62,58 @@ def test_parse_lesson_packet_given_singular_example_expect_acceptance() -> None:
     packet = parse_lesson_packet_or_raise(data)
 
     assert packet.sections[0].blocks[-1].kind == "example"
+
+
+def test_parse_lesson_packet_given_example_without_role_expect_model_default() -> None:
+    data = packet_minimal()
+    data["sections"][0]["blocks"].append(
+        {
+            "kind": "example",
+            "id": "example-1",
+            "no": [{"kind": "text", "value": "Jeg leser."}],
+            "en": [{"kind": "text", "value": "I read."}],
+        }
+    )
+
+    packet = parse_lesson_packet_or_raise(data)
+
+    assert packet.sections[0].blocks[-1].teaching_role == "model"
+
+
+@pytest.mark.parametrize("teaching_role", ["model", "incorrect", "caution"])
+def test_parse_lesson_packet_given_supported_example_role_expect_preservation(
+    teaching_role: str,
+) -> None:
+    data = packet_minimal()
+    data["sections"][0]["blocks"].append(
+        {
+            "kind": "example",
+            "id": "example-1",
+            "no": [{"kind": "text", "value": "Jeg leser."}],
+            "en": [{"kind": "text", "value": "I read."}],
+            "teaching_role": teaching_role,
+        }
+    )
+
+    packet = parse_lesson_packet_or_raise(data)
+
+    assert packet.sections[0].blocks[-1].teaching_role == teaching_role
+
+
+def test_parse_lesson_packet_given_unsupported_example_role_expect_rejection() -> None:
+    data = packet_minimal()
+    data["sections"][0]["blocks"].append(
+        {
+            "kind": "example",
+            "id": "example-1",
+            "no": [{"kind": "text", "value": "Jeg leser."}],
+            "en": [{"kind": "text", "value": "I read."}],
+            "teaching_role": "warning",
+        }
+    )
+
+    with pytest.raises(LessonPacketError):
+        parse_lesson_packet_or_raise(data)
 
 
 def test_parse_lesson_packet_given_grouped_examples_expect_acceptance() -> None:
@@ -113,7 +183,6 @@ def test_parse_lesson_packet_given_wrong_schema_version_expect_rejection() -> No
         "judge",
         "find_fix",
         "categorize",
-        "speak",
         "write",
     ],
 )
@@ -126,6 +195,16 @@ def test_parse_lesson_packet_given_each_operation_payload_expect_acceptance(
     packet = parse_lesson_packet_or_raise(packet_with_exercise(exercise))
     assert [e.operation for e in packet.exercises] == [operation]
     validate_packet_graph_or_raise(packet)
+
+
+def test_parse_lesson_packet_given_unknown_operation_expect_rejection() -> None:
+    from tests.helpers.lesson_packets import exercise_for
+
+    data = packet_with_exercise(exercise_for("build"))
+    data["exercises"][0]["operation"] = "speak"
+
+    with pytest.raises(LessonPacketError):
+        parse_lesson_packet_or_raise(data)
 
 
 def test_parse_lesson_packet_given_nullable_write_bounds_expect_acceptance() -> None:
@@ -156,11 +235,11 @@ def test_validate_packet_graph_given_exercise_audio_reference_expect_acceptance(
 ):
     from tests.helpers.lesson_packets import exercise_for
 
-    data = packet_with_exercise(exercise_for("speak"))
-    data["exercises"][0]["audio_id"] = "audio-speak"
+    data = packet_with_exercise(exercise_for("build"))
+    data["exercises"][0]["audio_id"] = "audio-build"
     data["media"]["audio"] = [
         {
-            "id": "audio-speak",
+            "id": "audio-build",
             "path": "audio/lessons/lesson-a/00000000-0000-4000-8000-000000000001.wav",
             "url": "https://media.example.test/audio/lessons/lesson-a/00000000-0000-4000-8000-000000000001.wav",
             "mime": "audio/wav",
@@ -285,7 +364,7 @@ def test_validate_packet_graph_given_duplicate_exercise_id_expect_rejection() ->
 def test_validate_packet_graph_given_unknown_objective_expect_rejection() -> None:
     from tests.helpers.lesson_packets import exercise_for
 
-    exercise = exercise_for("speak")
+    exercise = exercise_for("build")
     exercise["objective_id"] = "obj-missing"
     packet = parse_lesson_packet_or_raise(packet_with_exercise(exercise))
     with pytest.raises(LessonPacketError, match="unknown objective"):
@@ -446,8 +525,160 @@ def test_validate_packet_graph_given_uncovered_section_expect_rejection() -> Non
 def test_validate_packet_graph_given_uncovered_exercise_expect_rejection() -> None:
     from tests.helpers.lesson_packets import exercise_for
 
-    data = packet_with_exercise(exercise_for("speak"))
+    data = packet_with_exercise(exercise_for("build"))
     data["content"] = [{"kind": "section", "id": "sec-1"}]
     packet = parse_lesson_packet_or_raise(data)
     with pytest.raises(LessonPacketError, match="missing from content"):
         validate_packet_graph_or_raise(packet)
+
+
+def test_parse_lesson_packet_given_dialogue_stimulus_expect_ordered_turns() -> None:
+    from tests.helpers.lesson_packets import exercise_for
+
+    data = packet_with_exercise(exercise_for("choose"))
+    data["schema_version"] = "4.1"
+    data["exercises"][0]["stimulus"] = _dialogue_stimulus()
+
+    packet = parse_lesson_packet_or_raise(data)
+
+    assert packet.schema_version == "4.1"
+    stimulus = packet.exercises[0].stimulus
+    assert stimulus is not None
+    assert [turn.speaker for turn in stimulus[0].turns] == ["Mina", "Jon"]
+    assert stimulus[0].turns[0].text[0].value == "«Du skulle ha kjøpt brød.»"
+    validate_packet_graph_or_raise(packet)
+
+
+def test_parse_lesson_packet_given_no_stimulus_expect_absent_field() -> None:
+    from tests.helpers.lesson_packets import exercise_for
+
+    packet = parse_lesson_packet_or_raise(packet_with_exercise(exercise_for("choose")))
+
+    assert packet.exercises[0].stimulus is None
+
+
+def test_parse_lesson_packet_given_unknown_stimulus_kind_expect_rejection() -> None:
+    from tests.helpers.lesson_packets import exercise_for
+
+    data = packet_with_exercise(exercise_for("choose"))
+    data["exercises"][0]["stimulus"] = [
+        {
+            "kind": "narration",
+            "turns": [{"speaker": "Mina", "text": [{"kind": "text", "value": "Hei."}]}],
+        }
+    ]
+
+    with pytest.raises(LessonPacketError):
+        parse_lesson_packet_or_raise(data)
+
+
+def test_parse_lesson_packet_given_dialogue_without_turns_expect_rejection() -> None:
+    from tests.helpers.lesson_packets import exercise_for
+
+    data = packet_with_exercise(exercise_for("choose"))
+    data["exercises"][0]["stimulus"] = [{"kind": "dialogue", "turns": []}]
+
+    with pytest.raises(LessonPacketError):
+        parse_lesson_packet_or_raise(data)
+
+
+def test_parse_lesson_packet_given_turn_without_speaker_expect_rejection() -> None:
+    from tests.helpers.lesson_packets import exercise_for
+
+    data = packet_with_exercise(exercise_for("choose"))
+    data["exercises"][0]["stimulus"] = [
+        {
+            "kind": "dialogue",
+            "turns": [{"speaker": "", "text": [{"kind": "text", "value": "Hei."}]}],
+        }
+    ]
+
+    with pytest.raises(LessonPacketError):
+        parse_lesson_packet_or_raise(data)
+
+
+def test_parse_lesson_packet_given_blank_speaker_expect_rejection() -> None:
+    from tests.helpers.lesson_packets import exercise_for
+
+    data = packet_with_exercise(exercise_for("choose"))
+    data["exercises"][0]["stimulus"] = [
+        {
+            "kind": "dialogue",
+            "turns": [{"speaker": "   ", "text": [{"kind": "text", "value": "Hei."}]}],
+        }
+    ]
+
+    with pytest.raises(LessonPacketError, match="non-whitespace"):
+        parse_lesson_packet_or_raise(data)
+
+
+def test_parse_lesson_packet_given_blank_turn_text_expect_rejection() -> None:
+    from tests.helpers.lesson_packets import exercise_for
+
+    data = packet_with_exercise(exercise_for("choose"))
+    data["exercises"][0]["stimulus"] = [
+        {
+            "kind": "dialogue",
+            "turns": [
+                {
+                    "speaker": "Mina",
+                    "text": [
+                        {"kind": "text", "value": ""},
+                        {"kind": "text", "value": "   "},
+                    ],
+                }
+            ],
+        }
+    ]
+
+    with pytest.raises(LessonPacketError, match="non-whitespace"):
+        parse_lesson_packet_or_raise(data)
+
+
+def test_parse_lesson_packet_given_spaced_turn_text_expect_acceptance() -> None:
+    from tests.helpers.lesson_packets import exercise_for
+
+    data = packet_with_exercise(exercise_for("choose"))
+    data["exercises"][0]["stimulus"] = [
+        {
+            "kind": "dialogue",
+            "turns": [
+                {
+                    "speaker": "Mina",
+                    "text": [
+                        {"kind": "text", "value": "Jeg "},
+                        {"kind": "text", "value": " "},
+                        {"kind": "emphasis", "value": "jobber"},
+                    ],
+                }
+            ],
+        }
+    ]
+
+    packet = parse_lesson_packet_or_raise(data)
+
+    stimulus = packet.exercises[0].stimulus
+    assert stimulus is not None
+    assert [span.value for span in stimulus[0].turns[0].text] == [
+        "Jeg ",
+        " ",
+        "jobber",
+    ]
+
+
+def _dialogue_stimulus() -> list[dict]:
+    return [
+        {
+            "kind": "dialogue",
+            "turns": [
+                {
+                    "speaker": "Mina",
+                    "text": [{"kind": "text", "value": "«Du skulle ha kjøpt brød.»"}],
+                },
+                {
+                    "speaker": "Jon",
+                    "text": [{"kind": "text", "value": "Beklager."}],
+                },
+            ],
+        }
+    ]

@@ -1,6 +1,3 @@
-// Service worker: context menu + message router. No in-memory state (the SW is
-// killed/restarted) - lib/auth reads the session JWT fresh from the cookie on each call.
-
 import {
   addToDeck,
   getLemmaDefinitions,
@@ -13,15 +10,16 @@ import {
 import { openLogin } from '../lib/auth';
 import { classify } from '../lib/classify';
 import {
-  LEMMA_CONTEXT_MAX_SENTENCE_LENGTH,
+  TRANSLATE_MAX_TEXT_LENGTH,
   MSG_KIND,
   MSG_RESULT_KIND,
-  TAB_CMD,
-  boundLemmaContext,
   sendTabCommand,
+  TAB_CMD,
   type Msg,
   type MsgResult,
+  type TabCommand,
 } from '../lib/messages';
+import { hasApiPermission, requestApiPermission } from '../lib/permissions';
 import { selectionWord } from '../lib/selectionWord';
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -39,28 +37,47 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
+async function sendCommandFromGesture(
+  tabId: number,
+  command: TabCommand,
+): Promise<void> {
+  const [hadPermission, { granted }] = await Promise.all([
+    hasApiPermission().catch(() => false),
+    requestApiPermission().catch(() => ({ granted: false })),
+  ]);
+  if (granted && (hadPermission || command.kind !== TAB_CMD.RUN_IMPORT)) {
+    const { delivered } = await sendTabCommand(tabId, command);
+    if (!delivered) {
+      const hasPageAccess = await chrome.permissions.contains({
+        origins: ['<all_urls>'],
+      });
+      if (!hasPageAccess) await chrome.runtime.openOptionsPage();
+    }
+  }
+}
+
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (!tab?.id) return;
   if (info.menuItemId === 'flyt-translate' && info.selectionText) {
-    const word = selectionWord(info.selectionText);
+    const text = info.selectionText.trim();
+    const word = Array.from(text).length >= 2 ? selectionWord(text) : null;
     if (word) {
-      sendTabCommand(tab.id, { kind: TAB_CMD.SHOW_FOR, word });
-      return;
+      return sendCommandFromGesture(tab.id, { kind: TAB_CMD.SHOW_FOR, word });
     }
-    const text = boundLemmaContext({
-      source_sentence: info.selectionText.trim(),
-    }).source_sentence;
-    if (Array.from(text).length >= 2 && /\p{L}/u.test(text)) {
-      sendTabCommand(tab.id, { kind: TAB_CMD.SHOW_TRANSLATION, text });
+    if (text) {
+      return sendCommandFromGesture(tab.id, {
+        kind: TAB_CMD.SHOW_TRANSLATION,
+        text,
+      });
     }
   } else if (info.menuItemId === 'flyt-import-page') {
-    sendTabCommand(tab.id, { kind: TAB_CMD.RUN_IMPORT });
+    return sendCommandFromGesture(tab.id, { kind: TAB_CMD.RUN_IMPORT });
   }
 });
 
 chrome.action.onClicked.addListener((tab) => {
   if (tab.id !== undefined) {
-    sendTabCommand(tab.id, { kind: TAB_CMD.RUN_IMPORT });
+    return sendCommandFromGesture(tab.id, { kind: TAB_CMD.RUN_IMPORT });
   }
 });
 
@@ -155,10 +172,13 @@ chrome.runtime.onMessage.addListener((msg: Msg, _sender, sendResponse) => {
         !(
           typeof m.text === 'string' &&
           Array.from(m.text.trim()).length >= 2 &&
-          Array.from(m.text).length <= LEMMA_CONTEXT_MAX_SENTENCE_LENGTH
+          Array.from(m.text).length <= TRANSLATE_MAX_TEXT_LENGTH
         )
       ) {
         return { ok: false, error: 'unknown' };
+      }
+      if (msg.kind !== MSG_KIND.SIGN_IN && !(await hasApiPermission())) {
+        return { ok: false, error: 'permission' };
       }
       switch (msg.kind) {
         case MSG_KIND.RESOLVE:

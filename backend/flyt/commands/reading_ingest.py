@@ -109,7 +109,7 @@ class ReadingIngestService:
             cefr_level=cefr_level,
             reading_group_id=group.id,
             visibility=StoryVisibility.PUBLIC,
-            is_ready=bool(meta.get("is_ready")),
+            is_ready=False,
             content=body,
             word_count=len(body.split()),
         )
@@ -118,12 +118,10 @@ class ReadingIngestService:
         await self.db.refresh(story)
 
         try:
-            await self.enqueue("generate_story_pages", story.id)
+            await self.enqueue(
+                "generate_story_pages", story.id, bool(meta.get("is_ready"))
+            )
         except Exception as exc:
-            # The story is committed but has no pages yet. Force it not-ready and raise a
-            # sanitised error (never surface the raw Redis DSN to the operator).
-            story.is_ready = False
-            await self.db.commit()
             raise IngestError(
                 f"Could not enqueue annotation job (is Redis reachable?); "
                 f"story '{story.slug}' was saved not-ready"

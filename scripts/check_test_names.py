@@ -12,12 +12,20 @@ import re
 import subprocess
 import sys
 
-TEST_NAME = re.compile(r"^test_[a-z0-9]+(?:_[a-z0-9]+)*_given_[a-z0-9]+(?:_[a-z0-9]+)*_expect_[a-z0-9]+(?:_[a-z0-9]+)*$")
+K_TEST_NAME = re.compile(
+    r"^test_[a-z0-9]+(?:_[a-z0-9]+)*_given_[a-z0-9]+(?:_[a-z0-9]+)*_expect_[a-z0-9]+(?:_[a-z0-9]+)*$"
+)
 HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
-DIRECT_VITEST = re.compile(r"\b(?:it|test)(?:\.(?:only|skip|todo))?\s*\(\s*(['\"`])([^\n'\"`]*)\1")
-EACH_VITEST = re.compile(r"\b(?:it|test)\.each\s*\([\s\S]*?\)\s*\(\s*(['\"`])([^\n'\"`]*)\1")
-DIRECT_VITEST_CALL = re.compile(r"\b(?:it|test)(?:\.(?:only|skip|todo))?\s*\(")
-EACH_VITEST_CALL = re.compile(r"\b(?:it|test)\.each\s*\(")
+K_DIRECT_VITEST = re.compile(
+    r"(?<![.\w$])(?:it|test)(?:\.(?:only|skip|todo))?\s*\(\s*(['\"`])([^\n'\"`]*)\1"
+)
+K_EACH_VITEST = re.compile(
+    r"(?<![.\w$])(?:it|test)\.each\s*\([\s\S]*?\)\s*\(\s*(['\"`])([^\n'\"`]*)\1"
+)
+K_DIRECT_VITEST_CALL = re.compile(
+    r"(?<![.\w$])(?:it|test)(?:\.(?:only|skip|todo))?\s*\("
+)
+K_EACH_VITEST_CALL = re.compile(r"(?<![.\w$])(?:it|test)\.each\s*\(")
 
 
 @dataclass(frozen=True)
@@ -41,10 +49,9 @@ def is_test_path(path: str, scope: str = "all") -> bool:
         and pure_path.name.startswith("test_")
         and pure_path.suffix == ".py"
     )
-    is_frontend_test = (
-        path.startswith(("frontend/src/", "extension/src/", "packages/"))
-        and pure_path.name.endswith((".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx"))
-    )
+    is_frontend_test = path.startswith(
+        ("frontend/src/", "extension/src/", "packages/")
+    ) and pure_path.name.endswith((".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx"))
     if scope == "backend":
         return is_backend_test or is_morph_svc_test
     if scope == "frontend":
@@ -82,17 +89,21 @@ def vitest_violations(path: str, source: str, added_lines: set[int]) -> list[Vio
     violations: list[Violation] = []
     seen: set[tuple[int, str]] = set()
     static_starts: set[int] = set()
-    for pattern in (DIRECT_VITEST, EACH_VITEST):
+    for pattern in (K_DIRECT_VITEST, K_EACH_VITEST):
         for match in pattern.finditer(source):
             static_starts.add(match.start())
             title_start = match.start(2)
             line = source.count("\n", 0, title_start) + 1
             title = match.group(2)
             key = (line, title)
-            if line in added_lines and key not in seen and not TEST_NAME.fullmatch(title):
+            if (
+                line in added_lines
+                and key not in seen
+                and not K_TEST_NAME.fullmatch(title)
+            ):
                 violations.append(Violation(path, line, title))
                 seen.add(key)
-    for pattern in (DIRECT_VITEST_CALL, EACH_VITEST_CALL):
+    for pattern in (K_DIRECT_VITEST_CALL, K_EACH_VITEST_CALL):
         for match in pattern.finditer(source):
             line = source.count("\n", 0, match.start()) + 1
             if line in added_lines and match.start() not in static_starts:
@@ -110,7 +121,11 @@ def python_violations(path: str, source: str, added_lines: set[int]) -> list[Vio
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
-        if node.lineno in added_lines and node.name.startswith("test_") and not TEST_NAME.fullmatch(node.name):
+        if (
+            node.lineno in added_lines
+            and node.name.startswith("test_")
+            and not K_TEST_NAME.fullmatch(node.name)
+        ):
             violations.append(Violation(path, node.lineno, node.name))
     return violations
 
@@ -141,11 +156,10 @@ def sources_for_diff(diff_paths: Iterable[str], *, staged: bool) -> dict[str, st
 
 
 def sources_for_all_test_files(scope: str) -> dict[str, str]:
-    paths = (path for path in run_git("ls-files").splitlines() if is_test_path(path, scope))
-    return {
-        path: Path(path).read_text(encoding="utf-8")
-        for path in paths
-    }
+    paths = (
+        path for path in run_git("ls-files").splitlines() if is_test_path(path, scope)
+    )
+    return {path: Path(path).read_text(encoding="utf-8") for path in paths}
 
 
 def main() -> int:

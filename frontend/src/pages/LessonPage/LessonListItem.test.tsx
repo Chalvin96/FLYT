@@ -56,15 +56,15 @@ describe('getLessonStateMeta', () => {
   it('maps NOT_STARTED to the neutral gray token classes', () => {
     const meta = getLessonStateMeta('not_started');
 
-    expect(meta.toneClassName).toBe('bg-black-10 text-black-50');
+    expect(meta.toneClassName).toBe('bg-disabled text-disabled');
   });
 
   it('keeps COMPLETED and IN_PROGRESS on-brand tones', () => {
     expect(getLessonStateMeta('completed').toneClassName).toBe(
-      'bg-secondary-20 text-secondary-90',
+      'bg-neutral-pressed text-default',
     );
     expect(getLessonStateMeta('in_progress').toneClassName).toBe(
-      'bg-primary-20 text-primary-90',
+      'bg-selected-hovered text-selected',
     );
   });
 });

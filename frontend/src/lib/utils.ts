@@ -1,4 +1,4 @@
-export { cn } from '@flyt/ui/lib/utils';
+export { cn, sentenceCaseLabel } from '@flyt/ui/lib/utils';
 
 const NUMBER_FORMATTER = new Intl.NumberFormat('en-US');
 

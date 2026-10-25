@@ -39,7 +39,7 @@ const matchPairsExercise: Extract<Exercise, { operation: 'match_pairs' }> = {
 };
 
 const meta = {
-  title: 'Flashcard/FlashCardMatch',
+  title: 'Features/Flashcard/FlashCardMatch',
   component: FlashCardMatch,
   tags: ['autodocs'],
   decorators: [
@@ -53,7 +53,7 @@ const meta = {
     ),
   ],
   parameters: { layout: 'fullscreen' },
-  args: { className: 'flex-1', desktopExpanded: true },
+  args: { allowRetry: true, layout: 'fill', desktopExpanded: true },
   argTypes: {
     exercise: { control: 'object' },
     onFinished: { action: 'onFinished' },
@@ -69,10 +69,16 @@ export const Default: Story = {
 
 export const ResultCorrect: Story = {
   args: { exercise: matchPairsExercise, desktopExpanded: true },
+  beforeEach: () => {
+    const originalRandom = Math.random;
+    Math.random = () => 0.5;
+    return () => {
+      Math.random = originalRandom;
+    };
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    // Tap each Norwegian item, then its English match — pairs lock in place.
     const pairs: [RegExp, RegExp][] = [
       [/^jeg leser$/i, /^I read$/i],
       [/^hun skriver$/i, /^she writes$/i],
@@ -83,7 +89,6 @@ export const ResultCorrect: Story = {
       await userEvent.click(canvas.getByRole('button', { name: right }));
     }
 
-    // All matched → completion banner shows.
     await expect(canvas.getByText(/^correct$/i)).toBeInTheDocument();
     await expect(
       canvas.getByText(/common present-tense verb phrases/i),

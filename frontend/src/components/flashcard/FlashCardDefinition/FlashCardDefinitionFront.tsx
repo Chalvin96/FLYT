@@ -1,4 +1,5 @@
 import { PronunciationRow } from '@flyt/lexicon';
+import { Text } from '@flyt/ui';
 import { memo } from 'react';
 
 interface FlashCardDefinitionFrontProps {
@@ -16,16 +17,17 @@ const FlashCardDefinitionFrontComponent = ({
   return (
     <div className="flex h-full flex-1 flex-col items-center justify-center px-4 py-6 text-center sm:px-5 sm:py-8">
       <div className="max-w-text">
-        <h2 className="break-words text-balance font-display type-display-lg font-medium text-foreground">
-          {word}
-        </h2>
+        <div className="break-words text-balance">
+          <Text as="h2" size="4xl" weight="semibold" tone="default">
+            {word}
+          </Text>
+        </div>
         {senseCue ? (
-          <p
-            className="mt-3 type-caption italic text-muted-foreground"
-            lang="no"
-          >
-            {senseCue}
-          </p>
+          <div className="mt-3 italic">
+            <Text as="p" lang="no" size="medium" tone="subtle">
+              {senseCue}
+            </Text>
+          </div>
         ) : null}
         {audioUrl ? (
           <div className="mt-5 flex justify-center">

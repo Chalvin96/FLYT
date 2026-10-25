@@ -26,6 +26,7 @@ function buildStory(): ReadingStoryPageResponse {
     groupTitle: null,
     page: { index: 0, content: 'hello', tokens: [] },
     totalPages: 1,
+    readingMinutes: 1,
     lastPageIndex: 0,
     completed: false,
     userStates: {},

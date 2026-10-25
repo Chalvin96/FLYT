@@ -1,7 +1,6 @@
 from datetime import datetime
 from datetime import time
 from datetime import timedelta
-from datetime import UTC
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,7 +49,7 @@ async def test_get_due_counts_given_mixed_cards_expect_correct_counts(
     """
     user = await UserFactory.create()
     await UserSettingsFactory.create(user=user, daily_new_limit=2)
-    now_n = datetime.now(UTC).replace(tzinfo=None)
+    now_n = now()
 
     # Eligible: 1 LEARNING (due earlier today), 1 REVIEW (due now), 2 NEW.
     pool_learning = await CardPoolFactory.create()
@@ -119,7 +118,7 @@ async def test_get_due_counts_given_introduced_new_cards_over_limit_expect_all_c
 ) -> None:
     user = await UserFactory.create()
     await UserSettingsFactory.create(user=user, daily_new_limit=2)
-    now_n = datetime.now(UTC).replace(tzinfo=None)
+    now_n = now()
 
     for _ in range(4):
         pool = await CardPoolFactory.create()
@@ -149,7 +148,7 @@ async def test_get_due_counts_given_other_user_data_expect_isolated_counts(
     other_pool = await CardPoolFactory.create()
     await FlashCardFactory.create(pool=pool, is_addable=True)
     await FlashCardFactory.create(pool=other_pool, is_addable=True)
-    now_n = datetime.now(UTC).replace(tzinfo=None)
+    now_n = now()
 
     await UserCardFactory.create(
         user=user,
@@ -359,7 +358,8 @@ async def test_get_streak_given_consecutive_days_expect_correct_streak(
     await FlashCardFactory.create(pool=pool, is_addable=True)
     card = await UserCardFactory.create(user=user, pool=pool)
 
-    today_date = now().date()
+    current_time = now()
+    today_date = current_time.date()
     today = datetime.combine(today_date, time(hour=12))
     yesterday = today - timedelta(days=1)
 
@@ -367,7 +367,7 @@ async def test_get_streak_given_consecutive_days_expect_correct_streak(
     await StatsReviewLogFactory.create(user_card=card, reviewed_at=yesterday, rating=3)
 
     qs = StatsQueryService(async_session)
-    streak = await qs.get_streak(user_id=user.id)
+    streak = await qs.get_streak(user_id=user.id, now_dt=current_time)
 
     assert streak == EXPECTED_STREAK_LENGTH
 
@@ -381,8 +381,9 @@ async def test_get_streak_given_latest_review_yesterday_expect_streak_continues(
     await FlashCardFactory.create(pool=pool, is_addable=True)
     card = await UserCardFactory.create(user=user, pool=pool)
 
+    current_time = now()
     yesterday = datetime.combine(
-        now().date() - timedelta(days=1),
+        current_time.date() - timedelta(days=1),
         time(hour=12),
     )
     two_days_ago = yesterday - timedelta(days=1)
@@ -399,7 +400,7 @@ async def test_get_streak_given_latest_review_yesterday_expect_streak_continues(
     )
 
     qs = StatsQueryService(async_session)
-    streak = await qs.get_streak(user_id=user.id)
+    streak = await qs.get_streak(user_id=user.id, now_dt=current_time)
 
     assert streak == EXPECTED_STREAK_LENGTH
 
@@ -413,7 +414,8 @@ async def test_get_streak_given_gap_expect_streak_breaks_at_gap(
     await FlashCardFactory.create(pool=pool, is_addable=True)
     card = await UserCardFactory.create(user=user, pool=pool)
 
-    today_date = now().date()
+    current_time = now()
+    today_date = current_time.date()
     today = datetime.combine(today_date, time(hour=12))
     two_days_ago = today - timedelta(days=2)
 
@@ -425,7 +427,7 @@ async def test_get_streak_given_gap_expect_streak_breaks_at_gap(
     )
 
     qs = StatsQueryService(async_session)
-    streak = await qs.get_streak(user_id=user.id)
+    streak = await qs.get_streak(user_id=user.id, now_dt=current_time)
 
     assert streak == 1
 
@@ -439,7 +441,8 @@ async def test_get_streak_given_later_consecutive_days_expect_current_run_only(
     await FlashCardFactory.create(pool=pool, is_addable=True)
     card = await UserCardFactory.create(user=user, pool=pool)
 
-    today_date = now().date()
+    current_time = now()
+    today_date = current_time.date()
     today = datetime.combine(today_date, time(hour=12))
     two_days_ago = today - timedelta(days=2)
     three_days_ago = today - timedelta(days=3)
@@ -457,7 +460,7 @@ async def test_get_streak_given_later_consecutive_days_expect_current_run_only(
     )
 
     qs = StatsQueryService(async_session)
-    streak = await qs.get_streak(user_id=user.id)
+    streak = await qs.get_streak(user_id=user.id, now_dt=current_time)
 
     assert streak == 1
 
@@ -488,7 +491,8 @@ async def test_get_snapshot_given_reviews_expect_correct_counts(
     await FlashCardFactory.create(pool=pool, is_addable=True)
     card = await UserCardFactory.create(user=user, pool=pool)
 
-    today_date = now().date()
+    current_time = now()
+    today_date = current_time.date()
     today = datetime.combine(today_date, time(hour=12))
     start_of_week = today_date - timedelta(days=today_date.weekday())
     last_week = datetime.combine(start_of_week - timedelta(days=1), time(hour=12))
@@ -497,7 +501,7 @@ async def test_get_snapshot_given_reviews_expect_correct_counts(
     await StatsReviewLogFactory.create(user_card=card, reviewed_at=last_week, rating=3)
 
     qs = StatsQueryService(async_session)
-    snapshot = await qs.get_snapshot(user_id=user.id)
+    snapshot = await qs.get_snapshot(user_id=user.id, now_dt=current_time)
 
     assert snapshot.this_week[today_date.weekday()] == 1
     assert snapshot.last_week[6] == 1  # last day of that week

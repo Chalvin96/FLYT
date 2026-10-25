@@ -1,3 +1,4 @@
+import { Button, Text } from '@flyt/ui';
 import type { Meta, StoryObj } from '@storybook/react';
 
 import { AppNavbarPreview } from '@/components/router/AppNavbar/AppNavbarPreview';
@@ -6,7 +7,7 @@ import { BaseHeroCard } from './BaseHeroCard';
 import { DecoReview } from './decorations';
 
 const meta = {
-  title: 'Common/BaseHeroCard',
+  title: 'Features/Common/BaseHeroCard',
   component: BaseHeroCard,
   tags: ['autodocs'],
   parameters: {
@@ -22,19 +23,20 @@ const meta = {
     ),
   ],
   args: {
-    className: 'bg-primary-70 text-white-100',
+    tone: 'brand',
     label: 'Ready now',
-    labelClass: 'text-white-60',
     badge: 'Focus mode',
-    badgeClass: 'bg-white-20 text-white-100',
     title: 'Your review queue',
     subtitle: '12 cards · ~3 min session',
-    subtitleClass: 'text-white-70',
     decoration: <DecoReview />,
     primaryAction: (
-      <a className="type-caption text-white-100 underline" href="/review">
-        Start review
-      </a>
+      <Button asChild size="sm">
+        <a href="/review">
+          <Text as="span" size="medium">
+            Start review
+          </Text>
+        </a>
+      </Button>
     ),
   },
 } satisfies Meta<typeof BaseHeroCard>;
@@ -47,7 +49,29 @@ export const Default: Story = {};
 
 export const WithProgress: Story = {
   args: {
-    chip: { label: '3 of 8 lessons', className: 'bg-black-10 text-white-70' },
+    chip: { label: '3 of 8 lessons' },
     progress: { current: 3, total: 8, showBar: true, showPercentage: true },
   },
+};
+
+export const Tones: Story = {
+  render: () => (
+    <div className="grid gap-4">
+      {(['brand', 'calm', 'deep', 'quiet'] as const).map((tone) => (
+        <BaseHeroCard
+          key={tone}
+          label="Ready now"
+          badge="Focus mode"
+          title="Your review queue"
+          subtitle="12 cards · ~3 min session"
+          tone={tone}
+          primaryAction={
+            <Button size="sm" variant="primary">
+              Start review
+            </Button>
+          }
+        />
+      ))}
+    </div>
+  ),
 };

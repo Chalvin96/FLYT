@@ -77,29 +77,30 @@ describe('ImportStatusCard', () => {
       name: /Historien om Norge/i,
     });
     expect(link).toHaveAttribute('href', '/reading/story/story-1');
-    // Ready chip uses text + colour, not colour alone (accessibility).
-    expect(screen.getByText(/Ready/)).toBeInTheDocument();
+    expect(link).toHaveTextContent('890 words · 4 pages · 18 Jul');
+    expect(
+      screen.getByRole('heading', { name: 'Historien om Norge' }),
+    ).toHaveAttribute('lang', 'nb');
   });
 
   it('test_import_card_given_processing_status_expect_not_clickable_with_busy_announcement', () => {
     renderCard(buildItem({ status: 'processing' }));
 
-    // No link wraps a busy card -> no role="link".
     expect(
       screen.queryByRole('link', { name: /Historien om Norge/i }),
     ).not.toBeInTheDocument();
-    // Status is announced via aria-label + chip text.
     const announced = screen.getByLabelText(/Historien om Norge: processing/i);
     expect(announced).toBeInTheDocument();
     expect(announced).toHaveAttribute('aria-busy', 'true');
     expect(screen.getByText(/Processing/i)).toBeInTheDocument();
-    // Auto-update copy
-    expect(screen.getByText('Auto-updates when ready')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Turning it into a tap-to-read text. Usually under a minute.',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('test_import_card_given_pending_status_expect_treated_as_processing', () => {
-    // The UI shows ONE Processing state (D-005). `pending` is an enqueue
-    // transient the user never distinguishes from `processing`.
     renderCard(buildItem({ status: 'pending' }));
 
     expect(
@@ -141,9 +142,6 @@ describe('ImportStatusCard', () => {
 
     await user.click(screen.getByRole('button', { name: 'Delete' }));
 
-    // The delete is destructive AND irreversible (D-007 hard-delete of the
-    // UserImport + UserStory progress), so a confirm step must gate it.
-    // Clicking Delete only opens the confirm; the API call has not fired.
     expect(
       await screen.findByRole('heading', { name: /Delete this import\?/i }),
     ).toBeInTheDocument();
@@ -155,7 +153,6 @@ describe('ImportStatusCard', () => {
     renderCard(buildItem({ status: 'failed' }));
 
     await user.click(screen.getByRole('button', { name: 'Delete' }));
-    // Confirming in the dialog is the only path that fires the mutation.
     await user.click(screen.getByRole('button', { name: 'Delete' }));
 
     await waitFor(() => {
@@ -172,7 +169,6 @@ describe('ImportStatusCard', () => {
       }),
     );
 
-    // When the backend gives no error message, show a user-friendly fallback.
     expect(
       screen.getByText('This text could not be processed.'),
     ).toBeInTheDocument();
@@ -183,20 +179,18 @@ describe('ImportStatusCard', () => {
       buildItem({ sourceUrl: 'https://www.example.no/path/to/article' }),
     );
 
-    // Cover band shows the source domain (D-005 neutral placeholder).
     expect(screen.getByText('example.no')).toBeInTheDocument();
   });
 
   it('test_import_card_given_no_source_url_expect_cover_shows_pasted', () => {
     renderCard(buildItem({ sourceUrl: null }));
 
-    expect(screen.getByText('Pasted')).toBeInTheDocument();
+    expect(screen.getByText('Pasted text')).toBeInTheDocument();
   });
 
   it('test_import_card_given_failed_with_missing_error_message_expect_fallback_copy', () => {
     renderCard(buildItem({ status: 'failed', errorMessage: null }));
 
-    // Fallback UX copy when backend omits an error message.
     expect(
       screen.getByText('This text could not be processed.'),
     ).toBeInTheDocument();

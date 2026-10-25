@@ -9,9 +9,7 @@ import {
 } from './utils';
 
 describe('InflectionTable', () => {
-  // --- NOUN TESTS ---
-
-  it('should display word forms grouped by gender', () => {
+  it('test_inflection_table_given_noun_forms_expect_gender_groups', () => {
     const wordForms = [
       {
         id: 1,
@@ -49,20 +47,17 @@ describe('InflectionTable', () => {
 
     const { container } = render(<InflectionTable wordForms={wordForms} />);
 
-    // Verify word forms
     expect(container.textContent).toContain('stikkrenne');
     expect(container.textContent).toContain('stikkrenna');
 
-    // Verify labels
-    expect(container.textContent).toContain('entall');
-    expect(container.textContent).toContain('flertall');
+    expect(container.textContent).toContain('Entall');
+    expect(container.textContent).toContain('Flertall');
 
     const labelCells = screen.getAllByRole('columnheader');
     expect(labelCells.length).toBeGreaterThan(0);
-    labelCells.forEach((cell) => expect(cell).toHaveClass('bg-secondary-10'));
   });
 
-  it('should display dual-gender noun correctly', () => {
+  it('test_inflection_table_given_dual_gender_noun_expect_both_genders', () => {
     const wordForms = [
       {
         id: 1,
@@ -100,15 +95,14 @@ describe('InflectionTable', () => {
 
     const { container } = render(<InflectionTable wordForms={wordForms} />);
 
-    // Verify both feminine and masculine forms are rendered
     expect(container.textContent).toContain('stikkrenne');
     expect(container.textContent).toContain('stikkrenna');
     expect(container.textContent).toContain('stikkrennen');
-    expect(container.textContent).toContain('hankjønn');
-    expect(container.textContent).toContain('hunkjønn');
+    expect(container.textContent).toContain('Hankjønn');
+    expect(container.textContent).toContain('Hunkjønn');
   });
 
-  it('should render noun table with singular and plural sections (responsive check)', () => {
+  it('test_inflection_table_given_noun_forms_expect_sentence_case_number_sections', () => {
     const wordForms = [
       {
         id: 1,
@@ -145,29 +139,24 @@ describe('InflectionTable', () => {
     ];
     const { container } = render(<InflectionTable wordForms={wordForms} />);
 
-    // Check for section headers which are used in the mobile view
-    expect(container.textContent).toContain('entall');
-    expect(container.textContent).toContain('flertall');
+    expect(container.textContent).toContain('Entall');
+    expect(container.textContent).toContain('Flertall');
 
-    // Check for row labels
-    expect(container.textContent).toContain('ubest.');
-    expect(container.textContent).toContain('bestemt form');
+    expect(container.textContent).toContain('Ubest.');
+    expect(container.textContent).toContain('Bestemt form');
 
-    // Check for forms
     expect(container.textContent).toContain('bil');
     expect(container.textContent).toContain('bilen');
     expect(container.textContent).toContain('biler');
     expect(container.textContent).toContain('bilene');
   });
 
-  it('should handle empty word forms', () => {
+  it('test_inflection_table_given_empty_forms_expect_no_number_sections', () => {
     render(<InflectionTable wordForms={[]} />);
-    expect(screen.queryByText('entall')).not.toBeInTheDocument();
+    expect(screen.queryByText('Entall')).not.toBeInTheDocument();
   });
 
-  // --- ADJECTIVE TESTS ---
-
-  it('should render adjective positive forms (Masc/Fem, Neuter, Plural/Def columns)', () => {
+  it('test_inflection_table_given_positive_adjective_expect_sentence_case_columns', () => {
     const wordForms = [
       {
         id: 1,
@@ -204,16 +193,16 @@ describe('InflectionTable', () => {
     ];
     const { container } = render(<InflectionTable wordForms={wordForms} />);
 
-    expect(container.textContent).toContain('positiv');
-    expect(container.textContent).toContain('hank. / hunk.');
-    expect(container.textContent).toContain('intetkjønn');
-    expect(container.textContent).toContain('flt. / best.');
+    expect(container.textContent).toContain('Positiv');
+    expect(container.textContent).toContain('Hank. / hunk.');
+    expect(container.textContent).toContain('Intetkjønn');
+    expect(container.textContent).toContain('Flt. / best.');
 
     expect(container.textContent).toContain('usaklig');
     expect(container.textContent).toContain('usaklige');
   });
 
-  it('should render adjective comparative and superlative rows', () => {
+  it('test_inflection_table_given_graded_adjective_expect_sentence_case_rows', () => {
     const wordForms = [
       {
         id: 1,
@@ -274,17 +263,17 @@ describe('InflectionTable', () => {
     ];
     const { container } = render(<InflectionTable wordForms={wordForms} />);
 
-    expect(container.textContent).toContain('komparativ');
+    expect(container.textContent).toContain('Komparativ');
     expect(container.textContent).toContain('usakligere');
 
-    expect(container.textContent).toContain('ubest.');
+    expect(container.textContent).toContain('Sup. ubest.');
     expect(container.textContent).toContain('usakligst');
 
-    expect(container.textContent).toContain('bestemt form');
+    expect(container.textContent).toContain('Sup. best.');
     expect(container.textContent).toContain('usakligste');
   });
 
-  it('should NOT route adjective forms through noun table', () => {
+  it('test_inflection_table_given_adjective_forms_expect_adjective_table', () => {
     const wordForms = [
       {
         id: 1,
@@ -313,15 +302,12 @@ describe('InflectionTable', () => {
     ];
     const { container } = render(<InflectionTable wordForms={wordForms} />);
 
-    expect(container.textContent).toContain('positiv');
-    // Adjective table should use adjective-specific labels (not noun row labels)
-    expect(container.textContent).toContain('hank. / hunk.');
-    expect(container.textContent).not.toContain('ubest.');
+    expect(container.textContent).toContain('Positiv');
+    expect(container.textContent).toContain('Hank. / hunk.');
+    expect(container.textContent).not.toContain('Ubest.');
   });
 
-  // --- ADVERB TESTS ---
-
-  it('should render adverb table for degree-inflected adverbs', () => {
+  it('test_inflection_table_given_graded_adverb_expect_adverb_table', () => {
     const wordForms = [
       {
         id: 1,
@@ -350,16 +336,15 @@ describe('InflectionTable', () => {
     ];
     const { container } = render(<InflectionTable wordForms={wordForms} />);
 
-    expect(container.textContent).toContain('positiv');
+    expect(container.textContent).toContain('Positiv');
     expect(container.textContent).toContain('lenge');
-    expect(container.textContent).toContain('komparativ');
+    expect(container.textContent).toContain('Komparativ');
     expect(container.textContent).toContain('lenger');
-    expect(container.textContent).toContain('superlativ');
+    expect(container.textContent).toContain('Superlativ');
     expect(container.textContent).toContain('lengst');
   });
 
-  it('should distinguish adverbs from adjectives (adverbs have no gender/number tags)', () => {
-    // Adjective: has gender/number tags
+  it('test_inflection_table_given_adverb_and_adjective_expect_distinct_tables', () => {
     const adjForms = [
       {
         id: 1,
@@ -373,10 +358,9 @@ describe('InflectionTable', () => {
     const { container: adjContainer } = render(
       <InflectionTable wordForms={adjForms} />,
     );
-    expect(adjContainer.textContent).toContain('positiv');
-    expect(adjContainer.textContent).toContain('hank. / hunk.'); // Adjective column
+    expect(adjContainer.textContent).toContain('Positiv');
+    expect(adjContainer.textContent).toContain('Hank. / hunk.');
 
-    // Adverb: only degree tags
     const advForms = [
       {
         id: 1,
@@ -390,14 +374,12 @@ describe('InflectionTable', () => {
     const { container: advContainer } = render(
       <InflectionTable wordForms={advForms} />,
     );
-    expect(advContainer.textContent).toContain('positiv');
-    expect(advContainer.textContent).not.toContain('hank. / hunk.'); // No adjective columns
+    expect(advContainer.textContent).toContain('Positiv');
+    expect(advContainer.textContent).not.toContain('Hank. / hunk.');
     expect(advContainer.textContent).toContain('fort');
   });
 
-  // --- VERB TESTS ---
-
-  it('should render verb table with core forms', () => {
+  it('test_inflection_table_given_verb_forms_expect_sentence_case_headers', () => {
     const wordForms = [
       {
         id: 1,
@@ -444,19 +426,19 @@ describe('InflectionTable', () => {
       <InflectionTable wordForms={wordForms} pos="verb" />,
     );
 
-    expect(container.textContent).toContain('infinitiv');
+    expect(container.textContent).toContain('Infinitiv');
     expect(container.textContent).toContain('kaste');
-    expect(container.textContent).toContain('presens');
+    expect(container.textContent).toContain('Presens');
     expect(container.textContent).toContain('kaster');
-    expect(container.textContent).toContain('preteritum');
+    expect(container.textContent).toContain('Preteritum');
     expect(container.textContent).toContain('kastet');
-    expect(container.textContent).toContain('pres. perf.');
+    expect(container.textContent).toContain('Pres. perf.');
     expect(container.textContent).toContain('kastet');
-    expect(container.textContent).toContain('imperativ');
+    expect(container.textContent).toContain('Imperativ');
     expect(container.textContent).toContain('kast');
   });
 
-  it('should detect verb by tags if pos is not provided', () => {
+  it('test_inflection_table_given_verb_tags_without_pos_expect_verb_table', () => {
     const wordForms = [
       {
         id: 1,
@@ -465,15 +447,15 @@ describe('InflectionTable', () => {
         ipa: null,
         audio_url: null,
         ipa_approximate: false,
-      }, // 'Inf' tag triggers verb detection
+      },
     ];
     const { container } = render(<InflectionTable wordForms={wordForms} />);
 
-    expect(container.textContent).toContain('infinitiv');
+    expect(container.textContent).toContain('Infinitiv');
     expect(container.textContent).toContain('kaste');
   });
 
-  it('renders vertical wrapper in auto mode for mobile classes', () => {
+  it('test_inflection_table_given_auto_layout_expect_mobile_wrapper', () => {
     const nounForms = [
       {
         id: 1,
@@ -496,14 +478,14 @@ describe('InflectionTable', () => {
     expect(screen.getByTestId('inflection-mobile')).toBeInTheDocument();
   });
 
-  it('normalizes canonical parts of speech', () => {
+  it('test_normalize_pos_given_canonical_values_expect_normalized_pos', () => {
     expect(normalizePos('noun')).toBe('noun');
     expect(normalizePos('adjective')).toBe('adjective');
     expect(normalizePos('verb')).toBe('verb');
     expect(normalizePos('adverb')).toBe('adverb');
   });
 
-  it('builds noun table model with sorted genders', () => {
+  it('test_noun_table_model_given_multiple_genders_expect_sorted_genders', () => {
     const model = buildNounTableModel([
       {
         id: 1,
@@ -536,10 +518,7 @@ describe('InflectionTable', () => {
     expect(model.data.Masc.Singular.Indefinite).toBe('stol');
   });
 
-  it('detectInflectionKind given a determiner with a gender tag expect no noun table', () => {
-    // "det" is a determiner whose forms carry a Neuter gender tag. Without an
-    // explicit-POS guard it would be misdetected as a noun and render an empty
-    // entall/flertall grid.
+  it('test_inflection_kind_given_determiner_gender_tag_expect_no_noun_table', () => {
     const detForms = [
       {
         id: 1,

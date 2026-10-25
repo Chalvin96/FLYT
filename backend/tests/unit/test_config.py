@@ -16,6 +16,17 @@ def make_settings(**overrides) -> Settings:
     return Settings(_env_file=None, **values)
 
 
+def test_settings_given_default_tagger_timeout_expect_margin_over_service_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("TAGGER_SVC_TIMEOUT_SECONDS", raising=False)
+
+    settings = make_settings()
+
+    assert settings.TAGGER_SVC_TIMEOUT_SECONDS > 1.0 + 3.0 + 0.5
+    assert settings.TAGGER_SVC_TIMEOUT_SECONDS == pytest.approx(5.0)
+
+
 def test_settings_given_production_without_secure_cookie_expect_validation_error() -> (
     None
 ):
@@ -48,6 +59,41 @@ def test_settings_given_e2e_env_expect_guard_flag_supported() -> None:
 
     assert settings.ENV == "e2e"
     assert settings.ENABLE_E2E_TEST_AUTH is True
+
+
+def test_settings_given_unset_env_expect_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("ENV", raising=False)
+
+    settings = make_settings(
+        ACCESS_COOKIE_SECURE=True,
+        METRICS_TOKEN="prod-metrics-token",
+    )
+
+    assert settings.ENV == "production"
+
+
+def test_settings_given_unset_env_and_insecure_cookie_expect_validation_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("ENV", raising=False)
+
+    with pytest.raises(ValueError, match="ACCESS_COOKIE_SECURE must be true"):
+        make_settings(ACCESS_COOKIE_SECURE=False)
+
+
+@pytest.mark.parametrize("environment", ["development", "test", "production"])
+def test_settings_given_test_auth_outside_e2e_expect_validation_error(
+    environment: str,
+) -> None:
+    with pytest.raises(ValueError, match="ENABLE_E2E_TEST_AUTH requires ENV=e2e"):
+        make_settings(
+            ENV=environment,
+            ENABLE_E2E_TEST_AUTH=True,
+            ACCESS_COOKIE_SECURE=True,
+            METRICS_TOKEN="prod-metrics-token",
+        )
 
 
 def test_settings_given_samesite_none_without_secure_cookie_expect_validation_error() -> (

@@ -13,33 +13,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flyt.apps.users.deps import get_current_user
 from flyt.apps.users.services import AuthService
+from flyt.apps.users.models import User
 from flyt.core.config import settings
+from flyt.libs.utils.date import now_aware
 from tests.factories import UserFactory
 
 MAX_TOKEN_EXPIRY_DIFFERENCE_SECONDS = 2
 
 
-def _make_request() -> Request:
-    return Request(scope={"type": "http", "headers": [], "path": "/", "method": "GET"})
-
-
-def test_create_access_token_given_data_expect_valid_jwt() -> None:
+def test_create_access_token_given_user_expect_valid_jwt() -> None:
     auth = AuthService()
-    data = {"sub": "123"}
-    token = auth.create_access_token(data)
+    user = User(uuid=uuid4(), session_version=0)
+    token = auth.create_access_token(user)
     assert isinstance(token, str)
     decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-    assert decoded["sub"] == "123"
+    assert decoded["sub"] == str(user.uuid)
+    assert decoded["session_version"] == 0
     assert "exp" in decoded
 
 
 def test_create_access_token_given_expires_delta_expect_correct_expiry() -> None:
     auth = AuthService()
-    data = {"sub": "123"}
+    user = User(uuid=uuid4(), session_version=0)
     delta = timedelta(hours=1)
-    token = auth.create_access_token(data, expires_delta=delta)
+    token = auth.create_access_token(user, expires_delta=delta)
     decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-    expected_exp = datetime.now(UTC) + delta
+    expected_exp = now_aware() + delta
     actual_exp = datetime.fromtimestamp(decoded["exp"], tz=UTC)
     diff = abs((actual_exp - expected_exp).total_seconds())
     assert diff < MAX_TOKEN_EXPIRY_DIFFERENCE_SECONDS
@@ -47,12 +46,10 @@ def test_create_access_token_given_expires_delta_expect_correct_expiry() -> None
 
 def test_create_access_token_given_no_expires_delta_expect_settings_default() -> None:
     auth = AuthService()
-    data = {"sub": "123"}
-    token = auth.create_access_token(data)
+    user = User(uuid=uuid4(), session_version=0)
+    token = auth.create_access_token(user)
     decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-    expected_exp = datetime.now(UTC) + timedelta(
-        hours=settings.ACCESS_TOKEN_EXPIRE_HOURS
-    )
+    expected_exp = now_aware() + timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_HOURS)
     actual_exp = datetime.fromtimestamp(decoded["exp"], tz=UTC)
     diff = abs((actual_exp - expected_exp).total_seconds())
     assert diff < MAX_TOKEN_EXPIRY_DIFFERENCE_SECONDS
@@ -66,7 +63,7 @@ async def test_get_current_user_given_valid_token_expect_user_returned(
     auth = AuthService()
     user = await UserFactory.create(email="test@example.com", display_name="Test User")
 
-    token = auth.create_access_token(data={"sub": str(user.uuid)})
+    token = auth.create_access_token(user=user)
     result = await get_current_user(
         request=_make_request(),
         token=token,
@@ -106,9 +103,7 @@ async def test_get_current_user_given_expired_token_expect_error(
     auth = AuthService()
     user = await UserFactory.create(email="test@example.com", display_name="Test User")
 
-    token = auth.create_access_token(
-        data={"sub": str(user.uuid)}, expires_delta=timedelta(seconds=-1)
-    )
+    token = auth.create_access_token(user=user, expires_delta=timedelta(seconds=-1))
 
     with pytest.raises(HTTPException) as exc_info:
         await get_current_user(
@@ -129,7 +124,7 @@ async def test_get_current_user_given_nonexistent_user_expect_error(
     async_session: AsyncSession,
 ) -> None:
     auth = AuthService()
-    token = auth.create_access_token(data={"sub": str(uuid4())})
+    token = auth.create_access_token(User(uuid=uuid4(), session_version=0))
 
     with pytest.raises(HTTPException) as exc_info:
         await get_current_user(
@@ -150,7 +145,7 @@ async def test_get_current_user_given_inactive_user_expect_unauthorized(
     async_session: AsyncSession,
 ) -> None:
     user = await UserFactory.create(is_active=False)
-    token = AuthService().create_access_token(data={"sub": str(user.uuid)})
+    token = AuthService().create_access_token(user=user)
 
     with pytest.raises(HTTPException) as exc:
         await get_current_user(
@@ -182,3 +177,7 @@ async def test_get_current_user_given_token_without_sub_expect_error(
     assert exc_info.value.status_code == HTTPStatus.UNAUTHORIZED
     assert detail["code"] == "AUTHENTICATION_FAILED"
     assert detail["message"] == "Could not validate credentials, try login again."
+
+
+def _make_request() -> Request:
+    return Request(scope={"type": "http", "headers": [], "path": "/", "method": "GET"})

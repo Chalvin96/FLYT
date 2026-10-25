@@ -1,4 +1,5 @@
 import type { MsgResult } from './messages';
+import { API_PERMISSION_MESSAGE } from './permissions';
 
 // Status of a whole-page import action, shared by the popup footer and the
 // context-menu toast. `idle` is popup-only (its button's resting state).
@@ -11,12 +12,20 @@ export type ImportActionStatus =
 export function importErrorMessage(result: MsgResult): string {
   if (result.ok) return 'Could not import this page.';
   switch (result.error) {
+    case 'permission':
+      return API_PERMISSION_MESSAGE;
     case 'too-large':
-      return 'This page is too large to import.';
+      return result.message ?? 'This page is too large to import.';
     case 'invalid-page':
-      return 'This page does not contain readable text that Flyt can import.';
+      return (
+        result.message ??
+        'This page does not contain readable text that Flyt can import.'
+      );
     case 'quota-reached':
-      return 'Import limit reached. Your existing imports stay available.';
+      return (
+        result.message ??
+        'Import limit reached. Your existing imports stay available.'
+      );
     case 'unauthorized':
       return 'Sign in to Flyt in the tab we opened, then try again.';
     case 'network':

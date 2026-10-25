@@ -1,3 +1,5 @@
+import { Glyph, Text } from '@flyt/ui';
+
 import type { ExamplePair } from './types';
 
 export function DefinitionExample({
@@ -20,27 +22,26 @@ export function DefinitionExample({
           onClick={onToggle}
           aria-expanded={open}
           aria-controls={id}
-          className="type-caption italic text-secondary-80 text-left cursor-pointer transition-colors hover:text-secondary-100 inline bg-transparent border-0 p-0"
+          className="italic text-subtle text-left cursor-pointer transition-colors hover:text-default inline bg-transparent border-0 p-0"
         >
-          {example.no}
-          <span
-            aria-hidden="true"
-            className="ml-1 align-baseline text-[10px] leading-none"
-          >
-            {open ? '▼' : '▶'}
+          <Text as="span" size="medium">
+            {example.no}
+          </Text>
+          <span className="ml-1 align-baseline">
+            <Glyph size="3xs">{open ? '▼' : '▶'}</Glyph>
           </span>
         </button>
       ) : (
-        <p className="type-caption italic text-secondary-80">{example.no}</p>
+        <p className="italic">
+          <Text as="span" size="medium" tone="subtle">
+            {example.no}
+          </Text>
+        </p>
       )}
       {hasEnglish ? (
-        <p
-          id={id}
-          hidden={!open}
-          className="type-caption text-muted-foreground"
-        >
+        <Text as="p" hidden={!open} id={id} size="medium" tone="subtle">
           {example.en}
-        </p>
+        </Text>
       ) : null}
     </div>
   );

@@ -1,5 +1,4 @@
-import { Button } from '@/components/common/Button/Button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Button, Skeleton } from '@flyt/ui';
 
 import { LessonEmptyState } from './LessonEmptyState';
 
@@ -12,9 +11,9 @@ export function LessonLoadingState() {
       role="status"
     >
       <span className="sr-only">Loading lessons.</span>
-      <Skeleton className="radius-section h-40 w-full" />
-      <Skeleton className="radius-section h-20 w-full" />
-      <Skeleton className="radius-section h-48 w-full" />
+      <Skeleton shape="section" variant="block" size="lg" />
+      <Skeleton shape="section" variant="block" size="md" />
+      <Skeleton shape="section" variant="block" size="2xl" />
     </div>
   );
 }

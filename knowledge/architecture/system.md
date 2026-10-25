@@ -1,16 +1,46 @@
 # System architecture
 
-Flyt is a pnpm monorepo with a FastAPI/SQLAlchemy/Alembic backend, React/TanStack frontend, Manifest V3 extension, PostgreSQL persistence, and Redis/arq workers.
+Flyt is a pnpm monorepo with a FastAPI, SQLAlchemy, and Alembic backend; a React and
+TanStack frontend; a Manifest V3 extension; PostgreSQL; and Redis with arq workers.
 
-HTTP routers authenticate and compose domain services. Services stage persistent domain changes; routers, workers, and import commands own commits at explicit phase boundaries. Frontend transport in `frontend/src/api/` serializes HTTP requests, capability query modules own TanStack keys/cache policy, and pages compose screen state. `packages/ui` and `packages/lexicon` are deliberate shared frontend/extension boundaries.
+Routers authenticate and compose domain services. They handle HTTP concerns; services
+stage domain changes and never import routers. Routers, workers, and import commands
+commit at explicit transaction boundaries. Session cleanup rolls back only uncommitted
+work, so a later failure cannot undo a committed phase. Workers call public service
+operations.
 
-PostgreSQL is the source of durable learner, content, account, accounting, and story-generation request/result state. Redis backs the arq queue and bounded rate-limit coordination. External providers are called only after admission/transaction boundaries; provider credentials and cancellation stay in the owning domain. Story generation can send selected learner vocabulary and the learner's story direction, length, and topic to its configured provider. Chatbot requests can send the current message, bounded recent history, and current page context to the selected provider; the browser keeps that transient history and the backend does not persist it as a conversation. Producer-owned lesson and lexicon releases are imported as versioned artifacts, with compatibility checked at import time.
+Frontend API modules serialize requests, capability query modules own TanStack keys and
+cache policy, and pages compose screen state. Local interaction state stays beside the
+operation that owns it.
 
-Account deletion removes account-owned progress, content references, generation records, and provider credentials in one committed transaction, then performs best-effort external credential cleanup and clears the authentication cookie. Optional Sentry reporting receives technical error events with credential and request-body fields scrubbed; authentication uses necessary HTTP-only cookies.
+UI dependencies point one way: `@flyt/lexicon` uses `@flyt/ui`, and the frontend and
+extension use both. `@flyt/ui` stays domain-neutral, and shared packages do not import
+app code.
 
-Keep API schemas, database table/enum/constraint names, background job identities, and commit boundaries stable when reorganizing modules.
+PostgreSQL owns durable account, content, learner, accounting, and generation state.
+Redis backs worker queues and bounded rate-limit coordination.
 
-Speech decoding stops while resampling when the configured duration is exceeded,
-so compressed uploads cannot expand into an unbounded retained waveform. The
-published backend container defaults to production; local configuration must
-explicitly opt into development-only routes.
+Quota-controlled provider work commits admission before dispatch. A failed or cancelled
+call still spends its debit. Story generation can send selected vocabulary and story
+instructions to a configured provider. Chatbot requests can send the current message,
+bounded recent history, and page context. The browser keeps chatbot history; the backend
+does not store conversations.
+
+Provider credentials, cancellation, and provider-specific failure handling stay with the
+domain that owns the integration.
+
+Lesson and lexicon releases are producer-owned, versioned artifacts. Import checks
+compatibility before activation.
+
+Account deletion commits removal of account-owned data before best-effort external
+credential cleanup and clears the authentication cookie. Backend errors go to
+structured logs only. Optional browser Sentry reports technical errors with cookies,
+user info, HTTP bodies, and AI inputs and outputs disabled.
+Application database error messages omit bound parameters to keep learner text out of logs.
+
+Keep API paths and schemas, generated API types, database table, enum, and constraint
+names, serialized worker identities, authentication, quota behavior, privacy rules, and
+transaction boundaries stable during internal moves.
+
+The published backend container defaults to production. Local configuration must opt
+into development-only routes.

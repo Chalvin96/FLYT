@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test';
-
+import { expect, test } from './fixtures';
 import { loginAs } from './helpers/auth';
 
 // Without an OpenRouter key the stack boots with the openrouter provider

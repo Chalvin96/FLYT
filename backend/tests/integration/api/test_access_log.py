@@ -57,7 +57,7 @@ async def test_access_log_given_authenticated_request_expect_user_id(
 ) -> None:
     user = await UserFactory.create()
     lemma = await LemmaFactory.create()
-    token = AuthService().create_access_token(data={"sub": str(user.uuid)})
+    token = AuthService().create_access_token(user=user)
 
     with caplog.at_level(logging.INFO, logger="flyt.access"):
         response = await client.post(

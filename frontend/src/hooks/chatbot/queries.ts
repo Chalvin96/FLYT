@@ -10,8 +10,11 @@ import {
   type ChatbotSurface,
 } from '@/api/chatbot';
 
+type ChatbotAccountId = string | number | null | undefined;
+
 export const chatbotKeys = {
-  surface: ['chatbot', 'surface'] as const,
+  surface: (accountId: ChatbotAccountId) =>
+    ['chatbot', 'surface', accountId ?? null] as const,
 };
 
 export function getChatbotErrorMessage(error: unknown): string {
@@ -22,33 +25,36 @@ export function getChatbotErrorMessage(error: unknown): string {
   return 'The chatbot could not answer. Try again in a moment.';
 }
 
-export function useChatbotSurface() {
+export function useChatbotSurface(accountId: ChatbotAccountId = null) {
   return useQuery<ChatbotSurface>({
-    queryKey: chatbotKeys.surface,
+    queryKey: chatbotKeys.surface(accountId),
     queryFn: getChatbotSurface,
+    retry: false,
     staleTime: 30_000,
   });
 }
 
-export function useSendChatbotMessage() {
+export function useSendChatbotMessage(accountId: ChatbotAccountId = null) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (payload: ChatbotMessageRequest) => sendChatbotMessage(payload),
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: chatbotKeys.surface });
+      void queryClient.invalidateQueries({
+        queryKey: chatbotKeys.surface(accountId),
+      });
     },
   });
 }
 
-export function useReplaceOpenRouterKey() {
+export function useReplaceOpenRouterKey(accountId: ChatbotAccountId = null) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: replaceOpenRouterKey,
     onSuccess: (status) => {
       queryClient.setQueryData<ChatbotSurface>(
-        chatbotKeys.surface,
+        chatbotKeys.surface(accountId),
         (surface) =>
           surface
             ? {
@@ -62,18 +68,22 @@ export function useReplaceOpenRouterKey() {
               }
             : surface,
       );
-      void queryClient.invalidateQueries({ queryKey: chatbotKeys.surface });
+      void queryClient.invalidateQueries({
+        queryKey: chatbotKeys.surface(accountId),
+      });
     },
   });
 }
 
-export function useDeleteOpenRouterKey() {
+export function useDeleteOpenRouterKey(accountId: ChatbotAccountId = null) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: deleteOpenRouterKey,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: chatbotKeys.surface });
+      void queryClient.invalidateQueries({
+        queryKey: chatbotKeys.surface(accountId),
+      });
     },
   });
 }

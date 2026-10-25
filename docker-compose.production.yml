@@ -1,0 +1,88 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: flyt
+      POSTGRES_USER: flyt
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    shm_size: 256m
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U flyt -d flyt"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: [redis-server, --appendonly, "yes", --maxmemory-policy, noeviction]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    image: ${FLYT_BACKEND_IMAGE:?set an immutable FLYT_BACKEND_IMAGE}
+    env_file: .env.production
+    environment:
+      ENV: production
+      DATABASE_URL: postgresql+psycopg://flyt:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/flyt
+      REDIS_URL: redis://redis:6379/0
+      RUN_MIGRATIONS: "true"
+    command: ["true"]
+    restart: "no"
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  backend:
+    image: ${FLYT_BACKEND_IMAGE:?set an immutable FLYT_BACKEND_IMAGE}
+    restart: unless-stopped
+    env_file: .env.production
+    environment: &runtime
+      ENV: production
+      DATABASE_URL: postgresql+psycopg://flyt:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/flyt
+      REDIS_URL: redis://redis:6379/0
+      RUN_MIGRATIONS: "false"
+    ports:
+      - "${FLYT_API_BIND:-127.0.0.1:8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  worker:
+    image: ${FLYT_BACKEND_IMAGE:?set an immutable FLYT_BACKEND_IMAGE}
+    restart: unless-stopped
+    env_file: .env.production
+    environment: *runtime
+    command: [arq, flyt.worker.WorkerSettings]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  frontend:
+    image: ${FLYT_FRONTEND_IMAGE:?set an immutable FLYT_FRONTEND_IMAGE}
+    restart: unless-stopped
+    ports:
+      - "${FLYT_WEB_BIND:-127.0.0.1:8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

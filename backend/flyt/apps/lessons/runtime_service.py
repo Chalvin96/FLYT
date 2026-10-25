@@ -7,7 +7,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import defer
 
 from flyt.apps.flashcards.card_service import EnrollmentShape
 from flyt.apps.flashcards.card_service import FlashcardCardService
@@ -32,12 +32,14 @@ from flyt.apps.lessons.schemas import serialize_lesson_summary
 from flyt.apps.users.services import UserLemmaService
 from flyt.clients.provider import ModelProvider
 from flyt.content.schemas import AudioAsset
+from flyt.content.schemas import LessonKind
 from flyt.content.schemas import WriteExercise
 from flyt.content.schemas import WritePayload
 from flyt.evaluation.service import EvaluationCase
 from flyt.evaluation.service import EvaluationCriterion
 from flyt.evaluation.service import EvaluationService
 from flyt.evaluation.service import EvaluationUnavailableError
+from flyt.evaluation.service import count_norwegian_words
 from flyt.libs.utils.date import now
 
 logger = logging.getLogger(__name__)
@@ -55,7 +57,7 @@ def validate_write_response_or_raise(payload: WritePayload, response: str) -> No
     trimmed = response.strip()
     if not trimmed:
         raise ExerciseResponseInvalidError("Write a response before checking.")
-    word_count = len(trimmed.split())
+    word_count = count_norwegian_words(trimmed)
     if payload.min_words is not None and word_count < payload.min_words:
         raise ExerciseResponseInvalidError(
             f"Write at least {payload.min_words} words before checking."
@@ -90,8 +92,10 @@ class LessonService:
 
     # --- Read paths ---
 
-    async def list_lessons(self, user_id: int) -> list[LessonSummaryRead]:
-        lessons = await self._active_lesson_revision_lessons()
+    async def list_lessons(
+        self, user_id: int, *, kind: LessonKind | None = None
+    ) -> list[LessonSummaryRead]:
+        lessons = await self._active_lesson_revision_lessons(kind=kind)
         progress_by_lesson_id = {
             progress.lesson_id: progress
             for progress in (
@@ -112,7 +116,11 @@ class LessonService:
         ]
 
     async def find_lesson_or_raise(self, lesson_id: int) -> Lesson:
-        lesson = await self.db.scalar(select(Lesson).where(Lesson.id == lesson_id))
+        lesson = await self.db.scalar(
+            select(Lesson)
+            .join(LessonRelease)
+            .where(Lesson.id == lesson_id, LessonRelease.is_active.is_(True))
+        )
         if lesson is None:
             raise LessonNotFoundError()
         return lesson
@@ -281,19 +289,26 @@ class LessonService:
             ]
         )
 
-    async def _active_lesson_revision_lessons(self) -> list[Lesson]:
-        active_revision = await self.db.scalar(
-            select(LessonRelease)
+    async def _active_lesson_revision_lessons(
+        self, *, kind: LessonKind | None = None
+    ) -> list[Lesson]:
+        active_revision_id = await self.db.scalar(
+            select(LessonRelease.id)
             .where(LessonRelease.is_active.is_(True))
-            .options(selectinload(LessonRelease.lessons))
             .order_by(LessonRelease.id.desc())
+            .limit(1)
         )
-        if active_revision is None:
+        if active_revision_id is None:
             return []
-        return sorted(
-            active_revision.lessons,
-            key=lambda lesson: lesson.release_order,
+        statement = (
+            select(Lesson)
+            .options(defer(Lesson.packet_json, raiseload=True))
+            .where(Lesson.release_id == active_revision_id)
+            .order_by(Lesson.release_order)
         )
+        if kind is not None:
+            statement = statement.where(Lesson.kind == kind)
+        return list((await self.db.scalars(statement)).all())
 
     def _lesson_state(self, progress: UserLessonProgress | None) -> LessonState:
         if progress is None:

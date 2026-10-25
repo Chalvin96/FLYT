@@ -17,7 +17,7 @@ const block: ReadingBlockData = {
 };
 
 const meta = {
-  title: 'Portable/ReadingBlock',
+  title: 'Features/Portable/ReadingBlock',
   component: ReadingBlock,
   tags: ['autodocs'],
   decorators: [

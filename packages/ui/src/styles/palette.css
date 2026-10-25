@@ -1,0 +1,56 @@
+:root,
+:host {
+  --primary-10: #f0ebff;
+  --primary-20: #ebe7ff;
+  --primary-30: #d8d0ff;
+  --primary-40: #c4b7ff;
+  --primary-50: #ad9dff;
+  --primary-70: #7a68ee;
+  --primary-80: #6a59d9;
+  --primary-90: #5a46bc;
+  --primary-100: #412f91;
+
+  --secondary-0: #f2fbf9;
+  --secondary-10: #e7f6f2;
+  --secondary-20: #c4ead9;
+  --secondary-30: #aadac8;
+  --secondary-40: #8bc4b1;
+  --secondary-50: #78b39f;
+  --secondary-60: #629da3;
+  --secondary-70: #47728a;
+  --secondary-80: #315d75;
+  --secondary-90: #1e4350;
+  --secondary-100: #15303a;
+
+  --accent-10: #f0f6d4;
+  --accent-20: #e3ecac;
+  --accent-50: #b6c547;
+  --accent-70: #7b9140;
+  --accent-100: #394625;
+
+  --warning-10: #fff4cc;
+  --warning-30: #f5c542;
+  --warning-60: #b58105;
+  --warning-70: #8a6100;
+  --warning-100: #3d2b00;
+
+  --destructive-10: #ffe3e2;
+  --destructive-20: #ffc8c8;
+  --destructive-30: #ffacae;
+  --destructive-60: #df515f;
+  --destructive-70: #c5394b;
+  --destructive-80: #a02a3a;
+  --destructive-90: #7a1e2a;
+
+  --black-10: rgba(8, 12, 24, 0.08);
+  --black-20: rgba(8, 12, 24, 0.12);
+  --black-30: rgba(8, 12, 24, 0.18);
+  --black-60: rgba(8, 12, 24, 0.55);
+  --black-70: rgba(8, 12, 24, 0.7);
+  --black-80: rgba(8, 12, 24, 0.82);
+
+  --white-20: rgba(255, 255, 255, 0.12);
+  --white-80: rgba(255, 255, 255, 0.82);
+  --white-90: rgba(255, 255, 255, 0.92);
+  --white-100: rgba(255, 255, 255, 1);
+}

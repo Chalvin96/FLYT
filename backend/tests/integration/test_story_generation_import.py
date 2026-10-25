@@ -12,13 +12,13 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import undefer
 
 from flyt.apps.reading.models import Story
 from flyt.apps.reading.models import StoryPage
 from flyt.apps.reading.tokenization import PageData
 from flyt.apps.story_generation.models import Generation
 from flyt.apps.story_generation.models import GenerationOutcome
-from flyt.apps.reading.models import ImportQuota
 from flyt.apps.reading.models import ImportStatus
 from tests.factories import UserFactory
 from tests.helpers.auth import authenticate
@@ -58,6 +58,7 @@ async def test_import_given_ready_generation_expect_handover_with_matching_pages
     pages = _make_pages(text)
 
     await add_ready_generation(db, user.id, text, pages)
+    db.expunge_all()
 
     resp = await client.post("/story-generation/generations/current/import", json={})
 
@@ -117,7 +118,11 @@ async def test_import_given_mismatched_pages_expect_fallback_to_reannotation(
     assert body["status"] == ImportStatus.PENDING.value
 
     story = (
-        await db.execute(select(Story).where(Story.uuid == body["storyUuid"]))
+        await db.execute(
+            select(Story)
+            .where(Story.uuid == body["storyUuid"])
+            .options(undefer(Story.content))
+        )
     ).scalar_one()
     assert story.content == text
 
@@ -173,9 +178,8 @@ async def test_import_given_at_quota_expect_refused(
 ) -> None:
     """R-006: importing a generated story at quota is refused for the same reason
     pasted text would be."""
-    from sqlalchemy.dialects.postgresql import insert as pg_insert
-
     from flyt.apps.reading.constants import IMPORT_LIMIT
+    from tests.helpers.reading_imports import seed_active_imports
 
     user = await UserFactory.create_async()
     await authenticate(client, user)
@@ -185,15 +189,7 @@ async def test_import_given_at_quota_expect_refused(
 
     await add_ready_generation(db, user.id, text, pages)
 
-    await db.execute(
-        pg_insert(ImportQuota)
-        .values(user_id=user.id, used=IMPORT_LIMIT)
-        .on_conflict_do_update(
-            index_elements=[ImportQuota.user_id],
-            set_={"used": IMPORT_LIMIT},
-        )
-    )
-    await db.flush()
+    await seed_active_imports(db, user.id, IMPORT_LIMIT)
 
     resp = await client.post("/story-generation/generations/current/import", json={})
 

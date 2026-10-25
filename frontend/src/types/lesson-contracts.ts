@@ -1,6 +1,11 @@
 export type Lang = 'en' | 'no';
 
-export const LESSON_PACKET_SCHEMA_VERSION = '4.0' as const;
+export type LessonPacketVersion = '4.0' | '4.1';
+
+export const LESSON_PACKET_SCHEMA_VERSION: LessonPacketVersion = '4.1';
+
+export const SUPPORTED_LESSON_PACKET_SCHEMA_VERSIONS: readonly LessonPacketVersion[] =
+  ['4.0', LESSON_PACKET_SCHEMA_VERSION];
 
 export type AudioStatus = 'synthesized';
 
@@ -53,11 +58,13 @@ export type ListBlock = {
   items: Spans[];
 };
 export type RuleBlock = { kind: 'rule'; id: string; statement: Spans };
+export type ExampleTeachingRole = 'model' | 'incorrect' | 'caution';
 export type ExampleBlock = {
   kind: 'example';
   id: string;
   no: Spans;
   en: Spans;
+  teaching_role?: ExampleTeachingRole;
   audio_id?: string | null;
 };
 export type ExampleItem = Omit<ExampleBlock, 'kind'>;
@@ -140,7 +147,6 @@ export type FindFixPayload = {
   error_token_id: string;
   feedback: string;
 };
-export type SpeakPayload = { target: string };
 export type WriteCriterion = { id: string; instruction: string };
 export type WritePayload = {
   response_language: 'no';
@@ -159,8 +165,10 @@ export type Operation =
   | 'judge'
   | 'find_fix'
   | 'categorize'
-  | 'speak'
   | 'write';
+
+export type DialogueTurn = { speaker: string; text: Spans };
+export type StimulusBlock = { kind: 'dialogue'; turns: DialogueTurn[] };
 
 interface ExerciseBase<T extends Operation, P> {
   kind: 'exercise';
@@ -170,6 +178,7 @@ interface ExerciseBase<T extends Operation, P> {
   prompt: Spans;
   explanation: Spans | null;
   audio_id?: string | null;
+  stimulus?: StimulusBlock[] | null;
   payload: P;
 }
 
@@ -180,7 +189,6 @@ export type BuildExercise = ExerciseBase<'build', BuildPayload>;
 export type JudgeExercise = ExerciseBase<'judge', JudgePayload>;
 export type FindFixExercise = ExerciseBase<'find_fix', FindFixPayload>;
 export type CategorizeExercise = ExerciseBase<'categorize', CategorizePayload>;
-export type SpeakExercise = ExerciseBase<'speak', SpeakPayload>;
 export type WriteExercise = ExerciseBase<'write', WritePayload>;
 
 export type Exercise =
@@ -191,7 +199,6 @@ export type Exercise =
   | JudgeExercise
   | FindFixExercise
   | CategorizeExercise
-  | SpeakExercise
   | WriteExercise;
 
 export type CriterionVerdict = {
@@ -202,10 +209,6 @@ export type CriterionVerdict = {
 
 export type WriteJudgement = {
   criteria: CriterionVerdict[];
-};
-
-export type SpeechCheck = {
-  transcript: string;
 };
 
 export type Objective = { id: string; statement: string };
@@ -223,9 +226,9 @@ export type LessonKind =
   'grammar' | 'phraseology' | 'communicative' | 'pronunciation' | 'writing';
 
 export type LessonPacket = {
-  schema_version: typeof LESSON_PACKET_SCHEMA_VERSION;
+  schema_version: LessonPacketVersion;
   id: string;
-  kind: LessonKind;
+  kind?: LessonKind | null;
   language: 'nb-NO';
   title: string;
   cefr_level: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';

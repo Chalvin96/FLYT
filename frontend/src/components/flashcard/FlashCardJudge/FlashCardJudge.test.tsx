@@ -26,7 +26,7 @@ function getStimulusSurface() {
 
 describe('FlashCardJudge', () => {
   it('renders the verdict choices as a radiogroup', () => {
-    render(<FlashCardJudge exercise={exercise} />);
+    render(<FlashCardJudge allowRetry={false} exercise={exercise} />);
 
     const correctChoice = screen.getByRole('radio', {
       name: /the sentence is correct/i,
@@ -46,7 +46,7 @@ describe('FlashCardJudge', () => {
 
   it('supports arrow-key roving selection across the radiogroup', async () => {
     const user = userEvent.setup();
-    render(<FlashCardJudge exercise={exercise} />);
+    render(<FlashCardJudge allowRetry={false} exercise={exercise} />);
 
     const correctChoice = screen.getByRole('radio', {
       name: /the sentence is correct/i,
@@ -65,7 +65,13 @@ describe('FlashCardJudge', () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
 
-    render(<FlashCardJudge exercise={exercise} onFinished={onFinished} />);
+    render(
+      <FlashCardJudge
+        allowRetry={false}
+        exercise={exercise}
+        onFinished={onFinished}
+      />,
+    );
 
     await user.click(screen.getByRole('radio', { name: /it has an error/i }));
     await user.click(screen.getByRole('button', { name: /check/i }));
@@ -77,18 +83,22 @@ describe('FlashCardJudge', () => {
     ).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: true,
-      rating: 4,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
   });
 
   it('scores a wrong judgment and reports incorrect results', async () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
 
-    render(<FlashCardJudge exercise={exercise} onFinished={onFinished} />);
+    render(
+      <FlashCardJudge
+        allowRetry={false}
+        exercise={exercise}
+        onFinished={onFinished}
+      />,
+    );
 
     const wrongPick = screen.getByRole('radio', {
       name: /the sentence is correct/i,
@@ -100,33 +110,28 @@ describe('FlashCardJudge', () => {
     expect(screen.getAllByText(/use ikke after the finite verb/i)).toHaveLength(
       1,
     );
-    expect(wrongPick).toHaveClass(
-      'border-destructive-20',
-      'bg-destructive-0',
-      'text-destructive-80',
-    );
-    expect(screen.getByRole('radio', { name: /it has an error/i })).toHaveClass(
-      'border-accent-20',
-      'bg-accent-0',
-      'text-accent-90',
-    );
-    expect(wrongPick).toHaveAccessibleName(/your answer was incorrect/i);
+    expect(wrongPick).toHaveAttribute('data-state', 'incorrect');
     expect(
       screen.getByRole('radio', { name: /it has an error/i }),
-    ).toHaveAccessibleName(/correct answer/i);
+    ).toHaveAttribute('data-state', 'correct');
+    expect(wrongPick).toHaveAccessibleName(
+      /the sentence is correct.*incorrect/i,
+    );
+    expect(
+      screen.getByRole('radio', { name: /it has an error/i }),
+    ).toHaveAccessibleName(/it has an error.*correct/i);
 
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: false,
-      rating: 1,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: false }),
+    );
   });
 
   it('falls back to exercise explanation for wrong judgments without feedback', async () => {
     const user = userEvent.setup();
     render(
       <FlashCardJudge
+        allowRetry={false}
         exercise={{
           ...exercise,
           explanation: [
@@ -155,24 +160,8 @@ describe('FlashCardJudge', () => {
 });
 
 describe('FlashCardJudge — stimulus hierarchy', () => {
-  it('test_judge_stimulus_given_render_expect_labeled_bordered_tinted_surface', () => {
-    render(<FlashCardJudge exercise={exercise} />);
-
-    const label = screen.getByText('The sentence');
-    expect(label).toHaveClass('type-label');
-
-    const stimulus = getStimulusSurface();
-    expect(stimulus).toHaveClass(
-      'radius-field',
-      'border',
-      'border-border',
-      'bg-secondary-5',
-      'p-4',
-    );
-  });
-
   it('test_judge_stimulus_given_render_expect_norwegian_language_metadata_retained', () => {
-    render(<FlashCardJudge exercise={exercise} />);
+    render(<FlashCardJudge allowRetry={false} exercise={exercise} />);
 
     const sentence = screen.getByText(
       (_, element) =>
@@ -183,7 +172,7 @@ describe('FlashCardJudge — stimulus hierarchy', () => {
   });
 
   it('test_judge_stimulus_given_render_expect_prompt_stimulus_verdicts_order', () => {
-    render(<FlashCardJudge exercise={exercise} />);
+    render(<FlashCardJudge allowRetry={false} exercise={exercise} />);
 
     const prompt = screen.getByRole('heading', {
       name: /judge the sentence\./i,

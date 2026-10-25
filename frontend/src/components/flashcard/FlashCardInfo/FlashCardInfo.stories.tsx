@@ -146,13 +146,13 @@ const unresolvedAudioById: Record<string, AudioAsset> = {
 };
 
 const meta = {
-  title: 'Lesson/FlashCardInfo',
+  title: 'Features/Flashcard/FlashCardInfo',
   component: FlashCardInfo,
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
   decorators: [
     (Story) => (
-      <div className="mx-auto flex min-h-screen max-w-3xl items-start bg-background p-4 sm:p-8">
+      <div className="mx-auto flex min-h-screen max-w-3xl items-start bg-neutral p-4 sm:p-8">
         <Story />
       </div>
     ),

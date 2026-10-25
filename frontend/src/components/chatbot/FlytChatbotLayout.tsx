@@ -1,82 +1,112 @@
-import * as DialogPrimitive from '@radix-ui/react-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@flyt/ui';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 
-import {
-  Dialog,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { useIsDesktop } from '@/hooks/ui/useIsDesktop';
+import { CHATBOT_MODEL_IDS } from '@/api/chatbot';
+import type { AccountPageAnchor } from '@/components/nav/accountNavigation';
 import { cn } from '@/lib/utils';
 
 import { useChatbot } from './ChatbotProvider';
 import type { FlytChatbotModel } from './FlytChatbotPanel';
 import { FlytChatbotPanel } from './FlytChatbotPanel';
+import { CHATBOT_ERROR_SOURCES, CHATBOT_OPEN_STATES } from './types';
+import { useChatbotOpenState } from './useChatbotOpenState';
+import { useRailPresence } from './useRailPresence';
 
 export interface FlytChatbotLayoutProps {
   children: ReactNode;
   returnFocusRef: RefObject<HTMLButtonElement | null>;
 }
 
+function navigateToAccount(anchor: AccountPageAnchor) {
+  window.location.assign(`/account#${anchor}`);
+}
+
 export function FlytChatbotLayout({
   children,
   returnFocusRef,
 }: FlytChatbotLayoutProps) {
-  const isDesktop = useIsDesktop();
+  const { close, isDesktop, isDialogOpen, isRailOpen, openState } =
+    useChatbotOpenState();
+  const { reserved, visible } = useRailPresence(isRailOpen, isDesktop);
   const chatbotPaneRef = useRef<HTMLDivElement>(null);
-  const { close, openState } = useChatbot();
   const [draft, setDraft] = useState('');
-  const [selectedModel, setSelectedModel] = useState<FlytChatbotModel>('flyt');
-  const isRailOpen = openState !== 'closed';
-  const isDialogOpen = openState === 'open';
+  const [selectedModel, setSelectedModel] = useState<FlytChatbotModel>(
+    CHATBOT_MODEL_IDS.FLYT,
+  );
   const previousRailOpenRef = useRef(isRailOpen);
   const previousDesktopRef = useRef(isDesktop);
+  const previousVisibleRef = useRef(visible);
 
   useEffect(() => {
     const wasRailOpen = previousRailOpenRef.current;
-    const wasDesktop = previousDesktopRef.current;
-    const enteredDesktop = isDesktop && !wasDesktop;
-    if (isDesktop && isRailOpen && (!wasRailOpen || enteredDesktop)) {
-      chatbotPaneRef.current
-        ?.querySelector<HTMLTextAreaElement>('textarea')
-        ?.focus();
-    }
     if (isDesktop && wasRailOpen && !isRailOpen) {
       returnFocusRef.current?.focus();
     }
     previousRailOpenRef.current = isRailOpen;
-    previousDesktopRef.current = isDesktop;
   }, [isDesktop, isRailOpen, returnFocusRef]);
+
+  useEffect(() => {
+    const enteredDesktop = isDesktop && !previousDesktopRef.current;
+    previousDesktopRef.current = isDesktop;
+    const wasVisible = previousVisibleRef.current;
+    previousVisibleRef.current = visible;
+
+    if (!isDesktop || !visible) return;
+    if (wasVisible && !enteredDesktop) return;
+    if (openState === CHATBOT_OPEN_STATES.AUTO) return;
+
+    chatbotPaneRef.current
+      ?.querySelector<HTMLTextAreaElement>('textarea')
+      ?.focus();
+  }, [isDesktop, openState, visible]);
+
+  const handleOpenAccountSettings = (anchor: AccountPageAnchor) => {
+    if (!isDesktop) close();
+    navigateToAccount(anchor);
+  };
 
   return (
     <div id="flyt-chatbot-panel" className="contents">
       <div
         className={cn(
-          'grid min-h-0 flex-1 items-stretch transition-[grid-template-columns] duration-300 ease-out motion-reduce:transition-none',
-          isRailOpen
+          'grid min-h-0 flex-1 items-stretch overflow-hidden',
+          reserved
             ? 'lg:grid-cols-[minmax(0,1fr)_28rem]'
             : 'lg:grid-cols-[minmax(0,1fr)_0rem]',
         )}
+        data-testid="flyt-chatbot-grid"
       >
         {children}
         {isDesktop && (
           <aside
             aria-label="Ask Flyt chatbot"
             className={cn(
-              'hidden min-h-0 min-w-0 flex-col overflow-hidden bg-card lg:flex',
-              isRailOpen && 'border-l border-border/70',
+              'hidden min-h-0 min-w-0 flex-col overflow-hidden bg-raised lg:flex',
+              'transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none',
+              visible
+                ? 'translate-x-0 opacity-100'
+                : 'translate-x-full opacity-0',
+              visible && 'border-l border-default/70',
             )}
+            data-rail-reserved={reserved ? 'true' : 'false'}
+            data-rail-state={
+              visible ? CHATBOT_OPEN_STATES.OPEN : CHATBOT_OPEN_STATES.CLOSED
+            }
             id="flyt-chatbot-desktop"
-            inert={!isRailOpen}
+            inert={!visible}
             ref={chatbotPaneRef}
           >
             <ConnectedChatbotPanel
               draft={draft}
               onClose={close}
               onDraftChange={setDraft}
+              onOpenAccountSettings={handleOpenAccountSettings}
               onSelectedModelChange={setSelectedModel}
               selectedModel={selectedModel}
             />
@@ -85,9 +115,10 @@ export function FlytChatbotLayout({
       </div>
       <MobileChatbotDialog
         draft={draft}
-        isOpen={isDialogOpen && !isDesktop}
+        isOpen={isDialogOpen}
         onClose={close}
         onDraftChange={setDraft}
+        onOpenAccountSettings={handleOpenAccountSettings}
         onSelectedModelChange={setSelectedModel}
         returnFocusRef={returnFocusRef}
         selectedModel={selectedModel}
@@ -100,24 +131,29 @@ function ConnectedChatbotPanel({
   draft,
   onClose,
   onDraftChange,
+  onOpenAccountSettings,
   onSelectedModelChange,
   selectedModel,
 }: {
   draft: string;
   onClose: () => void;
   onDraftChange: (draft: string) => void;
+  onOpenAccountSettings: (anchor: AccountPageAnchor) => void;
   onSelectedModelChange: (model: FlytChatbotModel) => void;
   selectedModel: FlytChatbotModel;
 }) {
   const {
+    availabilityStatus,
     context,
     dismissContext,
     dismissError,
     error,
+    errorSource,
     isLoading,
     modelAvailability,
     messages,
     retry,
+    retryAvailability,
     send,
     startNewConversation,
     unavailableModels,
@@ -125,10 +161,13 @@ function ConnectedChatbotPanel({
 
   return (
     <FlytChatbotPanel
+      availabilityStatus={availabilityStatus}
       context={context}
       draft={draft}
       error={error}
-      flytRemainingPercent={modelAvailability.flyt?.remainingPercent ?? null}
+      flytRemainingPercent={
+        modelAvailability[CHATBOT_MODEL_IDS.FLYT]?.remainingPercent ?? null
+      }
       isLoading={isLoading}
       modelActions={Object.fromEntries(
         Object.entries(modelAvailability).map(([model, availability]) => [
@@ -146,10 +185,18 @@ function ConnectedChatbotPanel({
       onClose={onClose}
       onContextRemove={dismissContext}
       onDraftChange={onDraftChange}
-      onErrorDismiss={dismissError}
-      onErrorRetry={retry}
+      onErrorDismiss={errorSource ? dismissError : undefined}
+      onErrorRetry={
+        errorSource === CHATBOT_ERROR_SOURCES.REQUEST
+          ? retry
+          : errorSource === CHATBOT_ERROR_SOURCES.AVAILABILITY
+            ? retryAvailability
+            : undefined
+      }
       onModelChange={() => undefined}
       onNewConversation={startNewConversation}
+      onOpenAccountSettings={onOpenAccountSettings}
+      onRetryAvailability={retryAvailability}
       onSend={send}
       onSelectedModelChange={onSelectedModelChange}
       selectedModel={selectedModel}
@@ -164,6 +211,7 @@ function MobileChatbotDialog({
   isOpen,
   onClose,
   onDraftChange,
+  onOpenAccountSettings,
   onSelectedModelChange,
   returnFocusRef,
   selectedModel,
@@ -172,6 +220,7 @@ function MobileChatbotDialog({
   isOpen: boolean;
   onClose: () => void;
   onDraftChange: (draft: string) => void;
+  onOpenAccountSettings: (anchor: AccountPageAnchor) => void;
   onSelectedModelChange: (model: FlytChatbotModel) => void;
   returnFocusRef: RefObject<HTMLButtonElement | null>;
   selectedModel: FlytChatbotModel;
@@ -185,44 +234,42 @@ function MobileChatbotDialog({
         if (!next) onClose();
       }}
     >
-      <DialogPortal>
-        <DialogOverlay className="bg-black-80 lg:hidden" />
-        <DialogPrimitive.Content
-          aria-modal="true"
-          aria-describedby="flyt-chatbot-mobile-description"
-          aria-labelledby="flyt-chatbot-mobile-title"
-          className="fixed inset-0 z-50 flex h-dvh min-h-0 w-full flex-col bg-background outline-none lg:hidden"
-          id="flyt-chatbot-mobile"
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            returnFocusRef.current?.focus();
-          }}
-          onOpenAutoFocus={(event) => {
-            event.preventDefault();
-            contentRef.current
-              ?.querySelector<HTMLTextAreaElement>('textarea')
-              ?.focus();
-          }}
-          ref={contentRef}
-        >
-          <DialogTitle className="sr-only" id="flyt-chatbot-mobile-title">
-            Ask Flyt
-          </DialogTitle>
-          <DialogDescription
-            className="sr-only"
-            id="flyt-chatbot-mobile-description"
-          >
-            Ask questions about Norwegian and the current page.
-          </DialogDescription>
-          <ConnectedChatbotPanel
-            draft={draft}
-            onClose={onClose}
-            onDraftChange={onDraftChange}
-            onSelectedModelChange={onSelectedModelChange}
-            selectedModel={selectedModel}
-          />
-        </DialogPrimitive.Content>
-      </DialogPortal>
+      <DialogContent
+        aria-modal="true"
+        aria-describedby="flyt-chatbot-mobile-description"
+        aria-labelledby="flyt-chatbot-mobile-title"
+        id="flyt-chatbot-mobile"
+        mobileOnly
+        padding="none"
+        showClose={false}
+        variant="fullscreen"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          returnFocusRef.current?.focus();
+        }}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          contentRef.current
+            ?.querySelector<HTMLTextAreaElement>('textarea')
+            ?.focus();
+        }}
+        ref={contentRef}
+      >
+        <DialogTitle visuallyHidden id="flyt-chatbot-mobile-title">
+          Ask Flyt
+        </DialogTitle>
+        <DialogDescription id="flyt-chatbot-mobile-description" visuallyHidden>
+          Ask questions about Norwegian and the current page.
+        </DialogDescription>
+        <ConnectedChatbotPanel
+          draft={draft}
+          onClose={onClose}
+          onDraftChange={onDraftChange}
+          onOpenAccountSettings={onOpenAccountSettings}
+          onSelectedModelChange={onSelectedModelChange}
+          selectedModel={selectedModel}
+        />
+      </DialogContent>
     </Dialog>
   );
 }

@@ -1,7 +1,9 @@
 import base64
 import binascii
+import re
 from dataclasses import dataclass
 from datetime import datetime
+from uuid import UUID
 
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func
@@ -11,9 +13,10 @@ from sqlalchemy import text
 from sqlalchemy import update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import undefer
 
 from flyt.apps.reading.constants import DEFAULT_PAGE_LIMIT
-from flyt.apps.reading.constants import DERIVED_TITLE_WORDS
+from flyt.apps.reading.constants import K_DERIVED_TITLE_LENGTH
 from flyt.apps.reading.constants import ERROR_CODE_PROCESSING_FAILED
 from flyt.apps.reading.constants import ERROR_MESSAGE_MAX_LENGTH
 from flyt.apps.reading.constants import IMPORT_LIMIT
@@ -30,7 +33,6 @@ from flyt.apps.reading.exceptions import ImportNotRetryableError
 from flyt.apps.reading.exceptions import ImportQuotaExceededError
 from flyt.apps.reading.exceptions import ImportTooLargeError
 from flyt.apps.reading.models import ImportMeta
-from flyt.apps.reading.models import ImportQuota
 from flyt.apps.reading.models import ImportStatus
 from flyt.apps.reading.schemas import ImportItemRead
 from flyt.apps.reading.schemas import ImportListResponse
@@ -50,6 +52,32 @@ from flyt.core.queue import enqueue_job
 from flyt.libs.utils.date import now
 
 _PROCESSING_STATUSES = (ImportStatus.PENDING, ImportStatus.PROCESSING)
+
+
+def derive_title(normalized: str) -> str:
+    source = " ".join(normalized.split())
+    sentence = source
+    for boundary in re.finditer(r"(?<=[.!?])\s+(?=[A-ZÆØÅ])", source):
+        ending = source[: boundary.start()]
+        if re.search(r"\b(?:[a-zæøå]|dr|kl|ca|f\.eks|bl\.a)\.$", ending, re.IGNORECASE):
+            continue
+        sentence = ending
+        break
+    if not sentence:
+        return "Imported text"
+    if len(sentence) <= K_DERIVED_TITLE_LENGTH:
+        return sentence
+
+    words = sentence.split()
+    title = words[0]
+    for word in words[1:]:
+        candidate = f"{title} {word}"
+        if len(candidate) >= K_DERIVED_TITLE_LENGTH:
+            break
+        title = candidate
+    if title == sentence and len(title) <= TITLE_MAX_LENGTH:
+        return title
+    return title[: TITLE_MAX_LENGTH - 1] + "…"
 
 
 def _pages_reconstruct(pages: list[PageData], normalized: str) -> bool:
@@ -77,16 +105,6 @@ def _decode_cursor(cursor: str) -> tuple[datetime, int]:
         return parsed, int(item_id)
     except (ValueError, binascii.Error) as exc:
         raise ImportInvalidCursorError() from exc
-
-
-def derive_title(normalized: str) -> str:
-    first_line = normalized.split("\n", 1)[0].strip()
-    source = first_line or normalized
-    words = source.split()
-    title = " ".join(words[:DERIVED_TITLE_WORDS]).strip()
-    if not title:
-        title = "Imported text"
-    return title[:TITLE_MAX_LENGTH]
 
 
 async def _advisory_lock(db: AsyncSession, key: str) -> None:
@@ -199,6 +217,17 @@ class ImportService:
             raise ImportNotRetryableError()
         return story.id
 
+    async def rename(
+        self, user_id: int, import_uuid: UUID, title: str
+    ) -> ImportItemRead:
+        owned = await self._find_owned(user_id=user_id, import_uuid=import_uuid)
+        if owned is None:
+            raise ImportNotFoundError()
+        user_story, _story, _meta = owned
+        user_story.title = title
+        await self._db.flush()
+        return await self._hydrate(user_story)
+
     async def _import(
         self,
         *,
@@ -230,7 +259,7 @@ class ImportService:
             .where(UserStory.user_id == user_id, ImportMeta.content_hash == digest)
         )
         if already_owned is None:
-            used = await self._quota_used(user_id)
+            used = await self.owned_import_count(user_id)
             if used >= IMPORT_LIMIT:
                 raise ImportQuotaExceededError()
 
@@ -244,16 +273,6 @@ class ImportService:
             source_url=source_url,
         )
 
-        if already_owned is None:
-            await self._db.execute(
-                pg_insert(ImportQuota)
-                .values(user_id=user_id, used=1)
-                .on_conflict_do_update(
-                    index_elements=[ImportQuota.user_id],
-                    set_={"used": ImportQuota.used + 1},
-                )
-            )
-
         pages_to_publish = (
             pages
             if is_new and pages is not None and _pages_reconstruct(pages, normalized)
@@ -266,12 +285,6 @@ class ImportService:
             pages_to_publish=pages_to_publish,
             needs_processing=is_new and pages_to_publish is None,
         )
-
-    async def _quota_used(self, user_id: int) -> int:
-        used = await self._db.scalar(
-            select(ImportQuota.used).where(ImportQuota.user_id == user_id)
-        )
-        return int(used or 0)
 
     async def _dedup_or_create_story(
         self, digest: str, normalized: str
@@ -406,19 +419,17 @@ class ImportService:
         limit: int = DEFAULT_PAGE_LIMIT,
     ) -> ImportListResponse:
         limit = max(1, min(limit, MAX_PAGE_LIMIT))
-        page_counts = (
-            select(
-                StoryPage.story_id.label("story_id"),
-                func.count().label("page_count"),
-            )
-            .group_by(StoryPage.story_id)
-            .subquery()
+        page_count = (
+            select(func.count())
+            .select_from(StoryPage)
+            .where(StoryPage.story_id == Story.id)
+            .correlate(Story)
+            .scalar_subquery()
         )
         stmt = (
-            select(UserStory, Story, ImportMeta, page_counts.c.page_count)
+            select(UserStory, Story, ImportMeta, page_count)
             .join(Story, Story.id == UserStory.story_id)
             .join(ImportMeta, ImportMeta.story_id == Story.id)
-            .outerjoin(page_counts, page_counts.c.story_id == Story.id)
             .where(
                 UserStory.user_id == user_id,
                 Story.visibility == StoryVisibility.PRIVATE,
@@ -429,11 +440,14 @@ class ImportService:
         elif status is not None:
             stmt = stmt.where(ImportMeta.status == status)
         if query:
-            like = f"%{query.lower()}%"
             stmt = stmt.where(
                 or_(
-                    func.lower(func.coalesce(UserStory.title, Story.title)).like(like),
-                    func.lower(func.coalesce(UserStory.source_url, "")).like(like),
+                    func.lower(func.coalesce(UserStory.title, Story.title)).contains(
+                        query.lower(), autoescape=True
+                    ),
+                    func.lower(func.coalesce(UserStory.source_url, "")).contains(
+                        query.lower(), autoescape=True
+                    ),
                 )
             )
         if cursor:
@@ -462,7 +476,7 @@ class ImportService:
             items=items,
             nextCursor=next_cursor,
             quota=QuotaRead(
-                used=await self._quota_used(user_id),
+                used=await self.owned_import_count(user_id),
                 limit=IMPORT_LIMIT,
             ),
         )
@@ -542,6 +556,7 @@ class ImportService:
         return await self._hydrate(ui)
 
     async def delete(self, user_id: int, import_uuid) -> None:
+        await _advisory_lock(self._db, f"quota:{user_id}")
         owned = await self._find_owned(user_id=user_id, import_uuid=import_uuid)
         if owned is None:
             raise ImportNotFoundError()
@@ -596,7 +611,9 @@ class ImportService:
         return row[0]
 
     async def content_to_process(self, story_id: int) -> str | None:
-        story = await self._db.get(Story, story_id)
+        story = await self._db.get(
+            Story, story_id, options=[undefer(Story.content)], populate_existing=True
+        )
         if story is None:
             return None
         if story.content is None:

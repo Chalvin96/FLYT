@@ -1,8 +1,10 @@
 import type { ChatGPTLinkStart } from '@/api/chatgptLink';
+import { parseUtcTimestamp } from '@/utils/date';
 
 export const CONNECTED_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
   month: 'long',
+  timeZone: 'UTC',
 });
 
 export function formatCountdown(seconds: number): string {
@@ -19,7 +21,7 @@ export function getAuthorizationUrl(
 export function secondsRemaining(expiresAt: string): number {
   return Math.max(
     0,
-    Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1000),
+    Math.ceil((parseUtcTimestamp(expiresAt) - Date.now()) / 1000),
   );
 }
 
@@ -44,7 +46,7 @@ export function formatLinkCaption({
       : `${pending.user_code} · expires in ${formatCountdown(remaining)}`;
   }
   if (working && connectedAt) {
-    return `Connected ${CONNECTED_DATE_FORMATTER.format(new Date(connectedAt))}`;
+    return `Connected ${CONNECTED_DATE_FORMATTER.format(parseUtcTimestamp(connectedAt))}`;
   }
   return linkIsBroken ? 'Disconnected' : 'Not connected';
 }

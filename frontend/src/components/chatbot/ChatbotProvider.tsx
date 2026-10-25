@@ -22,13 +22,23 @@ import {
 } from '@/hooks/chatbot/queries';
 
 import { buildChatbotHistory } from './buildChatbotHistory';
+import { MODEL_ORDER } from './chatbotModels';
+import { loadRailPreference, writeRailPreference } from './chatbotPreference';
+import type {
+  ChatbotAvailabilityStatus,
+  ChatbotErrorSource,
+  ChatbotOpenState,
+  FlytChatbotContext,
+  FlytChatbotMessage,
+  FlytChatbotModel,
+} from './types';
 import {
-  type FlytChatbotContext,
-  type FlytChatbotMessage,
-  type FlytChatbotModel,
-} from './FlytChatbotPanel';
+  CHATBOT_AVAILABILITY_STATUSES,
+  CHATBOT_ERROR_SOURCES,
+  CHATBOT_OPEN_STATES,
+} from './types';
 
-export type ChatbotOpenState = 'auto' | 'open' | 'closed';
+export type { ChatbotOpenState } from './types';
 
 interface ChatbotState {
   openState: ChatbotOpenState;
@@ -43,43 +53,53 @@ interface ChatbotStateControls {
   stateRef: { current: ChatbotState };
   generationRef: { current: number };
   setState: Dispatch<SetStateAction<ChatbotState>>;
+  railOpenPreference: boolean | null;
   open(context?: FlytChatbotContext): void;
   close(): void;
   pin(context: FlytChatbotContext): void;
   dismissContext(): void;
+  rememberRailOpen(open: boolean): void;
   startNewConversation(): void;
   setPageContext(context: FlytChatbotContext | null): void;
 }
 
 export interface ChatbotControls {
   openState: ChatbotOpenState;
+  railOpenPreference: boolean | null;
   context: FlytChatbotContext | null;
   messages: readonly FlytChatbotMessage[];
   unavailableModels: readonly FlytChatbotModel[];
+  availabilityStatus: ChatbotAvailabilityStatus;
   modelAvailability: Partial<
     Record<FlytChatbotModel, ChatbotModelAvailability>
   >;
   isLoading: boolean;
   error: string | null;
+  errorSource: ChatbotErrorSource | null;
   open(context?: FlytChatbotContext): void;
   close(): void;
   pin(context: FlytChatbotContext): void;
   dismissContext(): void;
+  rememberRailOpen(open: boolean): void;
   startNewConversation(): void;
   send(message: string, model: FlytChatbotModel): void;
   retry(): void;
+  retryAvailability(): void;
   dismissError(): void;
   setPageContext(context: FlytChatbotContext | null): void;
 }
 
 const ChatbotControlsContext = createContext<ChatbotControls | null>(null);
 
-const ALL_MODELS: readonly FlytChatbotModel[] = [
-  'flyt',
-  'chatgpt',
-  'deepseek',
-  'glm',
-];
+const ANONYMOUS_CHATBOT_SESSION_KEY = 'anonymous';
+
+function buildChatbotSessionKey(
+  accountId: string | number | null | undefined,
+): string {
+  return accountId === null || accountId === undefined
+    ? ANONYMOUS_CHATBOT_SESSION_KEY
+    : `${typeof accountId}:${String(accountId)}`;
+}
 
 const isSameContext = (
   a: FlytChatbotContext | null,
@@ -94,6 +114,7 @@ const resolveContext = (state: ChatbotState) =>
 function useChatbotState(
   initialMessages: readonly FlytChatbotMessage[],
   initialOpenState: ChatbotOpenState,
+  accountId: string | number | null | undefined,
 ): ChatbotStateControls {
   const [state, setState] = useState<ChatbotState>({
     openState: initialOpenState,
@@ -102,6 +123,9 @@ function useChatbotState(
     isContextDismissed: false,
     messages: initialMessages,
   });
+  const [railOpenPreference, setRailOpenPreference] = useState<boolean | null>(
+    () => loadRailPreference(accountId),
+  );
   const stateRef = useRef(state);
   const generationRef = useRef(0);
   useEffect(() => {
@@ -138,14 +162,20 @@ function useChatbotState(
 
   const open = useCallback(
     (context?: FlytChatbotContext) => {
-      setState((current) => ({ ...current, openState: 'open' }));
+      setState((current) => ({
+        ...current,
+        openState: CHATBOT_OPEN_STATES.OPEN,
+      }));
       if (context) pin(context);
     },
     [pin],
   );
 
   const close = useCallback(() => {
-    setState((current) => ({ ...current, openState: 'closed' }));
+    setState((current) => ({
+      ...current,
+      openState: CHATBOT_OPEN_STATES.CLOSED,
+    }));
   }, []);
 
   const dismissContext = useCallback(() => {
@@ -155,6 +185,14 @@ function useChatbotState(
         : { ...current, isContextDismissed: true },
     );
   }, []);
+
+  const rememberRailOpen = useCallback(
+    (open: boolean) => {
+      writeRailPreference(accountId, open);
+      setRailOpenPreference(open);
+    },
+    [accountId],
+  );
 
   const startNewConversation = useCallback(() => {
     generationRef.current += 1;
@@ -178,10 +216,12 @@ function useChatbotState(
     stateRef,
     generationRef,
     setState,
+    railOpenPreference,
     open,
     close,
     pin,
     dismissContext,
+    rememberRailOpen,
     startNewConversation,
     setPageContext,
   };
@@ -189,6 +229,7 @@ function useChatbotState(
 
 interface ChatbotProviderProps {
   children: ReactNode;
+  accountId?: string | number | null;
   initialMessages?: readonly FlytChatbotMessage[];
   initialOpenState?: ChatbotOpenState;
   remote?: boolean;
@@ -196,15 +237,35 @@ interface ChatbotProviderProps {
 
 export function ChatbotProvider({
   children,
+  accountId = null,
   initialMessages = [],
-  initialOpenState = 'auto',
+  initialOpenState = CHATBOT_OPEN_STATES.AUTO,
   remote = false,
 }: ChatbotProviderProps) {
+  const [session, setSession] = useState(() => ({
+    accountId,
+    initialMessages,
+    initialOpenState,
+  }));
+  if (session.accountId !== accountId) {
+    setSession({
+      accountId,
+      initialMessages: [],
+      initialOpenState: CHATBOT_OPEN_STATES.AUTO,
+    });
+  }
+
+  const sessionKey = buildChatbotSessionKey(accountId);
+  const sessionMessages = session.initialMessages;
+  const sessionOpenState = session.initialOpenState;
+
   if (remote) {
     return (
       <RemoteChatbotProvider
-        initialMessages={initialMessages}
-        initialOpenState={initialOpenState}
+        accountId={accountId}
+        initialMessages={sessionMessages}
+        initialOpenState={sessionOpenState}
+        key={sessionKey}
       >
         {children}
       </RemoteChatbotProvider>
@@ -213,8 +274,10 @@ export function ChatbotProvider({
 
   return (
     <LocalChatbotProvider
-      initialMessages={initialMessages}
-      initialOpenState={initialOpenState}
+      accountId={accountId}
+      initialMessages={sessionMessages}
+      initialOpenState={sessionOpenState}
+      key={sessionKey}
     >
       {children}
     </LocalChatbotProvider>
@@ -222,13 +285,15 @@ export function ChatbotProvider({
 }
 
 function LocalChatbotProvider({
+  accountId,
   children,
   initialMessages,
   initialOpenState,
 }: Omit<ChatbotProviderProps, 'remote'>) {
   const chatbot = useChatbotState(
     initialMessages ?? [],
-    initialOpenState ?? 'auto',
+    initialOpenState ?? CHATBOT_OPEN_STATES.AUTO,
+    accountId,
   );
   const send = useCallback(
     (message: string) => {
@@ -247,19 +312,24 @@ function LocalChatbotProvider({
   const value = useMemo<ChatbotControls>(
     () => ({
       openState: chatbot.state.openState,
+      railOpenPreference: chatbot.railOpenPreference,
       context: resolveContext(chatbot.state),
       messages: chatbot.state.messages,
       unavailableModels: [],
+      availabilityStatus: CHATBOT_AVAILABILITY_STATUSES.READY,
       modelAvailability: {},
       isLoading: false,
       error: null,
+      errorSource: null,
       open: chatbot.open,
       close: chatbot.close,
       pin: chatbot.pin,
       dismissContext: chatbot.dismissContext,
+      rememberRailOpen: chatbot.rememberRailOpen,
       startNewConversation: chatbot.startNewConversation,
       send,
       retry: () => undefined,
+      retryAvailability: () => undefined,
       dismissError: () => undefined,
       setPageContext: chatbot.setPageContext,
     }),
@@ -279,18 +349,23 @@ interface PendingChatbotRequest {
 }
 
 function RemoteChatbotProvider({
+  accountId,
   children,
   initialMessages,
   initialOpenState,
 }: Omit<ChatbotProviderProps, 'remote'>) {
   const chatbot = useChatbotState(
     initialMessages ?? [],
-    initialOpenState ?? 'auto',
+    initialOpenState ?? CHATBOT_OPEN_STATES.AUTO,
+    accountId,
   );
-  const surfaceQuery = useChatbotSurface();
-  const sendMutation = useSendChatbotMessage();
+  const surfaceQuery = useChatbotSurface(accountId);
+  const sendMutation = useSendChatbotMessage(accountId);
   const isLoading = sendMutation.isPending;
-  const [error, setError] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [dismissedSurfaceErrorAt, setDismissedSurfaceErrorAt] = useState<
+    number | null
+  >(null);
   const pendingRequestRef = useRef<PendingChatbotRequest | null>(null);
 
   const submit = useCallback(
@@ -310,7 +385,8 @@ function RemoteChatbotProvider({
         }));
       }
       pendingRequestRef.current = request;
-      setError(null);
+      if (appendUserMessage) setRequestError(null);
+      setDismissedSurfaceErrorAt(null);
       sendMutation.mutate(request.payload, {
         onSuccess: (response) => {
           if (request.generation !== chatbot.generationRef.current) return;
@@ -327,11 +403,11 @@ function RemoteChatbotProvider({
             ],
           }));
           pendingRequestRef.current = null;
-          setError(null);
+          setRequestError(null);
         },
         onError: (requestError) => {
           if (request.generation !== chatbot.generationRef.current) return;
-          setError(getChatbotErrorMessage(requestError));
+          setRequestError(getChatbotErrorMessage(requestError));
         },
       });
     },
@@ -372,59 +448,100 @@ function RemoteChatbotProvider({
   const startNewConversation = useCallback(() => {
     chatbot.startNewConversation();
     pendingRequestRef.current = null;
-    setError(null);
+    setRequestError(null);
+    setDismissedSurfaceErrorAt(null);
     sendMutation.reset();
   }, [chatbot, sendMutation]);
 
   const surface = surfaceQuery.data;
-  const unavailableModels = surface
-    ? ALL_MODELS.filter(
-        (model) =>
-          !surface.models.some(
-            (surfaceModel) =>
-              surfaceModel.id === model && surfaceModel.available,
-          ),
-      )
-    : ALL_MODELS;
+  const availabilityStatus: ChatbotAvailabilityStatus = surfaceQuery.isError
+    ? CHATBOT_AVAILABILITY_STATUSES.ERROR
+    : surface
+      ? CHATBOT_AVAILABILITY_STATUSES.READY
+      : CHATBOT_AVAILABILITY_STATUSES.LOADING;
+  const refetchSurface = surfaceQuery.refetch;
+  const retryAvailability = useCallback(() => {
+    setDismissedSurfaceErrorAt(null);
+    void refetchSurface();
+  }, [refetchSurface]);
+  const unavailableModels =
+    availabilityStatus === CHATBOT_AVAILABILITY_STATUSES.ERROR
+      ? MODEL_ORDER
+      : surface
+        ? MODEL_ORDER.filter(
+            (model) =>
+              !surface.models.some(
+                (surfaceModel) =>
+                  surfaceModel.id === model && surfaceModel.available,
+              ),
+          )
+        : MODEL_ORDER;
   const modelAvailability = useMemo(
     () =>
-      Object.fromEntries(
-        (surface?.models ?? []).map((model) => [model.id, model]),
-      ) as Partial<Record<FlytChatbotModel, ChatbotModelAvailability>>,
-    [surface?.models],
+      availabilityStatus === CHATBOT_AVAILABILITY_STATUSES.ERROR
+        ? {}
+        : (Object.fromEntries(
+            (surface?.models ?? []).map((model) => [model.id, model]),
+          ) as Partial<Record<FlytChatbotModel, ChatbotModelAvailability>>),
+    [availabilityStatus, surface?.models],
   );
-  const surfaceError = surfaceQuery.isError
-    ? 'Chatbot connections could not be loaded. Try again in a moment.'
-    : null;
+  const surfaceError =
+    surfaceQuery.isError &&
+    surfaceQuery.errorUpdatedAt !== dismissedSurfaceErrorAt
+      ? 'Chatbot connections could not be loaded. Try again in a moment.'
+      : null;
+  const error = requestError ?? surfaceError;
+  const errorSource: ChatbotErrorSource | null = requestError
+    ? CHATBOT_ERROR_SOURCES.REQUEST
+    : surfaceError
+      ? CHATBOT_ERROR_SOURCES.AVAILABILITY
+      : null;
+  const dismissError = useCallback(() => {
+    if (requestError) {
+      setRequestError(null);
+      return;
+    }
+    if (surfaceError) {
+      setDismissedSurfaceErrorAt(surfaceQuery.errorUpdatedAt);
+    }
+  }, [requestError, surfaceError, surfaceQuery.errorUpdatedAt]);
 
   const value = useMemo<ChatbotControls>(
     () => ({
       openState: chatbot.state.openState,
+      railOpenPreference: chatbot.railOpenPreference,
       context: resolveContext(chatbot.state),
       messages: chatbot.state.messages,
       unavailableModels,
+      availabilityStatus,
       modelAvailability,
       isLoading,
-      error: error ?? surfaceError,
+      error,
+      errorSource,
       open: chatbot.open,
       close: chatbot.close,
       pin: chatbot.pin,
       dismissContext: chatbot.dismissContext,
+      rememberRailOpen: chatbot.rememberRailOpen,
       startNewConversation,
       send,
       retry,
-      dismissError: () => setError(null),
+      retryAvailability,
+      dismissError,
       setPageContext: chatbot.setPageContext,
     }),
     [
+      availabilityStatus,
       chatbot,
+      dismissError,
       error,
+      errorSource,
       isLoading,
       modelAvailability,
       retry,
+      retryAvailability,
       send,
       startNewConversation,
-      surfaceError,
       unavailableModels,
     ],
   );

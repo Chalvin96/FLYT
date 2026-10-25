@@ -32,7 +32,6 @@ from flyt.apps.users.models import User
 from flyt.apps.users.types import UserRole
 from flyt.core.db import AsyncSessionLocal
 from flyt.apps.reading.models import StoryVisibility
-from flyt.apps.reading.models import ImportQuota
 from flyt.apps.reading.tokenization import PageData
 from tests.factories import ImportMetaFactory
 
@@ -239,7 +238,6 @@ async def seed_worker_import(content: str) -> tuple[int, int]:
                 status=ImportStatus.PENDING,
             )
         )
-        session.add(ImportQuota(user_id=user_id, used=1))
         await session.commit()
         return user_id, story.id
 
@@ -250,9 +248,6 @@ async def discard_worker_import(user_id: int, story_id: int) -> None:
             sa_delete(StoryPage).where(StoryPage.story_id == story_id)
         )
         await session.execute(sa_delete(Story).where(Story.id == story_id))
-        await session.execute(
-            sa_delete(ImportQuota).where(ImportQuota.user_id == user_id)
-        )
         await session.execute(sa_delete(User).where(User.id == user_id))
         await session.commit()
 

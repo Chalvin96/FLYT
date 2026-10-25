@@ -1,10 +1,10 @@
+import { Button, Card, Heading, Input, Text } from '@flyt/ui';
 import { KeyRound } from 'lucide-react';
 import { useState } from 'react';
 
-import { AppCard } from '@/components/common/AppCard/AppCard';
-import { Button } from '@/components/common/Button/Button';
 import { ErrorMessage } from '@/components/common/ErrorMessage/ErrorMessage';
-import { Input } from '@/components/ui/input';
+import { ACCOUNT_PAGE_ANCHORS } from '@/components/nav/accountNavigation';
+import { useMe } from '@/hooks/auth/queries';
 import {
   getChatbotErrorMessage,
   useChatbotSurface,
@@ -13,32 +13,47 @@ import {
 } from '@/hooks/chatbot/queries';
 
 export function OpenRouterKeySection() {
-  const surfaceQuery = useChatbotSurface();
+  const { data: user } = useMe();
+  const accountId = user?.id ?? null;
+  const surfaceQuery = useChatbotSurface(accountId);
 
-  if (surfaceQuery.isError && !surfaceQuery.data) {
+  if (!surfaceQuery.data) {
     return (
-      <AppCard className="p-4 sm:p-5">
-        <ErrorMessage
-          error="Provider key settings could not be loaded. Try again in a moment."
-          onRetry={() => void surfaceQuery.refetch()}
-          title="Provider key settings unavailable"
-        />
-      </AppCard>
+      <Card padding="compact">
+        <ProviderKeySectionHeading />
+        {surfaceQuery.isError ? (
+          <div className="mt-4">
+            <ErrorMessage
+              error="Provider key settings could not be loaded. Try again in a moment."
+              onRetry={() => void surfaceQuery.refetch()}
+              title="Provider key settings unavailable"
+            />
+          </div>
+        ) : (
+          <div className="mt-4" role="status">
+            <Text as="p" size="medium" tone="subtle">
+              Loading provider key settings…
+            </Text>
+          </div>
+        )}
+      </Card>
     );
   }
 
-  if (!surfaceQuery.data) return null;
-
-  return <OpenRouterKeyCard surface={surfaceQuery.data} />;
+  return (
+    <OpenRouterKeyCard accountId={accountId} surface={surfaceQuery.data} />
+  );
 }
 
 function OpenRouterKeyCard({
+  accountId,
   surface,
 }: {
+  accountId: string | number | null;
   surface: NonNullable<ReturnType<typeof useChatbotSurface>['data']>;
 }) {
-  const replaceKey = useReplaceOpenRouterKey();
-  const deleteKey = useDeleteOpenRouterKey();
+  const replaceKey = useReplaceOpenRouterKey(accountId);
+  const deleteKey = useDeleteOpenRouterKey(accountId);
   const [isEditing, setIsEditing] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
@@ -89,62 +104,92 @@ function OpenRouterKeyCard({
 
   return (
     <section aria-label="Provider key settings">
-      <AppCard
-        className="space-y-4 p-4 sm:p-5"
-        data-testid="openrouter-key-section"
-      >
-        <div className="flex items-center justify-between gap-4">
-          <KeyIdentity configured={configured} />
-          {!isEditing ? (
-            <KeyActions
-              configured={configured}
-              isRemoving={deleteKey.isPending}
-              onEdit={startEditing}
-              onRemove={() => void handleRemove()}
+      <Card padding="compact" data-testid="openrouter-key-section">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <KeyIdentity configured={configured} />
+            {!isEditing ? (
+              <KeyActions
+                configured={configured}
+                isRemoving={deleteKey.isPending}
+                onEdit={startEditing}
+                onRemove={() => void handleRemove()}
+              />
+            ) : null}
+          </div>
+
+          <Text as="p" size="medium" tone="subtle">
+            Use it for DeepSeek or z.ai.
+          </Text>
+
+          {isEditing ? (
+            <KeyEditForm
+              apiKey={apiKey}
+              isSaving={replaceKey.isPending}
+              onCancel={stopEditing}
+              onChangeApiKey={(value) => {
+                setLocalError(null);
+                setApiKey(value);
+              }}
+              onSave={() => void handleSave()}
             />
           ) : null}
+
+          {error ? (
+            <div className="text-danger" role="alert">
+              <Text as="p" size="small">
+                {error}
+              </Text>
+            </div>
+          ) : null}
         </div>
-
-        <p className="type-caption text-muted-foreground">
-          Use it for DeepSeek or z.ai.
-        </p>
-
-        {isEditing ? (
-          <KeyEditForm
-            apiKey={apiKey}
-            isSaving={replaceKey.isPending}
-            onCancel={stopEditing}
-            onChangeApiKey={(value) => {
-              setLocalError(null);
-              setApiKey(value);
-            }}
-            onSave={() => void handleSave()}
-          />
-        ) : null}
-
-        {error ? (
-          <p className="type-caption-sm text-destructive-70" role="alert">
-            {error}
-          </p>
-        ) : null}
-      </AppCard>
+      </Card>
     </section>
+  );
+}
+
+function ProviderKeySectionHeading() {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <div className="radius-field flex size-11 shrink-0 items-center justify-center bg-neutral-pressed text-default">
+        <KeyRound aria-hidden="true" className="icon-sm" />
+      </div>
+      <div className="scroll-mt-24 focus:outline-none">
+        <Heading
+          as="h2"
+          id={ACCOUNT_PAGE_ANCHORS.PROVIDER_KEY}
+          tabIndex={-1}
+          size="medium"
+          tone="default"
+        >
+          Provider key
+        </Heading>
+      </div>
+    </div>
   );
 }
 
 function KeyIdentity({ configured }: { configured: boolean }) {
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <div className="radius-field flex size-11 shrink-0 items-center justify-center bg-secondary-20 text-secondary-90">
+      <div className="radius-field flex size-11 shrink-0 items-center justify-center bg-neutral-pressed text-default">
         <KeyRound aria-hidden="true" className="icon-sm" />
       </div>
       <div className="min-w-0">
-        <p className="type-section font-semibold text-foreground">
-          Provider key
-        </p>
-        <p className="type-caption text-muted-foreground">
+        <div className="scroll-mt-24 focus:outline-none">
+          <Heading
+            as="h2"
+            id={ACCOUNT_PAGE_ANCHORS.PROVIDER_KEY}
+            tabIndex={-1}
+            size="medium"
+            tone="default"
+          >
+            Provider key
+          </Heading>
+        </div>
+        <Text as="p" size="medium" tone="subtle">
           {configured ? 'Connected' : 'Not connected'}
-        </p>
+        </Text>
       </div>
     </div>
   );
@@ -204,21 +249,23 @@ function KeyEditForm({
 }) {
   return (
     <form
-      className="radius-field border border-border bg-white-100 p-3"
+      className="radius-field border border-default bg-overlay p-3"
       onSubmit={(event) => {
         event.preventDefault();
         onSave();
       }}
     >
       <label
-        className="type-label-xs text-muted-foreground"
+        className="flex items-center justify-between"
         htmlFor="openrouter-api-key"
       >
-        Provider API key
+        <Heading as="span" size="xxsmall" tone="subtle">
+          Provider API key
+        </Heading>
       </label>
       <Input
         autoComplete="off"
-        className="mt-2 h-11"
+        size="lg"
         id="openrouter-api-key"
         name="openrouter-api-key"
         onChange={(event) => onChangeApiKey(event.target.value)}

@@ -1,4 +1,7 @@
+import { Button, Card, Text } from "@flyt/ui";
+
 import type { ImportActionStatus } from "../lib/importMessage";
+import { ImportFooter, ImportSaved } from "./ImportSaved";
 
 // Non-modal status toast for a context-menu "Import this page". Unlike the
 // lookup popup this is passive (role=status, no focus trap): the menu click is
@@ -14,38 +17,48 @@ export function ImportToast({
   onClose: () => void;
 }) {
   return (
-    <div className="flyt-popup" role="status" aria-live="polite">
-      <div className="flyt-logo-bar">
-        <div className="flyt-logo-box">F</div>
-        <span className="flyt-wordmark">Flyt</span>
-        <button
-          type="button"
-          className="flyt-toast-close"
-          aria-label="Dismiss"
-          onClick={onClose}
-        >
-          ×
-        </button>
+    <Card
+      aria-live="polite"
+      clipContent
+      elevation="raised"
+      padding="none"
+      role="status"
+    >
+      <div className="flex flex-none items-center gap-2 border-b border-default px-3.5 py-3">
+        <div className="grid h-7 w-7 place-items-center radius-field bg-brand-bold italic text-inverse shadow-[var(--shadow-tile)]">
+          <Text as="span" font="serif" size="medium" weight="bold">
+            F
+          </Text>
+        </div>
+        <Text as="span" size="medium" tone="default" weight="semibold">
+          Flyt
+        </Text>
+        <span className="ml-auto flex">
+          <Button
+            aria-label="Dismiss"
+            onClick={onClose}
+            size="icon-sm"
+            variant="ghost"
+          >
+            ×
+          </Button>
+        </span>
       </div>
-      <div className="flyt-import-page">
+      <ImportFooter>
         {status.kind === "importing" && (
-          <p className="flyt-toast-msg">Saving this page…</p>
+          <Text as="p" size="medium" tone="default" weight="semibold">
+            Saving this page…
+          </Text>
         )}
-        {status.kind === "success" && (
-          <div className="flyt-import-success">
-            <p className="flyt-import-success-title">Page saved</p>
-            <p className="flyt-import-success-copy">
-              We’ll prepare it for reading. You can keep browsing.
-            </p>
-            <a href={importsUrl} target="_blank" rel="noopener noreferrer">
-              View in Flyt
-            </a>
+        {status.kind === "success" && <ImportSaved importsUrl={importsUrl} />}
+        {status.kind === "error" && (
+          <div className="mt-2 text-danger">
+            <Text as="p" size="small">
+              {status.message}
+            </Text>
           </div>
         )}
-        {status.kind === "error" && (
-          <p className="flyt-import-error">{status.message}</p>
-        )}
-      </div>
-    </div>
+      </ImportFooter>
+    </Card>
   );
 }

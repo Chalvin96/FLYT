@@ -1,6 +1,6 @@
+import { Button, Heading, Text } from '@flyt/ui';
 import { Link } from '@tanstack/react-router';
 
-import { Button } from '@/components/common/Button/Button';
 import { useMe } from '@/hooks/auth/queries';
 
 const sections = [
@@ -15,14 +15,14 @@ export function LandingTopBar() {
   const isAuthenticated = Boolean(user);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-default bg-neutral/85 backdrop-blur-md">
       <div className="shell-px py-4">
         <div className="container-max mx-auto flex items-center justify-between gap-4">
-          <Link className="flex items-center gap-2 text-foreground" to="/">
-            <span className="size-2.5 rounded-full bg-primary-70" />
-            <span className="font-display type-section font-semibold tracking-tight">
+          <Link className="flex items-center gap-2 text-default" to="/">
+            <span className="size-2.5 rounded-full bg-brand-bold" />
+            <Heading as="span" size="medium" tone="default">
               Flyt
-            </span>
+            </Heading>
           </Link>
 
           <nav
@@ -31,11 +31,13 @@ export function LandingTopBar() {
           >
             {sections.map(({ href, label }) => (
               <a
-                className="type-caption text-muted-foreground hover:text-foreground"
+                className="text-subtle hover:text-default"
                 href={href}
                 key={href}
               >
-                {label}
+                <Text as="span" size="medium">
+                  {label}
+                </Text>
               </a>
             ))}
           </nav>
@@ -47,13 +49,11 @@ export function LandingTopBar() {
               </Button>
             ) : (
               <>
-                <Button
-                  asChild
-                  className="hidden sm:inline-flex"
-                  variant="ghost"
-                >
-                  <Link to="/login">Log in</Link>
-                </Button>
+                <span className="hidden sm:inline-flex">
+                  <Button asChild variant="ghost">
+                    <Link to="/login">Log in</Link>
+                  </Button>
+                </span>
                 <Button asChild>
                   <Link to="/login">Start free</Link>
                 </Button>

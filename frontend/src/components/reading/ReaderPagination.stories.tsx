@@ -1,286 +1,246 @@
-import { LemmaCardView } from '@flyt/lexicon';
+import { Badge, Button, Heading, Text } from '@flyt/ui';
 import type { Meta, StoryObj } from '@storybook/react';
-import { Search, Sparkles } from 'lucide-react';
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
-import { useEffect, useRef, useState } from 'react';
+import { expect, userEvent, waitFor, within } from 'storybook/test';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { RouterProvider } from '@tanstack/react-router';
 
-import { FlytChatbotPanel } from '@/components/chatbot/FlytChatbotPanel';
-import { getCefrBadgeClassName } from '@/components/reading/readingDisplay';
-import { StoryWordStateLegend } from '@/components/reading/StoryWordStateLegend';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { ChatbotProvider } from '@/components/chatbot/ChatbotProvider';
+import { LookupProvider } from '@/components/lookup/LookupProvider';
+import { lexiconKeys } from '@/hooks/lexicon/queries';
+import { StoryEndSection } from '@/pages/ReadingPage/StoryEndSection';
+import { StoryReaderLayout } from '@/pages/ReadingPage/StoryReaderLayout';
+import { createStoryRouter } from '@/test/router';
+import type { ReadingLemmaDefinitionsResponse } from '@/types/api';
 
+import { ReaderDefinitionPanel } from './ReaderDefinitionPanel';
+import { ReaderLookupSheet } from './ReaderLookupSheet';
 import { ReaderPagination } from './ReaderPagination';
-import type { WordEntry } from './readerSampleStory';
 import { LEXICON, STORY_PAGES } from './readerSampleStory';
+import {
+  getPageVocabulary,
+  getReaderWords,
+  type ReaderWord,
+} from './readerVocabulary';
+import { ReaderWordList } from './ReaderWordList';
+import { ReaderWordLookup } from './ReaderWordLookup';
+import { getCefrBadgeTone } from './readingDisplay';
+import type { StoryParagraph } from './storyParagraphs';
+import { StoryParagraphView } from './StoryParagraphView';
+import { StoryWordStateLegend } from './StoryWordStateLegend';
 
-const SCROLL_LEAD = 180;
 const SAMPLE_TOTAL_PAGES = 12;
+const SCROLL_LEAD = 180;
 
-function countWords(paragraphs: string[]): number {
-  return paragraphs.join(' ').split(/\s+/).filter(Boolean).length;
+function ReaderProviders({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
+  const router = useMemo(() => {
+    Object.values(LEXICON).forEach(({ card, state }) => {
+      const data: ReadingLemmaDefinitionsResponse = {
+        lemma: {
+          ...card,
+          primary_translation: card.primary_translation ?? null,
+        },
+        definitions: card.definitions.map(
+          ({ examples_json, ...definition }) => ({
+            ...definition,
+            translation_source: definition.translation_source ?? null,
+            examples: examples_json ?? [],
+            userState: state,
+          }),
+        ),
+      };
+      queryClient.setQueryDefaults(lexiconKeys.lemmaDefinitions(card.uuid), {
+        staleTime: Infinity,
+      });
+      queryClient.setQueryData(lexiconKeys.lemmaDefinitions(card.uuid), data);
+    });
+    return createStoryRouter(
+      <ChatbotProvider
+        initialOpenState="closed"
+        initialMessages={[
+          {
+            id: 'reader-question',
+            role: 'user',
+            content: 'Hvorfor er stemningen så urolig her?',
+          },
+          {
+            id: 'reader-answer',
+            role: 'chatbot',
+            content:
+              'Mørket, ulvene og den stille kusken gjør reisen utrygg. Fortelleren prøver å være rasjonell, men detaljene viser at han er redd.',
+          },
+        ]}
+      >
+        <LookupProvider>{children}</LookupProvider>
+      </ChatbotProvider>,
+      ['/reading/story/sample'],
+      ['/reading', '/reading/story/$uuid'],
+    );
+  }, [children, queryClient]);
+  return <RouterProvider router={router} />;
 }
 
-type Anchor = {
-  word: string;
-  entry: WordEntry;
-};
-
-function SampleReaderHeader({
-  chatbotOpen,
-  onAskFlyt,
-}: {
-  chatbotOpen: boolean;
-  onAskFlyt?: () => void;
-}) {
-  return (
-    <header className="sticky top-0 z-20 shrink-0 border-b border-border/60 bg-white-100 px-4 py-3 lg:px-6">
-      <div className="mx-auto flex w-full max-w-[92rem] items-center justify-between gap-3">
-        <span className="type-caption text-muted-foreground">&larr; Back</span>
-        <button
-          type="button"
-          aria-label="Search the dictionary"
-          className="hidden h-11 w-11 items-center justify-center rounded-full text-secondary-60 transition-colors hover:bg-secondary-10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:inline-flex"
-        >
-          <Search className="icon-sm" />
-        </button>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onAskFlyt}
-            aria-label="Ask Flyt"
-            aria-controls="sample-flyt-chatbot"
-            aria-expanded={chatbotOpen}
-            className={cn(
-              'inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border px-3 type-caption font-semibold text-primary-90 transition-colors hover:bg-primary-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:px-4',
-              chatbotOpen
-                ? 'border-primary-50 bg-primary-20'
-                : 'border-primary-30 bg-primary-10',
-            )}
-          >
-            <Sparkles className="icon-sm" strokeWidth={2.1} />
-            Ask Flyt
-          </button>
-          <span
-            aria-hidden="true"
-            className="flex size-9 items-center justify-center rounded-full bg-secondary-20 type-caption-sm font-semibold text-secondary-90"
-          >
-            A
-          </span>
-        </div>
-      </div>
-    </header>
-  );
-}
-
-function ProseParagraph({
-  text,
-  paragraphIndex,
-  openWord,
-  onOpenWord,
-}: {
-  text: string;
-  paragraphIndex: number;
-  openWord: string | null;
-  onOpenWord: (anchor: Anchor) => void;
-}) {
-  return (
-    <p className="whitespace-pre-wrap">
-      {text.split(/(\p{L}+)/u).map((part, partIndex) => {
-        const entry = LEXICON[part.toLowerCase()];
-        const key = `p${paragraphIndex}-${partIndex}-${part}`;
-        if (!entry) {
-          return <span key={key}>{part}</span>;
-        }
-
-        const surface = part.toLowerCase();
-        return (
-          <button
-            key={key}
-            type="button"
-            data-word={surface}
-            data-testid="reader-word"
-            aria-expanded={openWord === surface}
-            className={cn(
-              'inline cursor-pointer rounded border-0 bg-transparent p-0 px-0.5 font-inherit text-left text-inherit transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              entry.state === 'new'
-                ? 'word-underline-new hover:opacity-80'
-                : 'word-underline-learning hover:opacity-80',
-            )}
-            onClick={() =>
-              onOpenWord({
-                word: surface,
-                entry,
-              })
-            }
-          >
-            {part}
-          </button>
-        );
-      })}
-    </p>
-  );
-}
-
-function ReaderDefinitionRail({ anchor }: { anchor: Anchor | null }) {
-  return (
-    <aside
-      aria-label="Dictionary definition"
-      className="hidden w-80 shrink-0 overflow-y-auto border-l border-border bg-card lg:block"
-    >
-      {anchor ? (
-        <div className="px-5 py-4" data-testid="definition-panel">
-          <LemmaCardView
-            lemma={anchor.entry.card}
-            state={anchor.entry.state}
-            className="space-y-4"
-            headingClassName="font-display type-hero text-secondary-90"
-            knowLabel="I already know this"
-            addLabel="Add to review"
-            behavior={{
-              showStateLabels: false,
-              disableKnowWhenLearning: false,
-              disableAddWhenMastered: false,
-            }}
-            onMarkKnown={() => {}}
-            onAddToReview={() => {}}
-          />
-        </div>
-      ) : (
-        <div className="flex h-full items-center justify-center px-5 py-8 text-center type-caption text-muted-foreground italic">
-          Tap a word to look it up
-        </div>
-      )}
-    </aside>
-  );
-}
-
-function SampleReader({ onAskFlyt }: { onAskFlyt?: () => void }) {
+function SampleReader() {
   const [pageIndex, setPageIndex] = useState(0);
-  const [anchor, setAnchor] = useState<Anchor | null>(null);
-  const [chatbotOpen, setChatbotOpen] = useState(false);
-  const scrollRef = useRef<HTMLElement>(null);
-
+  const [selectedWord, setSelectedWord] = useState<ReaderWord>();
+  const [wordListOpen, setWordListOpen] = useState(false);
+  const [finished, setFinished] = useState(false);
+  const returnFocusRef = useRef<HTMLElement>(null);
+  const articleRef = useRef<HTMLElement>(null);
   const paragraphs = STORY_PAGES[pageIndex % STORY_PAGES.length];
-  const totalPages = SAMPLE_TOTAL_PAGES;
+  const parts: StoryParagraph[] = paragraphs.map((text) =>
+    text.split(/(\p{L}+)/u).map((text) => ({
+      text,
+      isToken: Boolean(LEXICON[text.toLowerCase()]),
+      lemmaUuid: LEXICON[text.toLowerCase()]?.card.uuid ?? null,
+      state: LEXICON[text.toLowerCase()]?.state ?? 'mastered',
+    })),
+  );
+  const readerWords = getReaderWords(parts);
+  const vocabulary = getPageVocabulary(readerWords);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: 0 });
+    articleRef.current?.closest('main')?.scrollTo({ top: 0 });
   }, [pageIndex]);
-
-  const toggleChatbot = () => {
-    setChatbotOpen((open) => !open);
-    onAskFlyt?.();
+  const closeLookup = () => {
+    setSelectedWord(undefined);
+    setWordListOpen(false);
+  };
+  const selectWord = (word: ReaderWord) => {
+    if (!wordListOpen && document.activeElement instanceof HTMLElement)
+      returnFocusRef.current = document.activeElement;
+    setSelectedWord(word);
+  };
+  const changePage = (page: number) => {
+    closeLookup();
+    setPageIndex(page - 1);
+    articleRef.current?.focus({ preventScroll: true });
   };
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
-      <SampleReaderHeader chatbotOpen={chatbotOpen} onAskFlyt={toggleChatbot} />
-
-      <div
-        className={cn(
-          'grid min-h-0 flex-1 items-stretch transition-[grid-template-columns] duration-300',
-          chatbotOpen
-            ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_28rem]'
-            : 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_0rem]',
-        )}
+    <div className="flex h-dvh flex-col overflow-hidden bg-neutral text-default">
+      <StoryReaderLayout
+        title="Dracula"
+        page={pageIndex + 1}
+        totalPages={SAMPLE_TOTAL_PAGES}
+        finished={finished}
+        rail={
+          !finished && (
+            <ReaderDefinitionPanel
+              words={vocabulary}
+              selectedWord={selectedWord}
+              onSelect={selectWord}
+              onClose={closeLookup}
+            />
+          )
+        }
+        footer={
+          !finished && (
+            <ReaderPagination
+              requestedPage={pageIndex + 1}
+              settledPage={pageIndex + 1}
+              totalPages={SAMPLE_TOTAL_PAGES}
+              onPageChange={changePage}
+              onFinish={() => setFinished(true)}
+            />
+          )
+        }
       >
-        <div className="flex min-h-0 min-w-0">
-          <main
-            ref={scrollRef}
-            data-testid="reader-scroll"
-            className="relative z-10 min-h-0 min-w-0 flex-1 overflow-y-auto"
-          >
-            <div className="mx-auto w-full max-w-[46rem] px-6 pb-16 pt-10">
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="type-caption text-muted-foreground">
-                    Gotisk roman
-                  </span>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      'type-caption-sm font-semibold',
-                      getCefrBadgeClassName('B1'),
-                    )}
-                  >
-                    B1
-                  </Badge>
-                  <span aria-hidden="true" className="text-secondary-40">
-                    &middot;
-                  </span>
-                  <span className="type-caption text-muted-foreground">
-                    {countWords(paragraphs)} ord på denne siden
-                  </span>
-                </div>
-                <h1 className="type-hero font-display">Dracula</h1>
-              </div>
-
-              <div className="mt-8 space-y-4 type-section leading-9 text-foreground">
-                {paragraphs.map((text, paragraphIndex) => (
-                  <ProseParagraph
-                    key={`page-${pageIndex}-paragraph-${paragraphIndex}`}
-                    text={text}
-                    paragraphIndex={paragraphIndex}
-                    openWord={anchor?.word ?? null}
-                    onOpenWord={setAnchor}
-                  />
-                ))}
-              </div>
-
-              <StoryWordStateLegend className="mt-8 border-t border-border pt-4" />
-
-              <ReaderPagination
-                requestedPage={pageIndex + 1}
-                settledPage={pageIndex + 1}
-                totalPages={totalPages}
-                onPageChange={(page) => setPageIndex(page - 1)}
-              />
-            </div>
-          </main>
-          <ReaderDefinitionRail anchor={anchor} />
-        </div>
-
-        <aside
-          id="sample-flyt-chatbot"
-          aria-label="Ask Flyt chatbot"
-          className={cn(
-            'min-h-0 min-w-0 overflow-hidden bg-card',
-            chatbotOpen
-              ? 'fixed inset-0 z-50 flex lg:static lg:border-l lg:border-border/70'
-              : 'hidden lg:block',
-          )}
-          inert={!chatbotOpen}
+        <article
+          ref={articleRef}
+          tabIndex={-1}
+          className="mx-auto w-full max-w-prose space-y-5 outline-none"
         >
-          <FlytChatbotPanel
-            surface="pane"
-            context={{
-              kind: 'reading',
-              label: 'Dracula',
-              detail: `Page ${pageIndex + 1} of ${totalPages}`,
-            }}
-            messages={[
-              {
-                id: 'reader-question',
-                role: 'user',
-                content: 'Hvorfor er stemningen så urolig her?',
-              },
-              {
-                id: 'reader-answer',
-                role: 'chatbot',
-                content:
-                  'Mørket, ulvene og den stille kusken gjør reisen utrygg. Fortelleren prøver å være rasjonell, men detaljene viser at han er redd.',
-              },
-            ]}
-            followUpPrompts={[
-              'Forklar avsnittet enklere',
-              'Hvilke ord skaper spenning?',
-            ]}
-            onClose={() => setChatbotOpen(false)}
-            onSend={() => {}}
-          />
-        </aside>
-      </div>
+          {finished ? (
+            <StoryEndSection
+              story={{
+                title: 'Dracula',
+                cefrLevel: 'B2',
+                groupKey: 'gothic',
+                groupTitle: 'Gotisk roman',
+                totalPages: SAMPLE_TOTAL_PAGES,
+                readingMinutes: 12,
+              }}
+              recommendations={[]}
+              lookups={[]}
+              continuation={{ kind: 'none' }}
+              otherThemes={[]}
+              onLookup={() => {}}
+              onAddWords={async () => ({ added: [], failed: [] })}
+            />
+          ) : (
+            <>
+              <div className="sr-only space-y-2 lg:not-sr-only">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Text as="span" size="medium" tone="subtle">
+                    Gotisk roman
+                  </Text>
+                  <Badge tone={getCefrBadgeTone('B1')}>B1</Badge>
+                </div>
+                <Heading as="h1" size="xlarge">
+                  Dracula
+                </Heading>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <StoryWordStateLegend
+                  counts={{
+                    new: vocabulary.filter((word) => word.state === 'new')
+                      .length,
+                    learning: vocabulary.filter(
+                      (word) => word.state === 'learning',
+                    ).length,
+                  }}
+                />
+                <div className="lg:hidden">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-haspopup="dialog"
+                    onClick={() => {
+                      if (document.activeElement instanceof HTMLElement)
+                        returnFocusRef.current = document.activeElement;
+                      setWordListOpen(true);
+                    }}
+                  >
+                    Word list
+                  </Button>
+                </div>
+              </div>
+              <Text as="div" size="fluid" lang="nb">
+                <div className="space-y-5">
+                  {parts.map((paragraph, paragraphIndex) => (
+                    <StoryParagraphView
+                      key={paragraphIndex}
+                      paragraph={paragraph}
+                      paragraphIndex={paragraphIndex}
+                      currentWordKey={selectedWord?.key}
+                      onOpenLemma={(_uuid, _text, key) => {
+                        const word = readerWords.find(
+                          (word) => word.key === key,
+                        );
+                        if (word) selectWord(word);
+                      }}
+                    />
+                  ))}
+                </div>
+              </Text>
+            </>
+          )}
+        </article>
+      </StoryReaderLayout>
+      <ReaderLookupSheet
+        open={wordListOpen || selectedWord !== undefined}
+        title={selectedWord?.text ?? 'Words on this page'}
+        onClose={closeLookup}
+        returnFocusRef={returnFocusRef}
+      >
+        {selectedWord ? (
+          <ReaderWordLookup word={selectedWord} onClose={closeLookup} />
+        ) : (
+          <ReaderWordList words={vocabulary} onSelect={selectWord} />
+        )}
+      </ReaderLookupSheet>
     </div>
   );
 }
@@ -291,11 +251,10 @@ async function expectPageAnnounced(
 ) {
   await waitFor(() =>
     expect(
-      canvas.getByText(`Page ${page} of ${SAMPLE_TOTAL_PAGES}`),
-    ).toBeInTheDocument(),
+      canvas.getByRole('status', { name: 'Current story page' }),
+    ).toHaveTextContent(`Page ${page} of ${SAMPLE_TOTAL_PAGES}`),
   );
 }
-
 function getScroller(canvasElement: HTMLElement): HTMLElement {
   const scroller = canvasElement.querySelector<HTMLElement>(
     '[data-testid="reader-scroll"]',
@@ -303,24 +262,23 @@ function getScroller(canvasElement: HTMLElement): HTMLElement {
   if (!scroller) throw new Error('Reader scroll container not found');
   return scroller;
 }
-
 function scrollWordIntoReading(canvasElement: HTMLElement, word: string) {
   const scroller = getScroller(canvasElement);
-  const target = canvasElement.querySelector<HTMLButtonElement>(
-    `[data-word="${word}"]`,
+  const target = Array.from(scroller.querySelectorAll('button')).find(
+    (button) => button.textContent?.toLowerCase() === word,
   );
   if (!target) throw new Error(`No interactive word "${word}" on this page`);
   scroller.scrollTop = Math.max(0, target.offsetTop - SCROLL_LEAD);
   return { scroller, target };
 }
-
 function expectNoHorizontalOverflow(canvasElement: HTMLElement) {
-  const root = canvasElement.firstElementChild as HTMLElement;
+  const root = canvasElement.firstElementChild;
+  if (!(root instanceof HTMLElement)) throw new Error('Reader root not found');
   expect(root.scrollWidth).toBeLessThanOrEqual(root.clientWidth);
 }
 
 const meta = {
-  title: 'Reading/Reader pagination',
+  title: 'Features/Reading/Reader pagination',
   component: SampleReader,
   tags: ['autodocs'],
   parameters: {
@@ -350,32 +308,30 @@ const meta = {
       },
     },
   },
-  args: { onAskFlyt: fn() },
+  decorators: [
+    (Story) => (
+      <ReaderProviders>
+        <Story />
+      </ReaderProviders>
+    ),
+  ],
 } satisfies Meta<typeof SampleReader>;
-
 export default meta;
-
 type Story = StoryObj<typeof meta>;
-
 export const PaginatedReader: Story = {
   globals: { viewport: { value: 'desktop1440' } },
 };
-
 export const DefinitionOpenAfterScroll: Story = {
   globals: { viewport: { value: 'desktop1440' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const { scroller, target } = scrollWordIntoReading(canvasElement, 'ulvene');
     const scrollBefore = scroller.scrollTop;
-
     await userEvent.click(target);
-
-    const panel = await canvas.findByTestId('definition-panel');
-    await expect(panel).toBeVisible();
+    await expect(await canvas.findByTestId('definition-panel')).toBeVisible();
     await expect(scroller.scrollTop).toBe(scrollBefore);
   },
 };
-
 export const DefinitionRailAndPaginationFlow: Story = {
   globals: { viewport: { value: 'desktop1440' } },
   play: async ({ canvasElement }) => {
@@ -383,102 +339,93 @@ export const DefinitionRailAndPaginationFlow: Story = {
     const { scroller, target } = scrollWordIntoReading(canvasElement, 'ulvene');
     const scrollBefore = scroller.scrollTop;
     await expect(scrollBefore).toBeGreaterThan(0);
-
     await userEvent.click(target);
-    const panel = await canvas.findByTestId('definition-panel');
-    await expect(panel).toBeVisible();
+    await expect(await canvas.findByTestId('definition-panel')).toBeVisible();
     await expect(scroller.scrollTop).toBe(scrollBefore);
-    expectNoHorizontalOverflow(canvasElement);
-
     await userEvent.click(canvas.getByRole('button', { name: 'Next page' }));
     await expectPageAnnounced(canvas, 2);
     await waitFor(() => expect(scroller.scrollTop).toBe(0));
-    await waitFor(() => expectNoHorizontalOverflow(canvasElement));
+    await expect(
+      canvas.queryByTestId('definition-panel'),
+    ).not.toBeInTheDocument();
+    expectNoHorizontalOverflow(canvasElement);
   },
 };
-
 export const NumberPaginationFlow: Story = {
+  name: 'Sequential pagination flow',
   globals: { viewport: { value: 'desktop1440' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-
-    await userEvent.click(canvas.getByRole('button', { name: 'Page 5' }));
-    await expectPageAnnounced(canvas, 5);
     await expect(
-      canvas.getByRole('button', { name: 'Page 5' }),
-    ).toHaveAttribute('aria-current', 'page');
-    await expect(canvas.getByRole('button', { name: 'Page 6' })).toBeVisible();
-
+      canvas.queryByRole('button', { name: 'Previous page' }),
+    ).not.toBeInTheDocument();
+    for (let page = 2; page <= SAMPLE_TOTAL_PAGES; page++) {
+      await userEvent.click(canvas.getByRole('button', { name: 'Next page' }));
+      await expectPageAnnounced(canvas, page);
+    }
     await userEvent.click(
-      canvas.getByRole('button', { name: 'Jump forward 3 pages' }),
+      canvas.getByRole('button', { name: 'Previous page' }),
     );
-    await expectPageAnnounced(canvas, 8);
-
-    await userEvent.click(canvas.getByRole('button', { name: 'Last page' }));
-    await expectPageAnnounced(canvas, 12);
+    await expectPageAnnounced(canvas, SAMPLE_TOTAL_PAGES - 1);
+    await userEvent.click(canvas.getByRole('button', { name: 'Next page' }));
+    await userEvent.click(canvas.getByRole('button', { name: 'Finish story' }));
     await expect(
-      canvas.getByRole('button', { name: 'Last page' }),
-    ).toBeDisabled();
-
-    await userEvent.click(canvas.getByRole('button', { name: 'First page' }));
-    await expectPageAnnounced(canvas, 1);
+      canvas.getByRole('heading', { name: 'Story finished' }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole('navigation', { name: 'Story pages' }),
+    ).not.toBeInTheDocument();
   },
 };
-
 export const AskFlytOpen: Story = {
   globals: { viewport: { value: 'desktop1440' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const trigger = canvas.getByRole('button', { name: 'Ask Flyt' });
     await userEvent.click(trigger);
-
     await expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    await expect(
-      canvas.getByRole('complementary', { name: 'Ask Flyt chatbot' }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('complementary', { name: 'Ask Flyt chatbot' }),
+      ).toBeVisible(),
+    );
     await expect(
       canvas.getByText(/Mørket, ulvene og den stille kusken/),
     ).toBeVisible();
-    await waitFor(() => expectNoHorizontalOverflow(canvasElement));
+    expectNoHorizontalOverflow(canvasElement);
   },
 };
-
 export const MobilePagination: Story = {
   globals: { viewport: { value: 'mobile390' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const scroller = getScroller(canvasElement);
     scroller.scrollTop = scroller.scrollHeight;
-
-    await expect(
-      canvas.getByRole('button', { name: 'First page' }),
-    ).toBeVisible();
     await expect(
       canvas.getByRole('button', { name: 'Next page' }),
     ).toBeVisible();
-    await expect(canvas.getByRole('button', { name: 'Page 12' })).toBeVisible();
-    await userEvent.click(canvas.getByRole('button', { name: 'Page 5' }));
-    await expectPageAnnounced(canvas, 5);
+    await expect(
+      canvas.queryByRole('button', { name: 'Previous page' }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button', { name: 'Next page' }));
+    await expectPageAnnounced(canvas, 2);
     expectNoHorizontalOverflow(canvasElement);
   },
 };
-
 export const MobileAskFlytOpen: Story = {
   globals: { viewport: { value: 'mobile390' } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole('button', { name: 'Ask Flyt' }));
-
-    const panel = canvas.getByRole('complementary', {
-      name: 'Ask Flyt chatbot',
-    });
-    await expect(panel).toBeVisible();
+  play: async () => {
+    const body = within(document.body);
+    await userEvent.click(body.getByRole('button', { name: 'Ask Flyt' }));
+    const panel = window.matchMedia('(min-width: 1024px)').matches
+      ? body.getByRole('complementary', { name: 'Ask Flyt chatbot' })
+      : body.getByRole('dialog', { name: 'Ask Flyt' });
+    await waitFor(() => expect(panel).toBeVisible());
     await expect(
-      canvas.getByRole('button', { name: 'Close chatbot' }),
+      body.getByRole('button', { name: 'Close chatbot' }),
     ).toBeVisible();
   },
 };
-
 export const NarrowDesktop1024: Story = {
   globals: { viewport: { value: 'desktop1024' } },
   play: async ({ canvasElement }) => {
@@ -489,26 +436,24 @@ export const NarrowDesktop1024: Story = {
     expectNoHorizontalOverflow(canvasElement);
   },
 };
-
 export const Desktop1280: Story = {
   globals: { viewport: { value: 'desktop1280' } },
   play: async ({ canvasElement }) => {
     expectNoHorizontalOverflow(canvasElement);
   },
 };
-
 export const NarrowDesktopWithAskFlyt: Story = {
   globals: { viewport: { value: 'desktop1024' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole('button', { name: 'Ask Flyt' }));
-
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('complementary', { name: 'Ask Flyt chatbot' }),
+      ).toBeVisible(),
+    );
     await expect(
-      canvas.getByRole('complementary', { name: 'Ask Flyt chatbot' }),
-    ).toBeVisible();
-    await expect(canvas.getByRole('button', { name: 'Page 1' })).toBeVisible();
-    await expect(
-      canvas.getByRole('button', { name: 'Last page' }),
+      canvas.getByRole('button', { name: 'Next page' }),
     ).toBeVisible();
     await waitFor(() => expectNoHorizontalOverflow(canvasElement));
   },

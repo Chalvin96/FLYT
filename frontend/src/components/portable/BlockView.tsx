@@ -1,3 +1,5 @@
+import { Text } from '@flyt/ui';
+
 import { assertNever } from '@/lib/assertNever';
 import { cn } from '@/lib/utils';
 import type { AudioAsset, Block, Lang } from '@/types/lesson-contracts';
@@ -26,38 +28,46 @@ export function BlockView({
     case 'heading': {
       const Tag = block.level === 3 ? 'h3' : 'h4';
       return (
-        <Tag className="mt-2 type-section font-semibold text-foreground first:mt-0">
-          <SpanView spans={block.spans} />
-        </Tag>
+        <div className="mt-2 first:mt-0">
+          <Text as={Tag} size="lg" weight="semibold" tone="default">
+            <SpanView spans={block.spans} />
+          </Text>
+        </div>
       );
     }
     case 'paragraph':
       return (
-        <p className="type-caption leading-6 text-foreground sm:type-body">
+        <Text size="medium" smSize="large" tone="default">
           <SpanView spans={block.spans} />
-        </p>
+        </Text>
       );
     case 'list': {
       const Tag = block.ordered ? 'ol' : 'ul';
       return (
         <Tag
           className={cn(
-            'space-y-2 pl-5 type-caption leading-6',
+            'space-y-2 pl-5',
             block.ordered ? 'list-decimal' : 'list-disc',
           )}
         >
           {block.items.map((item, itemIndex) => (
-            <li key={`${itemIndex}-${JSON.stringify(item)}`}>
+            <Text
+              as="li"
+              size="medium"
+              key={`${itemIndex}-${JSON.stringify(item)}`}
+            >
               <SpanView spans={item} />
-            </li>
+            </Text>
           ))}
         </Tag>
       );
     }
     case 'rule':
       return (
-        <div className="rounded-field border-l-4 border-primary-70 bg-primary-5 p-3 type-caption leading-6">
-          <SpanView spans={block.statement} />
+        <div className="radius-field border-l-4 border-selected bg-brand-subtle p-3">
+          <Text as="div" size="medium">
+            <SpanView spans={block.statement} />
+          </Text>
         </div>
       );
     case 'example':
@@ -71,9 +81,9 @@ export function BlockView({
       );
     case 'table':
       return (
-        <div className="overflow-x-auto radius-field border border-border">
-          <table className="w-full border-collapse text-left type-caption">
-            <thead className="bg-secondary-10">
+        <div className="overflow-x-auto radius-field border border-default">
+          <table className="w-full border-collapse text-left">
+            <thead className="bg-neutral-subtle">
               <tr>
                 {block.headers.map((header, columnIndex) => {
                   const lang = columnLang(block, columnIndex);
@@ -82,11 +92,13 @@ export function BlockView({
                       key={`${columnIndex}-${lang ?? 'unset'}-${JSON.stringify(header)}`}
                       lang={lang}
                       className={cn(
-                        'border-b border-border px-3 py-2 font-semibold',
+                        'border-b border-default px-3 py-2',
                         lang === 'no' && 'col-target',
                       )}
                     >
-                      <SpanView spans={header} />
+                      <Text as="div" size="medium" weight="semibold">
+                        <SpanView spans={header} />
+                      </Text>
                     </th>
                   );
                 })}
@@ -102,11 +114,17 @@ export function BlockView({
                         key={`${columnIndex}-${lang ?? 'unset'}-${JSON.stringify(cell)}`}
                         lang={lang}
                         className={cn(
-                          'border-t border-border px-3 py-2',
-                          lang === 'no' && 'col-target font-medium',
+                          'border-t border-default px-3 py-2',
+                          lang === 'no' && 'col-target',
                         )}
                       >
-                        <SpanView spans={cell} />
+                        <Text
+                          as="div"
+                          size="medium"
+                          weight={lang === 'no' ? 'semibold' : undefined}
+                        >
+                          <SpanView spans={cell} />
+                        </Text>
                       </td>
                     );
                   })}
@@ -127,10 +145,10 @@ export function BlockView({
       return (
         <aside
           className={cn(
-            'space-y-3 rounded-field border p-3',
+            'space-y-3 radius-field border p-3',
             block.level === 'warning'
-              ? 'border-warning-50 bg-warning-10'
-              : 'border-primary-20 bg-primary-10',
+              ? 'border-warning bg-warning-subtle'
+              : 'border-brand-subtle bg-brand-subtle',
           )}
         >
           {block.blocks.map((child) => (

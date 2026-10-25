@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '../lib/api';
 import {
-  LEMMA_CONTEXT_MAX_SENTENCE_LENGTH,
+  TRANSLATE_MAX_TEXT_LENGTH,
   MSG_KIND,
   MSG_RESULT_KIND,
   type Msg,
@@ -67,9 +67,26 @@ function dispatch(msg: unknown): Promise<MsgResult> {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sendTabCommand.mockResolvedValue({ delivered: true });
 });
 
+afterEach(() => vi.restoreAllMocks());
+
 describe('message router', () => {
+  it('test_router_given_revoked_api_permission_expect_permission_error_without_cookie_or_api_call', async () => {
+    vi.spyOn(chrome.permissions, 'contains').mockImplementation(
+      async () => false,
+    );
+
+    await expect(
+      dispatch({ kind: MSG_KIND.RESOLVE, word: 'sjø' }),
+    ).resolves.toEqual({ ok: false, error: 'permission' });
+
+    expect(chrome.cookies.get).not.toHaveBeenCalled();
+    expect(api.resolveWord).not.toHaveBeenCalled();
+    expect(chrome.permissions.request).not.toHaveBeenCalled();
+  });
+
   it('test_router_given_resolve_expect_resolve_result', async () => {
     api.resolveWord.mockResolvedValue({ query: 'sjø', candidates: [] });
 
@@ -180,7 +197,7 @@ describe('message router', () => {
   });
 
   it('test_router_given_max_code_points_ending_in_emoji_expect_translation', async () => {
-    const text = 'a'.repeat(LEMMA_CONTEXT_MAX_SENTENCE_LENGTH - 1) + '😀';
+    const text = 'a'.repeat(TRANSLATE_MAX_TEXT_LENGTH - 1) + '😀';
     const data = {
       source_text: text,
       translated_text: 'Translation',
@@ -267,8 +284,148 @@ describe('message router', () => {
 });
 
 describe('context menu', () => {
-  it('test_context_menu_given_word_selection_expect_show_for_command', () => {
-    onMenuClick(
+  it('test_context_menu_given_over_limit_selection_expect_untruncated_translation_command', async () => {
+    const text = 'Dette er norsk. '.repeat(130).trimEnd();
+
+    await onMenuClick(
+      {
+        menuItemId: 'flyt-translate',
+        selectionText: '  ' + text + '  ',
+      } as chrome.contextMenus.OnClickData,
+      { id: 7 } as chrome.tabs.Tab,
+    );
+
+    expect(sendTabCommand).toHaveBeenCalledWith(7, {
+      kind: 'showTranslation',
+      text,
+    });
+  });
+
+  it('test_toolbar_given_missing_receiver_and_revoked_site_access_expect_options_page', async () => {
+    sendTabCommand.mockResolvedValue({ delivered: false });
+    vi.spyOn(chrome.permissions, 'contains').mockImplementation(
+      async ({ origins }) => !origins?.includes('<all_urls>'),
+    );
+
+    await onActionClick({ id: 9 } as chrome.tabs.Tab);
+
+    expect(chrome.permissions.contains).toHaveBeenCalledWith({
+      origins: ['<all_urls>'],
+    });
+    expect(chrome.runtime.openOptionsPage).toHaveBeenCalledOnce();
+    expect(openLogin).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { menuItemId: 'flyt-translate', selectionText: 'ord' },
+    { menuItemId: 'flyt-translate', selectionText: 'Jeg leser en bok.' },
+    { menuItemId: 'flyt-import-page' },
+  ])(
+    'test_context_menu_given_missing_receiver_and_revoked_site_access_expect_options_page',
+    async (info) => {
+      sendTabCommand.mockResolvedValue({ delivered: false });
+      vi.spyOn(chrome.permissions, 'contains').mockImplementation(
+        async ({ origins }) => !origins?.includes('<all_urls>'),
+      );
+
+      await onMenuClick(
+        info as chrome.contextMenus.OnClickData,
+        { id: 7 } as chrome.tabs.Tab,
+      );
+
+      expect(chrome.runtime.openOptionsPage).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('test_toolbar_given_restricted_page_and_granted_site_access_expect_no_options_page', async () => {
+    sendTabCommand.mockResolvedValue({ delivered: false });
+
+    await onActionClick({ id: 9 } as chrome.tabs.Tab);
+
+    expect(chrome.permissions.contains).toHaveBeenCalledWith({
+      origins: ['<all_urls>'],
+    });
+    expect(chrome.runtime.openOptionsPage).not.toHaveBeenCalled();
+  });
+
+  it('test_toolbar_given_delivered_command_expect_no_site_access_check', async () => {
+    await onActionClick({ id: 9 } as chrome.tabs.Tab);
+
+    expect(chrome.permissions.contains).not.toHaveBeenCalledWith({
+      origins: ['<all_urls>'],
+    });
+    expect(chrome.runtime.openOptionsPage).not.toHaveBeenCalled();
+  });
+
+  it('test_toolbar_given_newly_granted_permission_expect_no_import_command', async () => {
+    vi.spyOn(chrome.permissions, 'contains').mockImplementation(
+      async () => false,
+    );
+
+    const result = onActionClick({ id: 9 } as chrome.tabs.Tab);
+
+    expect(chrome.permissions.request).toHaveBeenCalledWith({
+      origins: ['http://localhost:8000/*'],
+    });
+    await result;
+    expect(sendTabCommand).not.toHaveBeenCalled();
+    expect(chrome.permissions.contains).toHaveBeenCalledBefore(
+      vi.mocked(chrome.permissions.request),
+    );
+  });
+
+  it('test_toolbar_given_permission_check_failure_expect_grant_without_import_command', async () => {
+    vi.spyOn(chrome.permissions, 'contains').mockImplementation(async () => {
+      throw new Error('Permission check failed');
+    });
+
+    await onActionClick({ id: 9 } as chrome.tabs.Tab);
+
+    expect(chrome.permissions.request).toHaveBeenCalled();
+    expect(sendTabCommand).not.toHaveBeenCalled();
+  });
+
+  it('test_toolbar_given_click_expect_permission_request_before_async_work', async () => {
+    const result = onActionClick({ id: 9 } as chrome.tabs.Tab);
+
+    expect(chrome.permissions.request).toHaveBeenCalledWith({
+      origins: ['http://localhost:8000/*'],
+    });
+    await result;
+    expect(sendTabCommand).toHaveBeenCalledWith(9, { kind: 'runImport' });
+  });
+
+  it('test_toolbar_given_permission_denied_expect_no_content_command_or_login', async () => {
+    vi.spyOn(chrome.permissions, 'request').mockImplementation(
+      async () => false,
+    );
+
+    await onActionClick({ id: 9 } as chrome.tabs.Tab);
+
+    expect(sendTabCommand).not.toHaveBeenCalled();
+    expect(openLogin).not.toHaveBeenCalled();
+  });
+
+  it('test_context_menu_given_permission_request_failure_expect_no_content_command_or_login', async () => {
+    vi.spyOn(chrome.permissions, 'request').mockImplementation(async () => {
+      throw new Error('Permission request failed');
+    });
+
+    await onMenuClick(
+      { menuItemId: 'flyt-import-page' } as chrome.contextMenus.OnClickData,
+      { id: 7 } as chrome.tabs.Tab,
+    );
+
+    expect(sendTabCommand).not.toHaveBeenCalled();
+    expect(openLogin).not.toHaveBeenCalled();
+  });
+
+  it('test_context_menu_given_newly_granted_permission_and_word_selection_expect_show_for_command', async () => {
+    vi.spyOn(chrome.permissions, 'contains').mockImplementation(
+      async () => false,
+    );
+
+    await onMenuClick(
       {
         menuItemId: 'flyt-translate',
         selectionText: '  «sjømat,»  ',
@@ -282,23 +439,30 @@ describe('context menu', () => {
     });
   });
 
-  it('test_context_menu_given_single_letter_expect_show_for_command', () => {
-    onMenuClick(
-      {
-        menuItemId: 'flyt-translate',
-        selectionText: 'å',
-      } as chrome.contextMenus.OnClickData,
-      { id: 7 } as chrome.tabs.Tab,
+  it.each(['a', 'å', '😀', '1234', '!!! ???'])(
+    'test_context_menu_given_untranslatable_selection_expect_show_translation_command',
+    async (text) => {
+      await onMenuClick(
+        {
+          menuItemId: 'flyt-translate',
+          selectionText: text,
+        } as chrome.contextMenus.OnClickData,
+        { id: 7 } as chrome.tabs.Tab,
+      );
+
+      expect(sendTabCommand).toHaveBeenCalledWith(7, {
+        kind: 'showTranslation',
+        text,
+      });
+    },
+  );
+
+  it('test_context_menu_given_newly_granted_permission_and_sentence_expect_show_translation_command', async () => {
+    vi.spyOn(chrome.permissions, 'contains').mockImplementation(
+      async () => false,
     );
 
-    expect(sendTabCommand).toHaveBeenCalledWith(7, {
-      kind: 'showFor',
-      word: 'å',
-    });
-  });
-
-  it('test_context_menu_given_sentence_expect_show_translation_command', () => {
-    onMenuClick(
+    await onMenuClick(
       {
         menuItemId: 'flyt-translate',
         selectionText: '  Jeg leser en bok.  ',
@@ -312,8 +476,8 @@ describe('context menu', () => {
     });
   });
 
-  it('test_context_menu_given_import_item_expect_run_import_command', () => {
-    onMenuClick(
+  it('test_context_menu_given_import_item_expect_run_import_command', async () => {
+    await onMenuClick(
       { menuItemId: 'flyt-import-page' } as chrome.contextMenus.OnClickData,
       { id: 7 } as chrome.tabs.Tab,
     );
@@ -321,8 +485,8 @@ describe('context menu', () => {
     expect(sendTabCommand).toHaveBeenCalledWith(7, { kind: 'runImport' });
   });
 
-  it('test_context_menu_given_punctuation_only_expect_no_command', () => {
-    onMenuClick(
+  it('test_context_menu_given_punctuation_only_expect_show_translation_command', async () => {
+    await onMenuClick(
       {
         menuItemId: 'flyt-translate',
         selectionText: '…?!',
@@ -330,17 +494,20 @@ describe('context menu', () => {
       { id: 7 } as chrome.tabs.Tab,
     );
 
-    expect(sendTabCommand).not.toHaveBeenCalled();
+    expect(sendTabCommand).toHaveBeenCalledWith(7, {
+      kind: 'showTranslation',
+      text: '…?!',
+    });
   });
 
-  it('test_toolbar_given_supported_tab_expect_run_import_command', () => {
-    onActionClick({ id: 9 } as chrome.tabs.Tab);
+  it('test_toolbar_given_supported_tab_expect_run_import_command', async () => {
+    await onActionClick({ id: 9 } as chrome.tabs.Tab);
 
     expect(sendTabCommand).toHaveBeenCalledWith(9, { kind: 'runImport' });
   });
 
-  it('test_context_menu_given_no_tab_id_expect_no_command', () => {
-    onMenuClick(
+  it('test_context_menu_given_no_tab_id_expect_no_command', async () => {
+    await onMenuClick(
       { menuItemId: 'flyt-import-page' } as chrome.contextMenus.OnClickData,
       undefined,
     );

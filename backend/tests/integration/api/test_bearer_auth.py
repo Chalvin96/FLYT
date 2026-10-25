@@ -27,7 +27,7 @@ async def test_get_current_user_given_valid_bearer_token_expect_authenticated(
 ) -> None:
     user = await UserFactory.create()
     lemma = await LemmaFactory.create()
-    token = AuthService().create_access_token(data={"sub": str(user.uuid)})
+    token = AuthService().create_access_token(user=user)
 
     response = await client.post(
         f"/lexicons/lemmas/{lemma.uuid}/mark-known",
@@ -51,7 +51,7 @@ async def test_get_current_user_given_lowercase_bearer_prefix_expect_authenticat
 ) -> None:
     user = await UserFactory.create()
     lemma = await LemmaFactory.create()
-    token = AuthService().create_access_token(data={"sub": str(user.uuid)})
+    token = AuthService().create_access_token(user=user)
 
     response = await client.post(
         f"/lexicons/lemmas/{lemma.uuid}/mark-known",
@@ -147,7 +147,7 @@ async def test_get_current_user_given_bearer_and_cookie_expect_bearer_precedence
     """When both bearer and cookie are present, bearer wins."""
     bearer_user = await UserFactory.create()
     lemma = await LemmaFactory.create()
-    token = AuthService().create_access_token(data={"sub": str(bearer_user.uuid)})
+    token = AuthService().create_access_token(user=bearer_user)
 
     # Set a cookie for a different user but send bearer for bearer_user.
     cookie_user = await UserFactory.create()

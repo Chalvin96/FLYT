@@ -1,9 +1,11 @@
+import { Button, Chip, Heading, Text } from '@flyt/ui';
+import type { ClosedProps } from '@flyt/ui';
+import { cn } from '@flyt/ui/lib/utils';
 import { useState } from 'react';
-import { Button } from '@flyt/ui';
 
 import { DefinitionView } from './DefinitionView';
 import { LemmaActionRow, type LemmaActionRowProps } from './LemmaActionRow';
-import { LemmaHeader } from './LemmaHeader';
+import { LemmaHeader, type LemmaHeadingTypography } from './LemmaHeader';
 import type {
   LemmaActionState,
   LemmaCardData,
@@ -12,17 +14,27 @@ import type {
 
 const SENSE_LIMIT = 3;
 
-export interface LemmaCardViewProps extends Pick<
-  LemmaActionRowProps,
-  'isSubmitting' | 'pendingAction' | 'behavior' | 'knowLabel' | 'addLabel'
-> {
+export type LemmaCardSurface = 'card' | 'plain';
+
+const LEMMA_CARD_SURFACE: Record<LemmaCardSurface, string> = {
+  card: 'radius-section border border-default bg-raised p-4',
+  plain: '',
+};
+
+export interface LemmaCardViewProps
+  extends
+    Pick<
+      LemmaActionRowProps,
+      'isSubmitting' | 'pendingAction' | 'behavior' | 'knowLabel' | 'addLabel'
+    >,
+    ClosedProps<'article'> {
   lemma: LemmaCardData;
   state: LemmaActionState;
   onMarkKnown: LemmaActionRowProps['onMarkKnown'];
   onAddToReview: LemmaActionRowProps['onAddToReview'];
   onSelectRelated?: (uuid: string, word: string) => void;
-  headingClassName?: string;
-  className?: string;
+  headingTypography?: LemmaHeadingTypography;
+  surface?: LemmaCardSurface;
 }
 
 function splitTranslation(value?: string | null) {
@@ -42,12 +54,18 @@ export function LemmaCardView({
   onMarkKnown,
   onAddToReview,
   onSelectRelated,
-  headingClassName,
-  className,
-  ...actionProps
+  headingTypography,
+  surface,
+  isSubmitting,
+  pendingAction,
+  behavior,
+  knowLabel,
+  addLabel,
+  ...rootProps
 }: LemmaCardViewProps) {
   const [showAllSenses, setShowAllSenses] = useState(false);
   const translation = splitTranslation(lemma.primary_translation);
+  const surfaceClass = LEMMA_CARD_SURFACE[surface ?? 'card'];
   const visibleDefinitions = showAllSenses
     ? lemma.definitions
     : lemma.definitions.slice(0, SENSE_LIMIT);
@@ -56,9 +74,10 @@ export function LemmaCardView({
   return (
     <article
       data-testid="lemma-card-view"
-      className={
-        className ?? 'radius-section space-y-4 border border-border bg-card p-4'
-      }
+      data-state={state}
+      {...rootProps}
+      className={cn('space-y-4', surfaceClass)}
+      style={undefined}
     >
       <div className="space-y-2.5">
         <LemmaHeader
@@ -71,19 +90,19 @@ export function LemmaCardView({
           intonation={lemma.intonation ?? null}
           audioUrl={lemma.audio_url ?? null}
           headingAs="h3"
-          headingClassName={headingClassName}
+          headingTypography={headingTypography}
         />
         {translation && (
           <div className="space-y-0.5">
-            <p className="type-section font-bold text-foreground">
+            <Heading as="div" size="medium">
               {translation.primary}
-            </p>
+            </Heading>
             {translation.alternates.length > 0 && (
-              <p className="type-caption text-secondary-70">
+              <Text as="p" size="medium" tone="subtle">
                 {translation.alternates.join(
                   ' ' + String.fromCharCode(183) + ' ',
                 )}
-              </p>
+              </Text>
             )}
           </div>
         )}
@@ -91,38 +110,41 @@ export function LemmaCardView({
 
       {visibleDefinitions.length > 0 && (
         <>
-          <div className="h-px bg-border/70" />
+          <div className="h-px bg-neutral-pressed/70" />
           <div className="space-y-4">
             {visibleDefinitions.map((definition, index) => (
               <div key={definition.uuid} className="flex min-w-0 gap-3">
-                <span className="select-none pt-0.5 type-caption tabular-nums text-secondary-40">
-                  {index + 1}.
+                <span className="select-none pt-0.5 tabular-nums">
+                  <Text as="span" size="medium" tone="subtle">
+                    {index + 1}.
+                  </Text>
                 </span>
-                <DefinitionView
-                  definition={definition}
-                  variant="lexicon"
-                  collapsibleExamples
-                  className="min-w-0 flex-1 gap-2"
-                />
+                <div className="min-w-0 flex-1">
+                  <DefinitionView
+                    definition={definition}
+                    presentation="lexicon"
+                    spacing="compact"
+                    collapsibleExamples
+                  />
+                </div>
               </div>
             ))}
             {hiddenCount > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setShowAllSenses(true)}
-                aria-label={
-                  'Show ' +
-                  hiddenCount +
-                  ' more ' +
-                  (hiddenCount === 1 ? 'meaning' : 'meanings')
-                }
-                className="ml-7"
-              >
-                Show {hiddenCount} more{' '}
-                {hiddenCount === 1 ? 'meaning' : 'meanings'}
-              </Button>
+              <span className="ml-7 inline-flex">
+                <Chip
+                  variant="filter"
+                  onClick={() => setShowAllSenses(true)}
+                  aria-label={
+                    'Show ' +
+                    hiddenCount +
+                    ' more ' +
+                    (hiddenCount === 1 ? 'meaning' : 'meanings')
+                  }
+                >
+                  Show {hiddenCount} more{' '}
+                  {hiddenCount === 1 ? 'meaning' : 'meanings'}
+                </Chip>
+              </span>
             )}
           </div>
         </>
@@ -132,10 +154,14 @@ export function LemmaCardView({
         <RelatedRow entries={lemma.see_also} onSelect={onSelectRelated} />
       )}
 
-      <div className="border-t border-border pt-2">
+      <div className="border-t border-default pt-2">
         <LemmaActionRow
-          {...actionProps}
           state={state}
+          isSubmitting={isSubmitting}
+          pendingAction={pendingAction}
+          behavior={behavior}
+          knowLabel={knowLabel}
+          addLabel={addLabel}
           onMarkKnown={onMarkKnown}
           onAddToReview={onAddToReview}
         />
@@ -153,32 +179,34 @@ function RelatedRow({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1">
-      <span className="type-caption font-semibold text-secondary-70">
+      <Text as="span" size="medium" tone="subtle" weight="semibold">
         Related:
-      </span>
+      </Text>
       {entries.map((entry, index) => {
         const label = entry.relation === 'compare' ? 'Compare' : 'See';
         const text = label + ' ' + entry.word;
         const targetUuid = entry.target_lemma_uuid;
         if (targetUuid && onSelect) {
           return (
-            <button
+            <Button
               key={entry.article_id + '-' + index}
-              type="button"
               onClick={() => onSelect(targetUuid, entry.word)}
-              className="type-caption font-medium text-primary underline-offset-2 hover:underline"
+              type="button"
+              variant="link"
             >
               {text}
-            </button>
+            </Button>
           );
         }
         return (
-          <span
+          <Text
+            as="span"
             key={entry.article_id + '-' + index}
-            className="type-caption text-secondary-40"
+            size="medium"
+            tone="subtle"
           >
             {text}
-          </span>
+          </Text>
         );
       })}
     </div>

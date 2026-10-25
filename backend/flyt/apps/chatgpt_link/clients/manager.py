@@ -138,7 +138,6 @@ class ChatGPTAuthManager:
 
     @staticmethod
     def _refresh_token_or_none(refresh_token: Any) -> SecretStr | None:
-        """The parameter name must stay denylisted: a bare token here reaches Sentry."""
         if not isinstance(refresh_token, str) or not refresh_token:
             return None
         return SecretStr(refresh_token)
@@ -172,7 +171,6 @@ class ChatGPTAuthManager:
 
     @staticmethod
     def _approval_or_raise(payload: dict[str, Any]) -> DevicePollApproved:
-        """Wrap before anything can raise: a bare secret in a frame local reaches Sentry."""
         try:
             authorization_code = SecretStr(payload["authorization_code"])
             code_verifier = SecretStr(payload["code_verifier"])
@@ -188,7 +186,6 @@ class ChatGPTAuthManager:
 
     @classmethod
     def _credential_or_raise(cls, tokens: dict[str, Any]) -> ChatGPTCredential:
-        """Wrap before anything can raise: a bare token in a frame local reaches Sentry."""
         try:
             access_token = SecretStr(tokens["access_token"])
             refresh_token = SecretStr(tokens["refresh_token"])

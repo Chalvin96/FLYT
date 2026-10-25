@@ -1,31 +1,21 @@
-import { Check, X } from 'lucide-react';
+import { Text } from '@flyt/ui';
+import { Check, Minus } from 'lucide-react';
 import { useRef, useState } from 'react';
 
-import { Button } from '@/components/common/Button/Button';
 import { SpanView } from '@/components/portable/SpanView';
-import { useCheckableExercise } from '@/hooks/flashcard/useCheckableExercise/useCheckableExercise';
-import { gradedOutcome } from '@/lib/operationResult';
-import { cn } from '@/lib/utils';
+import { useExerciseAttempt } from '@/hooks/flashcard/useExerciseAttempt/useExerciseAttempt';
 import type { Exercise } from '@/types/lesson-contracts';
 
-import { ExerciseModeProvider } from '../ExerciseModeProvider';
+import { AnswerOption } from '../AnswerOption/AnswerOption';
+import { resolveAnswerOptionState } from '../AnswerOption/answerOptionState';
 import { OperationShell, stimulusSentenceClassName } from '../OperationShell';
 import type { OperationComponentProps } from '../operationTypes';
 
 type ChooseExercise = Extract<Exercise, { operation: 'choose' }>;
 
-export function FlashCardChoose(
-  props: OperationComponentProps<ChooseExercise>,
-) {
-  return (
-    <ExerciseModeProvider allowRetry={false}>
-      <FlashCardChooseOneShot {...props} />
-    </ExerciseModeProvider>
-  );
-}
-
-function FlashCardChooseOneShot({
+export function FlashCardChoose({
   exercise,
+  allowRetry,
   onFinished,
   ...props
 }: OperationComponentProps<ChooseExercise>) {
@@ -33,23 +23,32 @@ function FlashCardChooseOneShot({
   const [selected, setSelected] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const { result, check: checkExercise } = useCheckableExercise();
+  const {
+    phase,
+    result,
+    dirty,
+    canReveal,
+    shakeKey,
+    reveal,
+    markDirty,
+    check: checkExercise,
+    finish,
+  } = useExerciseAttempt({ allowRetry, onFinished });
 
   function check() {
     checkExercise(selected === exercise.payload.answer_id);
   }
 
-  function handleContinue() {
-    if (result) {
-      onFinished?.(gradedOutcome(result));
-    }
-  }
-
   function selectIndex(nextIndex: number) {
     const normalizedIndex = (nextIndex + options.length) % options.length;
-    setActiveIndex(normalizedIndex);
-    setSelected(options[normalizedIndex]?.option_id ?? null);
+    selectOption(options[normalizedIndex]?.option_id ?? null, normalizedIndex);
     optionRefs.current[normalizedIndex]?.focus();
+  }
+
+  function selectOption(optionId: string | null, index: number) {
+    if (selected !== optionId) markDirty();
+    setActiveIndex(index);
+    setSelected(optionId);
   }
 
   function handleRadioKeyDown(
@@ -78,21 +77,36 @@ function FlashCardChooseOneShot({
   return (
     <OperationShell
       exercise={exercise}
-      result={result}
-      canCheck={selected !== null}
-      instruction="Pick the option that best completes the prompt."
+      canCheck={selected !== null && (phase !== 'wrong' || dirty)}
+      attempt={
+        allowRetry
+          ? {
+              kind: 'retry',
+              phase,
+              result,
+              shakeKey,
+              canReveal,
+              onReveal: () => reveal(0),
+            }
+          : { kind: 'single', result }
+      }
+      instruction="Pick the best option."
       onCheck={check}
-      onContinue={handleContinue}
+      onContinue={finish}
       {...props}
     >
       {exercise.payload.stem ? (
-        <p
-          id="choose-stem"
-          data-testid="choose-stem"
-          className={stimulusSentenceClassName}
-        >
-          <SpanView spans={exercise.payload.stem} />
-        </p>
+        <div className={stimulusSentenceClassName}>
+          <Text
+            as="p"
+            id="choose-stem"
+            data-testid="choose-stem"
+            size="fluid"
+            tone="default"
+          >
+            <SpanView spans={exercise.payload.stem} />
+          </Text>
+        </div>
       ) : null}
       <div
         role="radiogroup"
@@ -102,90 +116,37 @@ function FlashCardChooseOneShot({
       >
         {options.map((option, index) => {
           const checked = selected === option.option_id;
-          const isCorrect =
-            result && option.option_id === exercise.payload.answer_id;
-          const isWrong = result && checked && !isCorrect;
-          const isTabbable = !result && (checked || activeIndex === index);
+          const isAnswer = option.option_id === exercise.payload.answer_id;
+          const graded = Boolean(result);
+          const state = resolveAnswerOptionState({ checked, graded, isAnswer });
+          const isTabbable = !graded && (checked || activeIndex === index);
           const letterKey = String.fromCharCode('A'.charCodeAt(0) + index);
           return (
-            <Button
+            <AnswerOption
               key={option.option_id}
+              checked={checked}
+              detail={graded ? option.why : undefined}
+              disabled={graded}
+              label={option.text}
+              marker={
+                state === 'correct' ? (
+                  <Check aria-hidden="true" className="size-4" />
+                ) : state === 'incorrect' ? (
+                  <Minus aria-hidden="true" className="size-4" />
+                ) : (
+                  letterKey
+                )
+              }
+              onClick={() => {
+                selectOption(option.option_id, index);
+              }}
+              onKeyDown={(event) => handleRadioKeyDown(event, index)}
               ref={(element) => {
                 optionRefs.current[index] = element;
               }}
-              type="button"
-              role="radio"
-              aria-checked={checked}
-              data-checked={checked}
-              tabIndex={result ? -1 : isTabbable ? 0 : -1}
-              variant="outline"
-              disabled={Boolean(result)}
-              className={cn(
-                'radius-field shadow-tile type-body h-auto w-full justify-start whitespace-normal border-2 py-3 text-left',
-                // Keep revealed (correct/wrong) tones full-strength after Check.
-                // Button's base `disabled:opacity-50` would otherwise fade the
-                // locked options to ~50% and make them hard to read.
-                'disabled:opacity-100',
-                // Default (unchecked, pre-Check): clean tile.
-                !checked &&
-                  !isCorrect &&
-                  !isWrong &&
-                  'border-border bg-card text-foreground',
-                // Selected (pre-Check): solid selected fill,
-                // ring pulls the eye to the picked option.
-                checked &&
-                  !result &&
-                  'tint-selected ring-selected ring-2 ring-offset-2',
-                isCorrect && 'border-accent-20 bg-accent-0 text-accent-90',
-                isWrong &&
-                  'border-destructive-20 bg-destructive-0 text-destructive-80',
-              )}
-              onClick={() => {
-                setActiveIndex(index);
-                setSelected(option.option_id);
-              }}
-              onKeyDown={(event) => handleRadioKeyDown(event, index)}
-            >
-              <span className="flex w-full items-center gap-3">
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    'type-caption rounded-full inline-flex h-7 w-7 shrink-0 items-center justify-center font-bold transition-colors',
-                    result && isCorrect
-                      ? 'bg-accent-20 text-accent-90'
-                      : result && isWrong
-                        ? 'bg-destructive-20 text-destructive-80'
-                        : checked
-                          ? 'bg-white-100/25 text-white-100'
-                          : 'bg-secondary-20 text-secondary-90',
-                  )}
-                >
-                  {result && isCorrect ? (
-                    <Check aria-hidden="true" className="size-4" />
-                  ) : result && isWrong ? (
-                    <X aria-hidden="true" className="size-4" />
-                  ) : (
-                    letterKey
-                  )}
-                </span>
-                <span className="flex flex-1 flex-col gap-1">
-                  <span>{option.text}</span>
-                  {result && option.why ? (
-                    <span className="type-caption font-normal opacity-80">
-                      {option.why}
-                    </span>
-                  ) : null}
-                  {result && isCorrect ? (
-                    <span className="sr-only"> — correct answer</span>
-                  ) : result && isWrong ? (
-                    <span className="sr-only">
-                      {' '}
-                      — your answer was incorrect
-                    </span>
-                  ) : null}
-                </span>
-              </span>
-            </Button>
+              state={state}
+              tabIndex={isTabbable ? 0 : -1}
+            />
           );
         })}
       </div>

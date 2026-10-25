@@ -1,20 +1,35 @@
 {
   "context_prefix": "ci / ",
-  "env": { "ADMIN_SESSION_SECRET": "development-admin-session-secret", "PROVIDER_CREDENTIAL_ENCRYPTION_KEYS": "[\"75hH1I4ozUK1ujpX7m1rRO74LGBRdW70C508CPxYhVo=\"]" },
+  "env": {
+    "ENV": "test",
+    "ADMIN_SESSION_SECRET": "development-admin-session-secret"
+  },
   "jobs": [
-    { "name": "OpenSpec Validation", "run": "pnpm spec:validate" },
-    { "name": "Backend Test Name Ratchet", "run": "python3 scripts/check_test_names.py --range \"$LOCAL_CI_BASE_SHA...$LOCAL_CI_HEAD_SHA\" --scope backend" },
-    { "name": "Frontend Test Name Ratchet", "run": "python3 scripts/check_test_names.py --range \"$LOCAL_CI_BASE_SHA...$LOCAL_CI_HEAD_SHA\" --scope frontend" },
-    { "name": "React Doctor Ratchet", "run": "python3 scripts/check_react_doctor.py" },
-    { "name": "Backend Checks", "run": "cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy --config-file pyproject.toml" },
-    { "name": "Backend Migration Drift", "run": "cd backend && uv run alembic upgrade head && uv run alembic check" },
-    { "name": "Frontend Checks", "run": "cd frontend && pnpm lint && pnpm type-check && pnpm format:check && pnpm format:check:packages && pnpm build" },
-    { "name": "Backend Tests", "run": "cd backend && uv run pytest -q --cov=flyt --cov-report=term --cov-config=.coveragerc" },
-    { "name": "Frontend Tests", "run": "cd frontend && pnpm test && STORYBOOK_DISABLE_TELEMETRY=1 pnpm test:storybook && cd ../extension && pnpm test" },
-    { "name": "Flyt E2E", "run": "./scripts/run_e2e.sh" },
-    { "name": "Extension E2E", "run": "./scripts/run_extension_e2e.sh" }
+    {
+      "name": "Repo Checks",
+      "run": "pnpm --filter @flyt/ui test:tokens && pnpm --filter @flyt/ui test:components && python3 scripts/check_test_names.py --range \"$LOCAL_CI_BASE_SHA...$LOCAL_CI_HEAD_SHA\" --scope backend && python3 scripts/check_test_names.py --range \"$LOCAL_CI_BASE_SHA...$LOCAL_CI_HEAD_SHA\" --scope frontend && python3 scripts/test_quality_checkers.py && uv run scripts/test_extension_release.py && python3 scripts/check_conventions.py --range \"$LOCAL_CI_BASE_SHA...$LOCAL_CI_HEAD_SHA\" && python3 scripts/check_design_system_escapes.py --base \"$LOCAL_CI_BASE_SHA\" && python3 scripts/check_react_doctor.py && node scripts/check_typography_semantics.mjs"
+    },
+    {
+      "name": "Backend",
+      "run": "(cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy --config-file pyproject.toml) && ./scripts/check_migration_drift.sh && (cd backend && uv run pytest -q --cov=flyt --cov-report=term --cov-config=.coveragerc)"
+    },
+    {
+      "name": "Frontend & Extension",
+      "run": "(cd frontend && pnpm api:types:check) && pnpm lint && (cd frontend && pnpm type-check && pnpm format:check && pnpm format:check:packages && pnpm build) && (cd frontend && pnpm test && STORYBOOK_DISABLE_TELEMETRY=1 pnpm test:storybook) && (cd extension && pnpm test) && pnpm --filter @flyt/extension lint && pnpm --filter @flyt/extension type-check && pnpm --filter @flyt/extension build && pnpm --filter @flyt/extension build:firefox && pnpm --filter @flyt/extension lint:firefox"
+    },
+    {
+      "name": "Services",
+      "run": "cd morph-svc && uv run --no-project --with 'ruff==0.17.2' ruff check . && uv run --no-project --with 'ruff==0.17.2' ruff format --check . && uv run --no-project --with 'mypy==2.4.0' python -m mypy . && uv run --no-project --with 'pytest>=8.0.0' python -m pytest -q"
+    },
+    {
+      "name": "E2E",
+      "run": "./scripts/run_e2e.sh && ./scripts/run_extension_e2e.sh"
+    }
   ],
   "skip": [
-    { "name": "Security Scan (Trivy)", "reason": "container/dep scan needs the Trivy action + registry access" }
+    {
+      "name": "Security Scan (Trivy)",
+      "reason": "container/dep scan needs the Trivy action + registry access"
+    }
   ]
 }

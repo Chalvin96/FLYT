@@ -1,13 +1,18 @@
-import { gradedOutcome, type ExerciseOutcome } from '@/lib/operationResult';
+import { Heading, Text } from '@flyt/ui';
+
+import { useExerciseAttempt } from '@/hooks/flashcard/useExerciseAttempt/useExerciseAttempt';
 import type { WriteExercise, WriteJudgement } from '@/types/lesson-contracts';
 
 import { exercisePromptId } from '../flashcard-utils';
-import { OperationShell } from '../OperationShell';
-import type { FinishHandler, WriteJudgeFn } from '../operationTypes';
+import type {
+  FinishResult,
+  OperationComponentProps,
+  WriteJudgeFn,
+} from '../operationTypes';
 import { CriteriaStrip } from './FlashCardWriteCriteria';
 import {
+  WriteAlternativeActions,
   WriteEditor,
-  WriteEscapeActions,
   WriteNotices,
   WriteTask,
 } from './FlashCardWriteEditor';
@@ -15,44 +20,55 @@ import { useScrollToCriteriaWhenJudged } from './useScrollToCriteriaWhenJudged';
 import { useWriteJudge } from './useWriteJudge';
 import { useWriteResponseState } from './useWriteResponseState';
 import { countState, countWords, isSubmittable } from './wordCount';
+import { WriteOperationShell } from './WriteOperationShell';
 import {
   actionHintFor,
   buildWriteCriteriaVerdictsById,
   countCharacters,
   countHintFor,
-  countMetCriteria,
   draftKey,
   formatCountLabel,
   formatWordBudgetInstruction,
   K_CHAR_COUNTER_VISIBLE_FROM,
   K_MIN_RESPONSE_WORDS_FOR_SUBMISSION,
   K_WRITE_MAX_RESPONSE_CHARS,
+  summarizeWriteOutcome,
   type WritePhase,
 } from './writeView';
 
 export type { WritePhase };
 
-type FlashCardWriteProps = {
-  exercise: WriteExercise;
-  onFinished?: FinishHandler<ExerciseOutcome>;
-  isSubmitting?: boolean;
-  className?: string;
-  desktopExpanded?: boolean;
+type FlashCardWriteProps = OperationComponentProps<WriteExercise> & {
   judgeWrite?: WriteJudgeFn;
   draftOwnerKey?: string;
+  legacyDraftOwnerKey?: string;
   initialPhase?: WritePhase;
   initialResponse?: string;
   initialJudgement?: WriteJudgement | null;
 };
 
+function initialWriteResult(
+  criteria: WriteExercise['payload']['criteria'],
+  phase: WritePhase,
+  judgement: WriteJudgement | null,
+) {
+  if (phase !== 'result' || !judgement) return null;
+  return {
+    correct: summarizeWriteOutcome(criteria, judgement)
+      .isEveryRequiredCriterionMet,
+  };
+}
+
 export function FlashCardWrite({
   exercise,
+  allowRetry,
   onFinished,
   isSubmitting,
-  className,
+  layout,
   desktopExpanded,
   judgeWrite,
   draftOwnerKey = 'anonymous',
+  legacyDraftOwnerKey,
   initialPhase = 'composing',
   initialResponse,
   initialJudgement = null,
@@ -63,14 +79,39 @@ export function FlashCardWrite({
   const hasWordBudget = authoredMin !== null || authoredMax !== null;
   const min = authoredMin ?? K_MIN_RESPONSE_WORDS_FOR_SUBMISSION;
   const max = authoredMax;
+  const initialResult = initialWriteResult(
+    criteria,
+    initialPhase,
+    initialJudgement,
+  );
+  const {
+    result,
+    reportVerdict,
+    reset,
+    finish: finishGraded,
+    finishUngraded,
+  } = useExerciseAttempt({ allowRetry, initialResult, onFinished });
 
   const { clearDraft, draftStatus, response, updateResponse } =
     useWriteResponseState({
       draftKeyValue: draftKey(draftOwnerKey, exercise.id),
+      legacyDraftKeyValue: legacyDraftOwnerKey
+        ? draftKey(legacyDraftOwnerKey, exercise.id)
+        : undefined,
       initialResponse,
     });
   const { check, judgement, phase, resetToComposing, validationMessage } =
-    useWriteJudge({ initialJudgement, initialPhase, judgeWrite, response });
+    useWriteJudge({
+      initialJudgement,
+      initialPhase,
+      judgeWrite,
+      onJudged: (judgedResponse) =>
+        reportVerdict(
+          summarizeWriteOutcome(criteria, judgedResponse)
+            .isEveryRequiredCriterionMet,
+        ),
+      response,
+    });
 
   const count = countWords(response);
   const state = countState(count, min, max);
@@ -79,14 +120,17 @@ export function FlashCardWrite({
   const submittable = isSubmittable(count, min, max) && !responseTooLong;
 
   const verdictById = buildWriteCriteriaVerdictsById(judgement);
-  const metCount = countMetCriteria(judgement);
+  const { metRequiredCriteriaCount, requiredCriteriaCount } =
+    summarizeWriteOutcome(criteria, judgement);
   const judged = phase === 'result' && judgement !== null;
   const criteriaRef = useScrollToCriteriaWhenJudged(judged);
 
-  async function finishWithOutcome(outcome: ExerciseOutcome) {
+  async function finishAndClearDraft(
+    completion: () => FinishResult | undefined,
+  ) {
     let accepted: boolean;
     try {
-      accepted = (await onFinished?.(outcome)) !== false;
+      accepted = (await completion()) !== false;
     } catch {
       accepted = false;
     }
@@ -95,27 +139,33 @@ export function FlashCardWrite({
 
   function handleResponseChange(next: string) {
     updateResponse(next);
+    reset();
+    resetToComposing();
+  }
+
+  function revise() {
+    reset();
     resetToComposing();
   }
 
   function finish() {
-    if (phase === 'result' && judgement) {
-      void finishWithOutcome(
-        gradedOutcome({ correct: metCount === criteria.length }),
-      );
-      return;
-    }
-    void finishWithOutcome({
-      kind: 'ungraded',
-      outcome: 'service_unavailable',
-    });
+    const completion =
+      phase === 'result'
+        ? finishGraded
+        : () => finishUngraded('service_unavailable');
+    void finishAndClearDraft(completion);
   }
 
   function skip() {
-    void finishWithOutcome({ kind: 'ungraded', outcome: 'skipped' });
+    void finishAndClearDraft(() => finishUngraded('skipped'));
   }
 
-  const actionHint = actionHintFor(judged, metCount, criteria.length, phase);
+  const actionHint = actionHintFor(
+    judged,
+    metRequiredCriteriaCount,
+    requiredCriteriaCount,
+    phase,
+  );
   const countHint = countHintFor({
     authoredMax,
     authoredMin,
@@ -136,31 +186,25 @@ export function FlashCardWrite({
       : null;
 
   return (
-    <OperationShell
+    <WriteOperationShell
+      result={result}
       canCheck={submittable && phase === 'composing'}
-      className={className}
       desktopExpanded={desktopExpanded}
-      escapeAction={
-        <WriteEscapeActions
+      alternativeActions={
+        <WriteAlternativeActions
           onContinueUngraded={finish}
-          onRevise={resetToComposing}
+          onRevise={revise}
           onSkip={skip}
           phase={phase}
         />
       }
       exercise={exercise}
-      fillWorkSurface
       instruction={instruction}
       isSubmitting={isSubmitting}
-      naturalHeightOnMobile
+      layout={layout}
       onCheck={check}
       onContinue={finish}
-      ownsResultFeedback
       pending={phase === 'pending'}
-      pendingLabel="Checking…"
-      promptInWorkSurface
-      result={judged ? { correct: metCount === criteria.length } : null}
-      statusFirstOnMobile
       statusHint={actionHint ?? countHint}
     >
       <div
@@ -172,8 +216,9 @@ export function FlashCardWrite({
         {criteria.length ? (
           <CriteriaStrip
             criteria={criteria}
+            metRequiredCriteriaCount={metRequiredCriteriaCount}
+            requiredCriteriaCount={requiredCriteriaCount}
             judged={judged}
-            metCount={metCount}
             ref={criteriaRef}
             response={response}
             verdictById={verdictById}
@@ -181,12 +226,12 @@ export function FlashCardWrite({
         ) : null}
 
         <div className="flex items-center justify-between gap-3">
-          <p className="font-display type-label leading-flat text-primary-80">
+          <Heading as="div" size="xxsmall" tone="brand">
             Your response
-          </p>
-          <p className="type-caption-sm text-muted-foreground">
+          </Heading>
+          <Text size="small" tone="subtle">
             Write in Norwegian
-          </p>
+          </Text>
         </div>
 
         <WriteEditor
@@ -209,6 +254,6 @@ export function FlashCardWrite({
           validationMessage={validationMessage}
         />
       </div>
-    </OperationShell>
+    </WriteOperationShell>
   );
 }

@@ -1,16 +1,23 @@
+import { disclosureTriggerClassName, Glyph, Text } from '@flyt/ui';
 import { useId, useState } from 'react';
-import { Button } from '@flyt/ui';
+
 import { DefinitionExample } from './DefinitionExample';
 import type { ExamplePair } from './types';
+
+const EXAMPLE_CONTAINER_PRESENTATION: Record<'lexicon' | 'flashcard', string> =
+  {
+    lexicon: '',
+    flashcard: 'hidden md:block',
+  };
 
 export function DefinitionExamples({
   examples,
   collapsible,
-  variant,
+  presentation,
 }: {
   examples: ExamplePair[];
   collapsible: boolean;
-  variant: 'lexicon' | 'flashcard';
+  presentation: 'lexicon' | 'flashcard';
 }) {
   const [expanded, setExpanded] = useState(false);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -35,30 +42,28 @@ export function DefinitionExamples({
   if (!collapsible)
     return (
       <div
-        className={`space-y-1 ${variant === 'flashcard' ? 'hidden md:block' : ''}`}
+        className={`space-y-1 ${EXAMPLE_CONTAINER_PRESENTATION[presentation]}`}
         data-testid="definition-examples"
       >
-        <p className="type-caption text-muted-foreground font-medium">
+        <Text as="p" size="medium" tone="subtle" weight="semibold">
           Examples:
-        </p>
-        <div className="border-l-2 border-border space-y-1 pl-3">{content}</div>
+        </Text>
+        <div className="border-l-2 border-default space-y-1 pl-3">
+          {content}
+        </div>
       </div>
     );
   return (
     <div data-testid="definition-examples">
-      <Button
+      <button
         type="button"
-        variant="ghost"
-        size="sm"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
-        className="!px-0 !py-0 h-auto text-left type-caption font-medium text-secondary-70 transition-colors hover:text-secondary-90 flex items-center gap-1.5 justify-start"
+        className={disclosureTriggerClassName}
       >
-        <span aria-hidden="true" className="text-[10px] leading-none">
-          {expanded ? '▼' : '▶'}
-        </span>
+        <Glyph size="3xs">{expanded ? '▼' : '▶'}</Glyph>
         {`Examples · ${examples.length}`}
-      </Button>
+      </button>
       {expanded ? <div className="mt-1.5 space-y-1 pl-4">{content}</div> : null}
     </div>
   );

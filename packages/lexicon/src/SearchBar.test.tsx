@@ -51,12 +51,12 @@ describe('SearchBar', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the clear button as a 44px touch target', () => {
+  it('test_search_bar_given_clear_button_expect_44px_touch_target', () => {
     render(<SearchBar value="hund" onChange={vi.fn()} onSearch={vi.fn()} />);
 
+    // jsdom paints nothing, so the target box is the size utility itself.
     expect(screen.getByRole('button', { name: /clear search/i })).toHaveClass(
-      'h-11',
-      'w-11',
+      'size-11',
     );
   });
 

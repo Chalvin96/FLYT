@@ -69,7 +69,9 @@ async def load_eval_deck(db: AsyncSession, profile: EvalProfile) -> EvalDeck:
         )
     ).all()
     lemmas = [
-        FrequencyLemma(id=row[0], word=row[1], frequency_rank=row[2]) for row in rows
+        FrequencyLemma(id=row[0], word=row[1], frequency_rank=rank)
+        for row in rows
+        if (rank := row[2]) is not None
     ]
     return EvalDeck(
         lemmas=lemmas,

@@ -38,11 +38,21 @@ describe('lookup grammar', () => {
 
   it('test_lookup_label_given_bracket_alternatives_expect_readable_display_and_canonical_value', () => {
     const canonical = 'få [stelle|lage] i stand';
-    expect(formatLookupLabel(canonical)).toBe('få i stand');
+    const presentation = formatLookupLabel(canonical);
+
+    expect(presentation).toBe('få [stelle / lage] i stand');
+    expect(presentation).not.toBe(canonical);
+    expect(canonical).toContain('|');
     expect(normalizeLookupQuery(canonical)).toBe(canonical);
   });
 
+  it('test_lookup_label_given_multiple_bracket_alternatives_expect_each_separator_presented', () => {
+    expect(formatLookupLabel('gå [hit|dit|bort] nå')).toBe(
+      'gå [hit / dit / bort] nå',
+    );
+  });
+
   it('test_pos_label_given_expression_expect_uppercase_badge_code', () => {
-    expect(posLabel('expression')).toBe('Expression');
+    expect(posLabel('expression')).toBe('EXPR');
   });
 });

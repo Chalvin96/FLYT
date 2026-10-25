@@ -13,6 +13,7 @@ from flyt.apps.chatbot.services import ChatbotService
 from flyt.apps.chatbot.services import UserOpenRouterKeyService
 from flyt.apps.users.deps import get_current_user
 from flyt.apps.users.models import User
+from flyt.core.http import build_error_responses
 from flyt.core.db import get_async_db
 from flyt.core.exceptions import DomainException
 from flyt.core.http import http_error
@@ -26,7 +27,7 @@ def get_chatbot_service(db: AsyncSession = Depends(get_async_db)) -> ChatbotServ
 router = APIRouter(prefix="/chatbot", tags=["chatbot"])
 
 
-@router.get("")
+@router.get("", responses=build_error_responses(401))
 async def get_chatbot_surface(
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[ChatbotService, Depends(get_chatbot_service)],
@@ -34,7 +35,9 @@ async def get_chatbot_surface(
     return await service.load_surface(current_user.id)
 
 
-@router.post("/messages")
+@router.post(
+    "/messages", responses=build_error_responses(401, 403, 409, 429, 502, 503, 504)
+)
 async def send_chatbot_message(
     body: ChatbotMessageCreate,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -53,7 +56,7 @@ async def send_chatbot_message(
         raise http_error(error) from error
 
 
-@router.put("/openrouter-key")
+@router.put("/openrouter-key", responses=build_error_responses(401, 403, 503))
 async def replace_openrouter_key(
     body: OpenRouterKeyUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -72,6 +75,7 @@ async def replace_openrouter_key(
 @router.delete(
     "/openrouter-key",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses=build_error_responses(401, 403),
 )
 async def delete_openrouter_key(
     current_user: Annotated[User, Depends(get_current_user)],

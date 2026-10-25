@@ -20,11 +20,13 @@ export function useWriteJudge({
   initialPhase = 'composing',
   initialJudgement = null,
   judgeWrite,
+  onJudged,
   response,
 }: {
   initialPhase?: WritePhase;
   initialJudgement?: WriteJudgement | null;
   judgeWrite?: WriteJudgeFn;
+  onJudged?: (judgement: WriteJudgement) => void;
   response: string;
 }) {
   const [phase, setPhase] = useState<WritePhase>(initialPhase);
@@ -67,6 +69,7 @@ export function useWriteJudge({
       .then((result) => {
         if (attempt !== judgeAttemptRef.current) return;
         setJudgement(result);
+        onJudged?.(result);
         setPhase('result');
       })
       .catch((error: unknown) => {
@@ -78,7 +81,7 @@ export function useWriteJudge({
         }
         setPhase('unavailable');
       });
-  }, [judgeWrite, response]);
+  }, [judgeWrite, onJudged, response]);
 
   return { check, judgement, phase, resetToComposing, validationMessage };
 }

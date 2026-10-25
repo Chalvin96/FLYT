@@ -1,3 +1,4 @@
+import { Heading, Text } from '@flyt/ui';
 import { Check } from 'lucide-react';
 
 const proofs = [
@@ -9,27 +10,23 @@ const proofs = [
 
 export function ProofStrip() {
   return (
-    <div className="border-y border-border bg-card">
+    <div className="border-y border-default bg-raised">
       <div className="shell-px py-5">
         <div className="container-max mx-auto flex flex-wrap items-center gap-x-10 gap-y-3">
-          <p
-            className="type-label-sm text-muted-foreground"
-            id="proof-strip-label"
-          >
+          <Heading as="div" id="proof-strip-label" size="xxsmall" tone="subtle">
             Built on
-          </p>
+          </Heading>
           <ul
             aria-labelledby="proof-strip-label"
             className="flex flex-wrap items-center gap-x-10 gap-y-3"
             role="list"
           >
             {proofs.map((proof) => (
-              <li
-                className="flex items-center gap-2 type-caption font-semibold text-foreground"
-                key={proof}
-              >
-                <Check className="shrink-0 text-primary-70" />
-                {proof}
+              <li className="flex items-center gap-2" key={proof}>
+                <Check className="shrink-0 text-icon-brand" />
+                <Text as="span" size="medium" weight="semibold" tone="default">
+                  {proof}
+                </Text>
               </li>
             ))}
           </ul>

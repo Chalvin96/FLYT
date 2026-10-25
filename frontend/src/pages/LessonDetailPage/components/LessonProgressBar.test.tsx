@@ -123,80 +123,6 @@ describe('LessonProgressBar', () => {
     }
   });
 
-  it('test_segment_fill_given_page_kind_expect_kind_hue_and_shape', () => {
-    render(
-      <LessonProgressBar
-        pages={pages}
-        currentIndex={1}
-        maxReachedIndex={3}
-        onGoToPage={vi.fn()}
-      />,
-    );
-
-    const exerciseVisual = segmentVisual(
-      screen.getByRole('button', { name: 'Go to practice 1 of 2, current' }),
-    );
-    expect(exerciseVisual?.className).toContain('bg-progress-primary-current');
-    expect(exerciseVisual?.className).not.toContain('rounded-');
-    expect(exerciseVisual?.className).not.toContain('ring');
-
-    const sectionVisual = segmentVisual(
-      screen.getByRole('button', { name: 'Go to part 2 of 2' }),
-    );
-    expect(sectionVisual?.className).toContain(
-      'bg-progress-secondary-complete',
-    );
-    expect(sectionVisual?.className).toContain('rounded-full');
-
-    const lastVisual = segmentVisual(
-      screen.getByRole('button', { name: 'Go to practice 2 of 2' }),
-    );
-    expect(lastVisual?.className).toContain('rounded-r-full');
-  });
-
-  it('test_locked_segments_given_mixed_kinds_expect_shape_cue_beyond_color', () => {
-    render(
-      <LessonProgressBar
-        pages={pages}
-        currentIndex={0}
-        maxReachedIndex={0}
-        onGoToPage={vi.fn()}
-      />,
-    );
-
-    const lockedSection = segmentVisual(
-      screen.getByRole('button', { name: 'Go to part 2 of 2, locked' }),
-    );
-    expect(lockedSection?.className).toContain('rounded-full');
-
-    const lockedExercise = segmentVisual(
-      screen.getByRole('button', { name: 'Go to practice 1 of 2, locked' }),
-    );
-    expect(lockedExercise?.className).not.toContain('rounded-');
-  });
-
-  it('test_segment_fill_given_locked_or_completed_state_expect_state_tokens', () => {
-    render(
-      <LessonProgressBar
-        pages={pages}
-        currentIndex={2}
-        maxReachedIndex={2}
-        onGoToPage={vi.fn()}
-      />,
-    );
-
-    const pastExercise = segmentVisual(
-      screen.getByRole('button', { name: 'Go to practice 1 of 2' }),
-    );
-    expect(pastExercise?.className).toContain('bg-progress-primary-complete');
-    expect(pastExercise?.className).not.toContain('cursor-not-allowed');
-
-    const lockedVisual = segmentVisual(
-      screen.getByRole('button', { name: 'Go to practice 2 of 2, locked' }),
-    );
-    expect(lockedVisual?.className).toContain('bg-progress-primary-locked');
-  });
-
   it('test_segment_hit_area_given_rendered_bar_expect_24px_button_with_8px_visual', () => {
     render(
       <LessonProgressBar
@@ -207,13 +133,49 @@ describe('LessonProgressBar', () => {
       />,
     );
 
+    // jsdom paints nothing, so the target box and the fill height are the
+    // height utilities themselves.
     for (const button of screen.getAllByRole('button')) {
-      expect(button.className).toContain('h-6');
-      expect(segmentVisual(button)?.className).toContain('h-2');
+      expect(button).toHaveClass('h-6');
+
+      const visual = within(button).getByTestId('lesson-progress-segment');
+      expect(visual).toHaveClass(
+        button.getAttribute('aria-current') === 'step' ? 'h-3.5' : 'h-2',
+      );
     }
   });
 
-  it('test_segment_focus_given_rendered_bar_expect_focus_ring_classes', () => {
+  it('test_segment_visual_given_current_state_expect_reached_index_marked_current', () => {
+    render(
+      <LessonProgressBar
+        pages={pages}
+        currentIndex={1}
+        maxReachedIndex={3}
+        onGoToPage={vi.fn()}
+      />,
+    );
+
+    const current = screen.getByRole('button', {
+      name: 'Go to practice 1 of 2, current',
+    });
+    expect(current).toHaveAttribute('aria-current', 'step');
+    expect(current).not.toHaveAttribute('aria-disabled');
+
+    for (const label of ['Go to part 2 of 2', 'Go to practice 2 of 2']) {
+      expect(screen.getByRole('button', { name: label })).not.toHaveAttribute(
+        'aria-current',
+      );
+      expect(screen.getByRole('button', { name: label })).not.toHaveAttribute(
+        'aria-disabled',
+      );
+    }
+
+    expect(
+      screen.getByRole('button', { name: 'Go to part 1 of 2' }),
+    ).not.toHaveAttribute('aria-disabled');
+  });
+
+  it('test_locked_segments_given_unreached_pages_expect_announced_locked_state', () => {
     render(
       <LessonProgressBar
         pages={pages}
@@ -223,13 +185,20 @@ describe('LessonProgressBar', () => {
       />,
     );
 
-    for (const button of screen.getAllByRole('button')) {
-      expect(button.className).toContain('focus-visible:ring-2');
-      expect(button.className).toContain('focus-visible:ring-ring');
-      expect(button.className).toContain(
-        'focus-visible:ring-offset-background',
+    for (const label of [
+      'Go to part 2 of 2, locked',
+      'Go to practice 1 of 2, locked',
+      'Go to practice 2 of 2, locked',
+    ]) {
+      expect(screen.getByRole('button', { name: label })).toHaveAttribute(
+        'aria-disabled',
+        'true',
       );
     }
+
+    expect(
+      screen.getByRole('button', { name: 'Go to part 1 of 2, current' }),
+    ).not.toHaveAttribute('aria-disabled');
   });
 
   it('test_furthest_segment_given_reached_index_expect_clickable_completed', async () => {
@@ -243,14 +212,9 @@ describe('LessonProgressBar', () => {
       />,
     );
 
-    // index 3 == maxReachedIndex: reachable, so it must be completed + clickable
     const furthest = screen.getByRole('button', {
       name: 'Go to practice 2 of 2',
     });
-    expect(segmentVisual(furthest)?.className).toContain(
-      'bg-progress-primary-complete',
-    );
-    expect(furthest.className).not.toContain('cursor-not-allowed');
     expect(furthest).not.toHaveAttribute('aria-disabled');
 
     await userEvent.click(furthest);
@@ -303,16 +267,56 @@ describe('LessonProgressBar', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByRole('group')).not.toBeInTheDocument();
 
-    const visuals = screen.getAllByTestId('lesson-progress-segment');
-    expect(visuals).toHaveLength(pages.length);
-    for (const visual of visuals) {
-      expect(visual.className).toMatch(
-        /bg-progress-(primary|secondary)-complete/,
-      );
-      expect(visual.className).not.toContain('-locked');
-      expect(visual.className).not.toContain('-current');
-    }
-    expect(visuals[0]?.className).toContain('rounded-full');
-    expect(visuals.at(-1)?.className).toContain('rounded-r-full');
+    expect(screen.getAllByTestId('lesson-progress-segment')).toHaveLength(
+      pages.length,
+    );
+  });
+
+  it('test_progress_segment_given_current_page_expect_data_state_current', () => {
+    render(
+      <LessonProgressBar
+        pages={pages}
+        currentIndex={1}
+        maxReachedIndex={1}
+        onGoToPage={vi.fn()}
+      />,
+    );
+
+    const current = screen.getByRole('button', {
+      name: 'Go to practice 1 of 2, current',
+    });
+    expect(segmentVisual(current)).toHaveAttribute('data-state', 'current');
+  });
+
+  it('test_progress_segment_given_reached_page_expect_data_state_completed', () => {
+    render(
+      <LessonProgressBar
+        pages={pages}
+        currentIndex={2}
+        maxReachedIndex={2}
+        onGoToPage={vi.fn()}
+      />,
+    );
+
+    const completed = screen.getByRole('button', {
+      name: 'Go to part 1 of 2',
+    });
+    expect(segmentVisual(completed)).toHaveAttribute('data-state', 'completed');
+  });
+
+  it('test_progress_segment_given_future_page_expect_data_state_locked', () => {
+    render(
+      <LessonProgressBar
+        pages={pages}
+        currentIndex={0}
+        maxReachedIndex={0}
+        onGoToPage={vi.fn()}
+      />,
+    );
+
+    const locked = screen.getByRole('button', {
+      name: 'Go to practice 1 of 2, locked',
+    });
+    expect(segmentVisual(locked)).toHaveAttribute('data-state', 'locked');
   });
 });

@@ -1,32 +1,32 @@
-import * as DialogPrimitive from '@radix-ui/react-dialog';
+import {
+  AudioPlayButton,
+  Button,
+  Chip,
+  ChoiceTile,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  InlineTrigger,
+  textVariants,
+} from '@flyt/ui';
 import type { Meta, StoryObj } from '@storybook/react';
 import {
-  ArrowRight,
   BookMarked,
-  BookOpenText,
-  Check,
   Clock3,
-  Flame,
   GraduationCap,
   Headphones,
-  Home,
-  Play,
   Sparkles,
   Target,
   Volume2,
 } from 'lucide-react';
 import { expect, fn, userEvent, within } from 'storybook/test';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 
-import {
-  Dialog,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { CHATBOT_MODEL_IDS } from '@/api/chatbot';
 import { useIsDesktop } from '@/hooks/ui/useIsDesktop';
+import { buildRadioGroupKeyDownHandler } from '@/lib/radioGroupKeyboard';
 import { cn } from '@/lib/utils';
 
 import {
@@ -39,23 +39,17 @@ import type {
   FlytChatbotPanelProps,
 } from './FlytChatbotPanel';
 import { FlytChatbotPanel } from './FlytChatbotPanel';
+import { CHATBOT_OPEN_STATES, type ChatbotOpenState } from './types';
 
-type PageKind = 'general' | 'lesson' | 'reading';
+type PageKind = 'lesson' | 'reading';
 
 interface FlytChatbotPagePreviewProps {
   kind: PageKind;
   chatbotOverrides?: Partial<FlytChatbotPanelProps>;
   onTrigger?: () => void;
-  initialChatbotOpen?: boolean;
-  initialRailOpen?: boolean;
 }
 
 const pageContexts: Record<PageKind, FlytChatbotContext> = {
-  general: {
-    kind: 'general',
-    label: 'Home dashboard',
-    detail: 'Today’s practice and reading progress',
-  },
   lesson: {
     kind: 'lesson',
     label: 'Word order in main clauses',
@@ -69,11 +63,6 @@ const pageContexts: Record<PageKind, FlytChatbotContext> = {
 };
 
 const panelPrompts: Record<PageKind, readonly string[]> = {
-  general: [
-    'Explain this simply',
-    'Give me an example',
-    'What should I practice next?',
-  ],
   lesson: [
     'Explain the V2 rule',
     'Show me another example',
@@ -90,7 +79,6 @@ const panelMessages: Record<
   PageKind,
   NonNullable<FlytChatbotPanelProps['messages']>
 > = {
-  general: [],
   lesson: [
     {
       id: 'lesson-question',
@@ -120,7 +108,7 @@ const panelMessages: Record<
 };
 
 const meta = {
-  title: 'Chatbot/Whole page examples',
+  title: 'Pages/Chatbot/Examples',
   component: FlytChatbotPagePreview,
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
@@ -131,12 +119,39 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const GeneralPage: Story = {
-  args: { kind: 'general' },
-};
-
 export const LessonPage: Story = {
   args: { kind: 'lesson' },
+  play: async ({ canvasElement }) => {
+    const group = within(canvasElement).getByRole('radiogroup', {
+      name: 'Quick check answers',
+    });
+    const answers = within(group).getAllByRole('radio');
+
+    await userEvent.click(answers[1]);
+    await userEvent.keyboard('{ArrowLeft}');
+    await expect(answers[0]).toHaveAttribute('aria-checked', 'true');
+    await expect(answers[0]).toHaveAttribute('tabindex', '0');
+    await expect(answers[0]).toHaveFocus();
+    await expect(answers[1]).toHaveAttribute('tabindex', '-1');
+
+    await userEvent.click(answers[1]);
+    await expect(answers[1]).toHaveAttribute('aria-checked', 'true');
+    await expect(answers[1]).toHaveAttribute('tabindex', '0');
+    await expect(answers[0]).toHaveAttribute('tabindex', '-1');
+
+    const trigger = within(canvasElement).getByRole('button', {
+      name: 'Ask Flyt chatbot',
+    });
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'Close chatbot' }),
+    );
+    await expect(trigger).toHaveFocus();
+
+    await userEvent.click(trigger);
+    await expect(
+      within(canvasElement).getByRole('textbox', { name: 'Ask a question' }),
+    ).toHaveFocus();
+  },
 };
 
 export const ReadingPage: Story = {
@@ -147,7 +162,7 @@ export const LessonPageModelChoice: Story = {
   args: {
     kind: 'lesson',
     chatbotOverrides: {
-      defaultModel: 'chatgpt',
+      defaultModel: CHATBOT_MODEL_IDS.CHATGPT,
     },
   },
 };
@@ -155,7 +170,12 @@ export const LessonPageModelChoice: Story = {
 export const LessonPageModelsNotConnected: Story = {
   args: {
     kind: 'lesson',
-    chatbotOverrides: { unavailableModels: ['chatgpt', 'deepseek'] },
+    chatbotOverrides: {
+      unavailableModels: [
+        CHATBOT_MODEL_IDS.CHATGPT,
+        CHATBOT_MODEL_IDS.DEEPSEEK,
+      ],
+    },
   },
 };
 
@@ -163,7 +183,11 @@ export const LessonPageNoModelAvailable: Story = {
   args: {
     kind: 'lesson',
     chatbotOverrides: {
-      unavailableModels: ['flyt', 'chatgpt', 'deepseek'],
+      unavailableModels: [
+        CHATBOT_MODEL_IDS.FLYT,
+        CHATBOT_MODEL_IDS.CHATGPT,
+        CHATBOT_MODEL_IDS.DEEPSEEK,
+      ],
     },
   },
 };
@@ -172,7 +196,7 @@ export const LessonPageFlytUnavailable: Story = {
   args: {
     kind: 'lesson',
     chatbotOverrides: {
-      unavailableModels: ['flyt', 'deepseek'],
+      unavailableModels: [CHATBOT_MODEL_IDS.FLYT, CHATBOT_MODEL_IDS.DEEPSEEK],
     },
   },
 };
@@ -196,54 +220,15 @@ export const LessonPageLongConversation: Story = {
   },
 };
 
-export const LessonPageRailClosed: Story = {
-  args: { kind: 'lesson', initialRailOpen: false },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const trigger = canvas.getByRole('button', {
-      name: 'Ask Flyt chatbot',
-    });
-
-    await userEvent.click(trigger);
-    await expect(
-      canvas.getByRole('textbox', { name: 'Ask a question' }),
-    ).toHaveFocus();
-
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Close chatbot' }),
-    );
-    await expect(trigger).toHaveFocus();
-  },
-};
-
-export const LessonPageMobile: Story = {
-  args: { kind: 'lesson' },
-  parameters: { viewport: { defaultViewport: 'mobile1' } },
-};
-
-export const ReadingPageMobile: Story = {
-  args: { kind: 'reading' },
-  parameters: { viewport: { defaultViewport: 'mobile1' } },
-};
-
-export const GeneralPageMobile: Story = {
-  args: { kind: 'general' },
-  parameters: { viewport: { defaultViewport: 'mobile1' } },
-};
-
 function FlytChatbotPagePreview({
   kind,
   chatbotOverrides,
-  initialChatbotOpen = false,
-  initialRailOpen = true,
   onTrigger,
 }: FlytChatbotPagePreviewProps) {
   return (
     <ChatbotProvider
       initialMessages={chatbotOverrides?.messages ?? panelMessages[kind]}
-      initialOpenState={
-        !initialRailOpen ? 'closed' : initialChatbotOpen ? 'open' : 'auto'
-      }
+      initialOpenState={CHATBOT_OPEN_STATES.AUTO}
     >
       <PageShell
         chatbotOverrides={chatbotOverrides}
@@ -266,17 +251,21 @@ function PageShell({
   const chatbotPaneRef = useRef<HTMLDivElement>(null);
   const desktopTriggerRef = useRef<HTMLButtonElement>(null);
   const mobileTriggerRef = useRef<HTMLButtonElement>(null);
-  const desktopFocusActionRef = useRef<'open' | 'close' | null>(null);
+  const desktopFocusActionRef = useRef<ChatbotOpenState | null>(null);
   const { openState, close, open } = useChatbot();
 
   useChatbotPageContext(pageContexts[kind]);
 
-  const isRailOpen = openState !== 'closed';
-  const isDialogOpen = openState === 'open';
+  const isRailOpen =
+    openState === CHATBOT_OPEN_STATES.OPEN ||
+    (openState === CHATBOT_OPEN_STATES.AUTO && isDesktop);
+  const isDialogOpen = openState === CHATBOT_OPEN_STATES.OPEN && !isDesktop;
   const isChatbotVisible = isDesktop ? isRailOpen : isDialogOpen;
 
   const closeChatbot = () => {
-    if (isDesktop) desktopFocusActionRef.current = 'close';
+    if (isDesktop) {
+      desktopFocusActionRef.current = CHATBOT_OPEN_STATES.CLOSED;
+    }
     close();
   };
 
@@ -284,7 +273,7 @@ function PageShell({
     const action = desktopFocusActionRef.current;
     if (!isDesktop || action === null) return;
 
-    if (action === 'open' && isRailOpen) {
+    if (action === CHATBOT_OPEN_STATES.OPEN && isRailOpen) {
       const textarea =
         chatbotPaneRef.current?.querySelector<HTMLTextAreaElement>('textarea');
       if (!textarea) return;
@@ -293,7 +282,7 @@ function PageShell({
       return;
     }
 
-    if (action === 'close' && !isRailOpen) {
+    if (action === CHATBOT_OPEN_STATES.CLOSED && !isRailOpen) {
       desktopTriggerRef.current?.focus();
       desktopFocusActionRef.current = null;
     }
@@ -306,12 +295,19 @@ function PageShell({
       return;
     }
 
-    if (isDesktop) desktopFocusActionRef.current = 'open';
+    if (isDesktop) {
+      desktopFocusActionRef.current = CHATBOT_OPEN_STATES.OPEN;
+    }
     open();
   };
 
   return (
-    <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground">
+    <div
+      className={cn(
+        'flex h-dvh min-h-0 flex-col overflow-hidden bg-neutral',
+        textVariants({ tone: 'default' }),
+      )}
+    >
       <PageHeader
         active={kind}
         chatbotOpen={isChatbotVisible}
@@ -320,7 +316,7 @@ function PageShell({
       />
       <div
         className={cn(
-          'grid min-h-0 flex-1 items-stretch transition-[grid-template-columns] duration-300 ease-out motion-reduce:transition-none',
+          'grid min-h-0 flex-1 items-stretch overflow-hidden',
           isRailOpen
             ? 'lg:grid-cols-[minmax(0,1fr)_28rem]'
             : 'lg:grid-cols-[minmax(0,1fr)_0rem]',
@@ -332,9 +328,7 @@ function PageShell({
         >
           <div className="mx-auto w-full max-w-[64rem] px-4 pt-6 pb-24 sm:px-8 lg:pt-8 lg:pb-8">
             <PageTrail kind={kind} />
-            {kind === 'general' ? (
-              <GeneralContent />
-            ) : kind === 'lesson' ? (
+            {kind === 'lesson' ? (
               <LessonContent />
             ) : (
               <ReadingContent onTrigger={toggleChatbot} />
@@ -345,8 +339,11 @@ function PageShell({
           aria-label="Ask Flyt chatbot"
           id="flyt-chatbot-desktop"
           className={cn(
-            'hidden min-h-0 min-w-0 flex-col overflow-hidden bg-card lg:flex',
-            isRailOpen && 'border-l border-border/70',
+            'hidden min-h-0 min-w-0 flex-col overflow-hidden bg-raised lg:flex',
+            'transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none',
+            isRailOpen
+              ? 'translate-x-0 border-l border-default/70 opacity-100'
+              : 'translate-x-full opacity-0',
           )}
           inert={!isRailOpen}
           ref={chatbotPaneRef}
@@ -365,19 +362,20 @@ function PageShell({
         onClose={closeChatbot}
         returnFocusRef={mobileTriggerRef}
       />
-      <button
-        aria-label="Ask Flyt chatbot"
-        aria-controls="flyt-chatbot-mobile"
-        aria-expanded={isDialogOpen}
-        aria-haspopup="dialog"
-        className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-40 inline-flex min-h-12 items-center gap-2 radius-field bg-primary-80 px-4 type-caption font-semibold text-white-100 shadow-raised transition-colors hover:bg-primary-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background lg:hidden"
-        onClick={toggleChatbot}
-        ref={mobileTriggerRef}
-        type="button"
-      >
-        <Sparkles aria-hidden="true" className="icon-sm" />
-        Ask Flyt
-      </button>
+      <div className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-40 lg:hidden">
+        <Button
+          aria-label="Ask Flyt chatbot"
+          aria-controls="flyt-chatbot-mobile"
+          aria-expanded={isDialogOpen}
+          aria-haspopup="dialog"
+          onClick={toggleChatbot}
+          ref={mobileTriggerRef}
+          type="button"
+        >
+          <Sparkles aria-hidden="true" className="icon-sm" strokeWidth={2.1} />
+          Ask Flyt
+        </Button>
+      </div>
     </div>
   );
 }
@@ -431,35 +429,32 @@ function MobileChatbotDialog({
       open={isOpen}
       onOpenChange={(next) => (next ? undefined : onClose())}
     >
-      <DialogPortal>
-        <DialogOverlay className="bg-black-80 lg:hidden" />
-        <DialogPrimitive.Content
-          aria-modal="true"
-          aria-describedby="flyt-chatbot-mobile-description"
-          aria-labelledby="flyt-chatbot-mobile-title"
-          className="fixed inset-0 z-50 flex h-dvh min-h-0 w-full flex-col bg-background outline-none lg:hidden"
-          id="flyt-chatbot-mobile"
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            returnFocusRef.current?.focus();
-          }}
-        >
-          <DialogTitle className="sr-only" id="flyt-chatbot-mobile-title">
-            Ask Flyt
-          </DialogTitle>
-          <DialogDescription
-            className="sr-only"
-            id="flyt-chatbot-mobile-description"
-          >
-            Ask questions about the current page and its attached context.
-          </DialogDescription>
-          <ConnectedChatbotPanel
-            chatbotOverrides={chatbotOverrides}
-            kind={kind}
-            onClose={onClose}
-          />
-        </DialogPrimitive.Content>
-      </DialogPortal>
+      <DialogContent
+        aria-modal="true"
+        aria-describedby="flyt-chatbot-mobile-description"
+        aria-labelledby="flyt-chatbot-mobile-title"
+        id="flyt-chatbot-mobile"
+        mobileOnly
+        padding="none"
+        showClose={false}
+        variant="fullscreen"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          returnFocusRef.current?.focus();
+        }}
+      >
+        <DialogTitle visuallyHidden id="flyt-chatbot-mobile-title">
+          Ask Flyt
+        </DialogTitle>
+        <DialogDescription id="flyt-chatbot-mobile-description" visuallyHidden>
+          Ask questions about the current page and its attached context.
+        </DialogDescription>
+        <ConnectedChatbotPanel
+          chatbotOverrides={chatbotOverrides}
+          kind={kind}
+          onClose={onClose}
+        />
+      </DialogContent>
     </Dialog>
   );
 }
@@ -477,13 +472,18 @@ function PageHeader({
 }) {
   return (
     <header
-      className="shrink-0 border-b border-border/70 bg-card/90 px-4 py-3 backdrop-blur sm:px-8"
+      className="shrink-0 border-b border-default/70 bg-raised/90 px-4 py-3 backdrop-blur-sm sm:px-8"
       data-testid="page-header"
     >
-      <div className="container-max mx-auto flex w-full max-w-[92rem] items-center justify-between gap-4">
+      <div className="mx-auto flex w-full max-w-[92rem] items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-8">
           <a
-            className="font-display type-section font-semibold tracking-tight text-foreground"
+            className={textVariants({
+              role: 'display',
+              size: 'lg',
+              weight: 'semibold',
+              tone: 'default',
+            })}
             href="#flyt"
           >
             Flyt
@@ -492,43 +492,61 @@ function PageHeader({
             aria-label="Primary"
             className="hidden items-center gap-1 sm:flex"
           >
-            {(['general', 'lesson', 'reading'] as const).map((item) => (
+            {(['lesson', 'reading'] as const).map((item) => (
               <span
-                className={
+                className={cn(
                   item === active
-                    ? 'radius-field bg-secondary-10 px-3 py-2 type-caption-sm font-semibold text-foreground'
-                    : 'px-3 py-2 type-caption-sm text-muted-foreground'
-                }
+                    ? 'radius-field bg-neutral-subtle px-3 py-2'
+                    : 'px-3 py-2',
+                  textVariants({
+                    size: 'small',
+                    weight: item === active ? 'semibold' : undefined,
+                    tone: item === active ? 'default' : 'subtle',
+                  }),
+                )}
                 key={item}
               >
-                {item === 'general'
-                  ? 'Home'
-                  : item[0].toUpperCase() + item.slice(1)}
+                {item[0].toUpperCase() + item.slice(1)}
               </span>
             ))}
           </nav>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button
-            aria-controls="flyt-chatbot-desktop"
-            aria-expanded={chatbotOpen}
-            aria-label="Ask Flyt chatbot"
-            className={cn(
-              'hidden min-h-11 items-center gap-2 radius-field border px-3 type-caption-sm font-semibold text-primary-90 transition-colors hover:border-primary-50 hover:bg-primary-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background lg:inline-flex',
-              chatbotOpen
-                ? 'border-primary-50 bg-primary-10'
-                : 'border-primary-30 bg-primary-5',
-            )}
-            onClick={onTrigger}
-            ref={triggerRef}
-            type="button"
-          >
-            <Sparkles aria-hidden="true" className="icon-sm" />
-            Ask Flyt
-          </button>
+          <div className="hidden lg:block">
+            <button
+              aria-controls="flyt-chatbot-desktop"
+              aria-expanded={chatbotOpen}
+              aria-label="Ask Flyt chatbot"
+              onClick={onTrigger}
+              className={cn(
+                'inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap radius-section border px-3 transition-colors hover:bg-selected-hovered focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focused)] lg:px-4',
+                textVariants({
+                  size: 'medium',
+                  weight: 'semibold',
+                  tone: 'selected',
+                }),
+                chatbotOpen
+                  ? 'border-brand-subtle bg-selected-hovered'
+                  : 'border-brand-subtle bg-brand-subtle',
+              )}
+              type="button"
+              ref={triggerRef}
+            >
+              <Sparkles aria-hidden="true" className="icon-sm" />
+              <span className="hidden sm:inline">Ask Flyt</span>
+              <span className="sr-only sm:hidden">Ask Flyt</span>
+            </button>
+          </div>
           <span
             aria-label="Ane’s profile"
-            className="flex size-9 items-center justify-center rounded-full bg-secondary-20 type-caption-sm font-semibold text-secondary-90"
+            className={cn(
+              'flex size-9 items-center justify-center rounded-full bg-neutral-pressed',
+              textVariants({
+                size: 'small',
+                weight: 'semibold',
+                tone: 'default',
+              }),
+            )}
           >
             A
           </span>
@@ -540,17 +558,18 @@ function PageHeader({
 
 function PageTrail({ kind }: { kind: PageKind }) {
   const label =
-    kind === 'general'
-      ? 'Home'
-      : kind === 'lesson'
-        ? 'Lessons / Word order in main clauses'
-        : 'Reading / A morning in Bergen';
+    kind === 'lesson'
+      ? 'Lessons / Word order in main clauses'
+      : 'Reading / A morning in Bergen';
 
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-2 type-caption-sm text-muted-foreground lg:mb-8">
-      {kind === 'general' ? (
-        <Home aria-hidden="true" className="icon-sm shrink-0" />
-      ) : kind === 'lesson' ? (
+    <div
+      className={cn(
+        'mb-6 flex flex-wrap items-center gap-2 lg:mb-8',
+        textVariants({ size: 'small', tone: 'subtle' }),
+      )}
+    >
+      {kind === 'lesson' ? (
         <GraduationCap aria-hidden="true" className="icon-sm shrink-0" />
       ) : (
         <BookMarked aria-hidden="true" className="icon-sm shrink-0" />
@@ -580,12 +599,22 @@ function PageSection({
 function SectionHeading({ hint, title }: { hint?: string; title: string }) {
   return (
     <div className="flex items-center gap-4">
-      <h2 className="flex min-w-0 items-center gap-2.5 type-label-sm text-muted-foreground">
-        <span aria-hidden="true" className="h-px w-5 shrink-0 bg-primary-50" />
+      <h2
+        className={cn(
+          'flex min-w-0 items-center gap-2.5',
+          textVariants({ role: 'eyebrow', tone: 'subtle' }),
+        )}
+      >
+        <span aria-hidden="true" className="h-px w-5 shrink-0 bg-brand-bold" />
         <span className="truncate">{title}</span>
       </h2>
       {hint ? (
-        <span className="ml-auto shrink-0 type-caption-sm text-muted-foreground">
+        <span
+          className={cn(
+            'ml-auto shrink-0',
+            textVariants({ size: 'small', tone: 'subtle' }),
+          )}
+        >
           {hint}
         </span>
       ) : null}
@@ -593,113 +622,86 @@ function SectionHeading({ hint, title }: { hint?: string; title: string }) {
   );
 }
 
-function GeneralContent() {
-  return (
-    <div className="space-y-8 sm:space-y-10">
-      <div>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="type-label-sm text-primary-70">Tuesday, 28 August</p>
-            <h1 className="mt-3 font-display type-title-lg font-semibold tracking-tight text-foreground sm:type-display">
-              Good morning, Ane.
-            </h1>
-            <p className="mt-3 max-w-[46ch] type-body text-muted-foreground">
-              Keep your Norwegian moving with a short lesson and one small
-              reading today.
-            </p>
-          </div>
-          <span className="inline-flex items-center gap-2 rounded-full bg-accent-10 px-3 py-2 type-caption-sm font-semibold text-accent-100">
-            <Flame aria-hidden="true" className="icon-sm" />
-            12 day streak
-          </span>
-        </div>
-        <div className="mt-7 flex flex-wrap gap-3">
-          <PageButton>Start practice</PageButton>
-        </div>
-      </div>
-
-      <PageSection title="Today at a glance">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Stat icon={<Clock3 />} label="Today" value="8 min" />
-          <Stat icon={<Target />} label="This week" value="72%" />
-          <Stat icon={<BookOpenText />} label="Words reviewed" value="148" />
-        </div>
-      </PageSection>
-
-      <PageSection title="Continue">
-        <div className="radius-section border border-border bg-card p-5 shadow-soft sm:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h3 className="font-display type-lead font-semibold text-foreground">
-                Word order in main clauses
-              </h3>
-              <p className="mt-1 type-caption text-muted-foreground">
-                Practice 2 of 5 · about 6 minutes left
-              </p>
-            </div>
-            <button
-              aria-label="Open word order lesson"
-              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary-10 text-secondary-80 transition-colors hover:bg-secondary-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              type="button"
-            >
-              <ArrowRight aria-hidden="true" className="icon-sm" />
-            </button>
-          </div>
-          <div className="mt-5 h-2 overflow-hidden rounded-full bg-secondary-10">
-            <div className="h-full w-2/5 rounded-full bg-primary-60" />
-          </div>
-          <p className="mt-2 type-caption-sm text-muted-foreground">
-            40% complete
-          </p>
-        </div>
-      </PageSection>
-
-      <PageSection hint="This week" title="Recent practice">
-        <ul className="divide-y divide-border" role="list">
-          <PracticeRow label="Past tense with var" meta="Yesterday" />
-          <PracticeRow label="A morning in Bergen" meta="Monday" />
-          <PracticeRow label="Question words" meta="Sunday" />
-        </ul>
-      </PageSection>
-    </div>
-  );
-}
-
 function LessonContent() {
+  const [selectedQuickCheckAnswer, setSelectedQuickCheckAnswer] = useState(1);
+
   return (
     <div className="space-y-8 sm:space-y-10">
       <div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-5 px-2.5 py-1 type-label-sm text-primary-90">
+        <span
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-full bg-brand-subtle px-2.5 py-1',
+            textVariants({ role: 'eyebrow', tone: 'selected' }),
+          )}
+        >
           <GraduationCap aria-hidden="true" className="icon-sm" />
-          A1 · Grammar
+          A1 · grammar
         </span>
-        <h1 className="mt-4 font-display type-title-lg font-semibold tracking-tight text-foreground sm:type-display">
+        <h1
+          className={cn(
+            'mt-4',
+            textVariants({
+              role: 'display',
+              size: '3xl',
+              smSize: '4xl',
+              weight: 'semibold',
+              tone: 'default',
+            }),
+          )}
+        >
           Word order in main clauses
         </h1>
-        <p className="mt-3 max-w-[58ch] type-body text-muted-foreground">
+        <p
+          className={cn(
+            'mt-3 max-w-[58ch]',
+            textVariants({ size: 'large', tone: 'subtle' }),
+          )}
+        >
           Keep the finite verb in the right place when a sentence starts with a
           time, place, or reason.
         </p>
         <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2">
           <div className="flex min-w-40 flex-1 items-center gap-3 sm:max-w-xs">
-            <div className="h-2 min-w-20 flex-1 overflow-hidden rounded-full bg-secondary-10">
-              <div className="h-full w-2/5 rounded-full bg-primary-60" />
+            <div className="h-2 min-w-20 flex-1 overflow-hidden rounded-full bg-neutral-subtle">
+              <div className="h-full w-2/5 rounded-full bg-brand-bold" />
             </div>
-            <span className="type-caption-sm font-semibold text-foreground">
+            <span
+              className={textVariants({
+                size: 'small',
+                weight: 'semibold',
+                tone: 'default',
+              })}
+            >
               2/5
             </span>
           </div>
-          <span className="type-caption-sm text-muted-foreground">
+          <span
+            className={textVariants({
+              size: 'small',
+              tone: 'subtle',
+            })}
+          >
             6 min left
           </span>
         </div>
       </div>
 
       <PageSection title="The pattern">
-        <h3 className="font-display type-lead font-semibold text-foreground">
+        <h3
+          className={textVariants({
+            size: 'xl',
+            weight: 'semibold',
+            tone: 'default',
+          })}
+        >
           The finite verb stays second
         </h3>
-        <p className="max-w-[64ch] type-body leading-7 text-secondary-90">
+        <p
+          className={cn(
+            'max-w-[64ch]',
+            textVariants({ size: 'large', tone: 'default' }),
+          )}
+        >
           In a Norwegian main clause, the finite verb comes second. The first
           position can be the subject, a time phrase, or a place phrase.
         </p>
@@ -714,28 +716,44 @@ function LessonContent() {
       </PageSection>
 
       <PageSection hint="Practice 2 of 5" title="Quick check">
-        <div className="radius-section border border-primary-20 bg-primary-5 p-5 sm:p-6">
+        <div className="radius-section border border-brand-subtle bg-brand-subtle p-5 sm:p-6">
           <div className="flex items-center gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-card text-primary-70">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-raised text-icon-brand">
               <Target aria-hidden="true" className="icon-md" />
             </span>
-            <p className="type-body font-medium text-foreground">
+            <p
+              className={textVariants({
+                size: 'large',
+                tone: 'default',
+              })}
+            >
               Which sentence follows the V2 rule?
             </p>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              className="inline-flex min-h-10 items-center radius-field border border-border bg-card px-4 py-2 type-caption-sm text-foreground transition-colors hover:bg-secondary-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              type="button"
+          <div
+            aria-label="Quick check answers"
+            className="mt-4 flex flex-wrap gap-2"
+            onKeyDown={buildRadioGroupKeyDownHandler((index) =>
+              setSelectedQuickCheckAnswer(index),
+            )}
+            role="radiogroup"
+          >
+            <ChoiceTile
+              layout="inline"
+              onClick={() => setSelectedQuickCheckAnswer(0)}
+              selected={selectedQuickCheckAnswer === 0}
+              tabIndex={selectedQuickCheckAnswer === 0 ? 0 : -1}
             >
               I dag jeg leser.
-            </button>
-            <button
-              className="inline-flex min-h-10 items-center radius-field border border-primary-50 bg-primary-10 px-4 py-2 type-caption-sm font-semibold text-primary-90 transition-colors hover:border-primary-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              type="button"
+            </ChoiceTile>
+            <ChoiceTile
+              layout="inline"
+              onClick={() => setSelectedQuickCheckAnswer(1)}
+              selected={selectedQuickCheckAnswer === 1}
+              tabIndex={selectedQuickCheckAnswer === 1 ? 0 : -1}
             >
               I dag leser jeg.
-            </button>
+            </ChoiceTile>
           </div>
         </div>
       </PageSection>
@@ -748,70 +766,107 @@ function ReadingContent({ onTrigger }: { onTrigger?: () => void }) {
     <div className="space-y-8 sm:space-y-10">
       <div>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary-10 px-2.5 py-1 type-label-sm text-secondary-80">
+          <span
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full bg-neutral-subtle px-2.5 py-1',
+              textVariants({ role: 'eyebrow', tone: 'subtle' }),
+            )}
+          >
             <BookMarked aria-hidden="true" className="icon-sm" />
-            A2 · Reading
+            A2 · reading
           </span>
-          <span className="inline-flex items-center gap-1.5 type-caption-sm text-muted-foreground">
+          <span
+            className={cn(
+              'inline-flex items-center gap-1.5',
+              textVariants({ size: 'small', tone: 'subtle' }),
+            )}
+          >
             <Clock3 aria-hidden="true" className="icon-sm" />5 min read
           </span>
         </div>
-        <h1 className="mt-5 font-display type-title-lg font-semibold tracking-tight text-foreground sm:type-display">
+        <h1
+          className={cn(
+            'mt-5',
+            textVariants({
+              role: 'display',
+              size: '3xl',
+              smSize: '4xl',
+              weight: 'semibold',
+              tone: 'default',
+            }),
+          )}
+        >
           A morning in Bergen
         </h1>
-        <p className="mt-3 max-w-[58ch] type-body text-muted-foreground">
+        <p
+          className={cn(
+            'mt-3 max-w-[58ch]',
+            textVariants({ size: 'large', tone: 'subtle' }),
+          )}
+        >
           Read a short scene about the harbor before the cafés open. Tap a
           phrase whenever you want a little help.
         </p>
         <div className="mt-6 flex flex-wrap gap-2">
-          <PageButton variant="outline">
+          <Button variant="outline">
             <Headphones aria-hidden="true" className="icon-sm" />
             Listen
-          </PageButton>
+          </Button>
         </div>
       </div>
 
       <PageSection hint="Paragraph 3" title="Text">
-        <article className="radius-section border border-border bg-card p-5 shadow-soft sm:p-8">
-          <div className="flex items-center justify-between gap-3 border-b border-border pb-4">
-            <div className="flex items-center gap-2 type-caption-sm text-muted-foreground">
+        <article className="radius-section border border-default bg-raised p-5 shadow-soft sm:p-8">
+          <div className="flex items-center justify-between gap-3 border-b border-default pb-4">
+            <div
+              className={cn(
+                'flex items-center gap-2',
+                textVariants({ size: 'small', tone: 'subtle' }),
+              )}
+            >
               <Volume2 aria-hidden="true" className="icon-sm" />
               <span>Read along</span>
             </div>
             <div className="flex items-center gap-1">
-              <button
+              <Button
                 aria-label="Bookmark reading"
-                className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary-10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                size="icon-sm"
                 type="button"
+                variant="ghost"
               >
                 <BookMarked aria-hidden="true" className="icon-sm" />
-              </button>
-              <button
-                aria-label="Play reading audio"
-                className="flex size-9 items-center justify-center rounded-full bg-secondary-10 text-secondary-80 transition-colors hover:bg-secondary-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                type="button"
-              >
-                <Play aria-hidden="true" className="icon-sm" />
-              </button>
+              </Button>
+              <AudioPlayButton
+                label="Play reading audio"
+                presentation="compact"
+                size="sm"
+                src="data:audio/wav;base64,UklGRhQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="
+              />
             </div>
           </div>
-          <div className="mt-6 space-y-5 type-body leading-8 text-secondary-90">
+          <div
+            className={cn(
+              'mt-6 space-y-5',
+              textVariants({ size: 'large', tone: 'default' }),
+            )}
+          >
             <p>
               Det er tidlig morgen i Bergen. Havnen er stille{' '}
-              <button
-                className="rounded-sm bg-primary-10 px-1 text-primary-90 underline decoration-primary-40 decoration-2 underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={onTrigger}
-                type="button"
-              >
+              <InlineTrigger onClick={onTrigger}>
                 før kaféene åpner
-              </button>
+              </InlineTrigger>
               .
             </p>
             <p>
               En mann går langs bryggen med en varm kopp kaffe. Han stopper og
               ser på båtene som ligger i vannet.
             </p>
-            <blockquote className="border-l-2 border-primary-40 pl-4 text-secondary-80">
+            <blockquote
+              className={cn(
+                'border-l-2 border-brand-subtle pl-4',
+                textVariants({ tone: 'subtle' }),
+              )}
+            >
               “Det blir en fin dag,” tenker han.
             </blockquote>
           </div>
@@ -819,83 +874,28 @@ function ReadingContent({ onTrigger }: { onTrigger?: () => void }) {
       </PageSection>
 
       <PageSection hint="Tap to look up" title="Words to watch">
-        <div className="radius-field bg-muted p-4 sm:p-5">
+        <div className="radius-field bg-neutral-subtle p-4 sm:p-5">
           <div className="flex flex-wrap gap-2">
             <VocabChip english="early" norwegian="tidlig" />
             <VocabChip english="quiet" norwegian="stille" />
             <VocabChip english="the pier" norwegian="bryggen" />
             <VocabChip english="thinks" norwegian="tenker" />
           </div>
-          <p className="mt-4 flex items-start gap-2 type-caption-sm text-muted-foreground">
+          <p
+            className={cn(
+              'mt-4 flex items-start gap-2',
+              textVariants({ size: 'small', tone: 'subtle' }),
+            )}
+          >
             <Sparkles
               aria-hidden="true"
-              className="icon-sm shrink-0 text-primary-70"
+              className="icon-sm shrink-0 text-icon-brand"
             />
             Select text in the story to ask Flyt about it.
           </p>
         </div>
       </PageSection>
     </div>
-  );
-}
-
-function PageButton({
-  children,
-  onClick,
-  variant = 'primary',
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  variant?: 'primary' | 'outline';
-}) {
-  return (
-    <button
-      className={
-        variant === 'primary'
-          ? 'inline-flex min-h-11 items-center gap-2 radius-field bg-primary-80 px-4 type-caption font-semibold text-white-100 transition-colors hover:bg-primary-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-          : 'inline-flex min-h-11 items-center gap-2 radius-field border border-border bg-card px-4 type-caption font-semibold text-foreground transition-colors hover:bg-secondary-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-      }
-      onClick={onClick}
-      type="button"
-    >
-      {children}
-    </button>
-  );
-}
-
-function Stat({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="radius-field bg-card p-4">
-      <span className="flex size-9 items-center justify-center rounded-full bg-primary-5 text-primary-70 [&_svg]:icon-sm">
-        {icon}
-      </span>
-      <p className="mt-3 font-display type-stat text-foreground">{value}</p>
-      <p className="mt-1 type-caption-sm text-muted-foreground">{label}</p>
-    </div>
-  );
-}
-
-function PracticeRow({ label, meta }: { label: string; meta: string }) {
-  return (
-    <li className="flex items-center justify-between gap-4 py-3.5 first:pt-0 last:pb-0">
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary-10 text-secondary-80">
-          <Check aria-hidden="true" className="icon-sm" />
-        </span>
-        <span className="truncate type-caption text-foreground">{label}</span>
-      </div>
-      <span className="shrink-0 type-caption-sm text-muted-foreground">
-        {meta}
-      </span>
-    </li>
   );
 }
 
@@ -907,14 +907,12 @@ function VocabChip({
   norwegian: string;
 }) {
   return (
-    <button
-      aria-label={`Look up ${norwegian}`}
-      className="radius-field border border-border/70 bg-background px-3 py-1.5 type-caption-sm text-foreground transition-colors hover:border-primary-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      type="button"
-    >
-      <span className="font-semibold">{norwegian}</span>
-      <span className="ml-1.5 text-muted-foreground">{english}</span>
-    </button>
+    <Chip aria-label={`Look up ${norwegian}`} variant="suggestion">
+      <span className={textVariants({ weight: 'semibold' })}>{norwegian}</span>
+      <span className={cn('ml-1.5', textVariants({ tone: 'subtle' }))}>
+        {english}
+      </span>
+    </Chip>
   );
 }
 
@@ -931,12 +929,30 @@ function SentenceCard({
     <div
       className={
         highlighted
-          ? 'radius-field border border-primary-30 bg-primary-5 p-4'
-          : 'radius-field border border-border bg-secondary-5 p-4'
+          ? 'radius-field border border-brand-subtle bg-brand-subtle p-4'
+          : 'radius-field border border-default bg-neutral p-4'
       }
     >
-      <p className="type-body font-semibold text-foreground">{norwegian}</p>
-      <p className="mt-1 type-caption text-muted-foreground">{english}</p>
+      <p
+        className={textVariants({
+          size: 'large',
+          weight: 'semibold',
+          tone: 'default',
+        })}
+      >
+        {norwegian}
+      </p>
+      <p
+        className={cn(
+          'mt-1',
+          textVariants({
+            size: 'medium',
+            tone: highlighted ? 'default' : 'subtle',
+          }),
+        )}
+      >
+        {english}
+      </p>
     </div>
   );
 }

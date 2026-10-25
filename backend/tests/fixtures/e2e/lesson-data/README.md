@@ -5,7 +5,7 @@ Committed subset of the real lesson-data export in the v4 `dist/` layout:
 packets, and synthesized audio metadata with hosted HTTPS URLs. The importer
 does not require or stage local audio files.
 
-The first packet, `operations_tour`, is synthetic and exercises all nine v4
+The first packet, `operations_tour`, is synthetic and exercises all eight v4
 operations, a named dialogue, nullable write bounds, and multiple audio
 surfaces. The import contract accepts only the `synthesized` audio status;
 obsolete `pending`/`unavailable` entries are rejected at import. The remaining
@@ -24,8 +24,8 @@ release at producer commit
 reapply the synthetic `operations_tour` packet and its two tiny WAV assets,
 retain the `cardinal_numbers` and `adjective_agreement` packets, and record any
 fixture-specific changes in this README. The committed
-`adjective_agreement.json` packet started from the producer file at
-`~/norsk-lesson-data/dist/lessons/`; Flyt normalizes its example content into
+`adjective_agreement.json` packet started from the producer release file
+`dist/lessons/adjective_agreement.json`; Flyt normalizes its example content into
 singular `example` blocks, so its current SHA-256 is
 `b6710031595a9acfd67d5eb7c8f216deea2a630c6b76db9d093436a0ae0d45e6`. The
 packets carry the required ordered `content` reference array, and

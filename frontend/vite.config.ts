@@ -17,12 +17,6 @@ export default defineConfig({
     react(),
   ],
   resolve: {
-    alias: [
-      {
-        find: '@/components/ui',
-        replacement: path.resolve(dirname, '../packages/ui/src/components'),
-      },
-      { find: '@', replacement: path.resolve(dirname, './src') },
-    ],
+    alias: [{ find: '@', replacement: path.resolve(dirname, './src') }],
   },
 });

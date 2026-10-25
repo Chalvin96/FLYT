@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 
@@ -189,6 +190,35 @@ describe('WordsPage (My Cards gallery)', () => {
 
     const link = screen.getByRole('link', { name: /past tense/i });
     expect(link).toHaveAttribute('href', '/lesson/42');
+  });
+
+  it('test_words_page_given_grammar_group_expect_enter_key_toggles_panel', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <WordsPage
+        data={mockData}
+        isPending={false}
+        isError={false}
+        {...initialControls}
+      />,
+    );
+
+    const trigger = screen.getByRole('button', { name: /past tense/i });
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+    trigger.focus();
+    await user.keyboard('{Enter}');
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(
+      screen.getByRole('link', { name: /past tense/i }),
+    ).toBeInTheDocument();
+
+    await user.keyboard('{Enter}');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      screen.queryByRole('link', { name: /past tense/i }),
+    ).not.toBeInTheDocument();
   });
 
   // --- TASK A: grammar grouping ---

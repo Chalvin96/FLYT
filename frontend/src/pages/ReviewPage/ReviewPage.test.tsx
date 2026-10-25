@@ -8,8 +8,7 @@ import type { DeckSummaryItem, UserCard } from '@/types/api';
 import { KeepPracticingPanel } from './KeepPracticingPanel';
 import { ReviewPage } from './ReviewPage';
 
-// Render TanStack's <Link> as a plain anchor so the empty state's "Browse
-// lessons" link works without a full router context in unit tests.
+// Renders <Link> as a plain anchor so these tests need no router context.
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
   Link: ({ children, to }: { children: ReactNode; to: string }) => (
@@ -66,7 +65,7 @@ describe('ReviewPage', () => {
       />,
     );
 
-    await userEvent.click(screen.getByRole('button', { name: /^full/i }));
+    await userEvent.click(screen.getByRole('radio', { name: /^full/i }));
     await userEvent.click(
       screen.getByRole('button', { name: /start practice/i }),
     );
@@ -92,7 +91,7 @@ describe('ReviewPage', () => {
 
     render(<ReviewPage dueCards={lowDueCards} onStart={onStart} />);
 
-    const quickButton = screen.getByRole('button', { name: /quick/i });
+    const quickButton = screen.getByRole('radio', { name: /quick/i });
     expect(quickButton).toBeEnabled();
     expect(quickButton).toHaveTextContent('3 cards');
     expect(quickButton).not.toHaveTextContent(/need 10/i);
@@ -107,11 +106,9 @@ describe('ReviewPage', () => {
   it('offers a queue fill action when no cards are due', () => {
     render(<ReviewPage dueCards={[]} />);
 
-    // Empty state leads with a lesson CTA instead of a disabled practice button.
     expect(
       screen.getByRole('link', { name: /browse lessons/i }),
     ).toBeInTheDocument();
-    // No keep-practicing shelf in the onboarding (not-caught-up) state.
     expect(screen.queryByText(/add more new words/i)).not.toBeInTheDocument();
   });
 });
@@ -156,10 +153,24 @@ describe('ReviewPage caught-up state', () => {
 });
 
 describe('KeepPracticingPanel', () => {
-  it('hides itself when no onAddMoreNew handler is provided', () => {
-    const { container } = render(<KeepPracticingPanel />);
+  it('test_keep_practicing_given_no_add_more_handler_expect_other_practice_destinations', () => {
+    render(<KeepPracticingPanel />);
 
-    expect(container).toBeEmptyDOMElement();
+    expect(
+      screen.queryByRole('button', { name: /add more new words/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Lesson' })).toHaveAttribute(
+      'href',
+      '/lesson',
+    );
+    expect(screen.getByRole('link', { name: 'Reading' })).toHaveAttribute(
+      'href',
+      '/reading',
+    );
+    expect(screen.getByRole('link', { name: /Cards/ })).toHaveAttribute(
+      'href',
+      '/review/cards',
+    );
   });
 
   it('renders the Add more new words button when a handler is provided', async () => {
@@ -198,7 +209,6 @@ describe('ReviewPage deck browse', () => {
     render(<ReviewPage dueCards={manyDueCards} decks={SAMPLE_DECKS} />);
 
     expect(screen.getByText('Subscribed')).toBeInTheDocument();
-    // The un-subscribed deck still shows a Subscribe button.
     expect(
       screen.getByRole('button', { name: /subscribe/i }),
     ).toBeInTheDocument();

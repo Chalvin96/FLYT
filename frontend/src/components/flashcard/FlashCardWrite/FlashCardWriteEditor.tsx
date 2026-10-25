@@ -1,6 +1,6 @@
+import { Button, Heading, Text, textVariants } from '@flyt/ui';
 import { useState } from 'react';
 
-import { Button } from '@/components/common/Button/Button';
 import { SpanView } from '@/components/portable/SpanView';
 import { cn } from '@/lib/utils';
 import type { WriteExercise } from '@/types/lesson-contracts';
@@ -21,15 +21,16 @@ export function WriteTask({ exercise }: { exercise: WriteExercise }) {
 
   return (
     <div
-      className="radius-field border border-border bg-secondary-5 p-4"
+      className="radius-field border border-default bg-neutral p-4"
       data-testid="write-task"
     >
-      <p className="font-display type-label leading-flat text-muted-foreground">
+      <Heading as="div" size="xxsmall" tone="subtle">
         Task
-      </p>
+      </Heading>
       <p
         className={cn(
-          'type-caption mt-2 text-foreground text-pretty sm:type-body',
+          textVariants({ size: 'medium', smSize: 'large' }),
+          'mt-2 text-default text-pretty',
           clampable && !expanded && 'line-clamp-3 sm:line-clamp-none',
         )}
         data-testid="exercise-prompt"
@@ -41,7 +42,7 @@ export function WriteTask({ exercise }: { exercise: WriteExercise }) {
         <button
           aria-controls={promptId}
           aria-expanded={expanded}
-          className="type-label-xs mt-2 self-start text-muted-foreground underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:hidden"
+          className={`mt-2 self-start text-subtle underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-[var(--border-focused)] focus-visible:outline-none sm:hidden ${textVariants({ role: 'eyebrow' })}`}
           onClick={() => setExpanded((open) => !open)}
           type="button"
         >
@@ -79,9 +80,9 @@ export function WriteEditor({
   return (
     <div
       className={cn(
-        'radius-field shadow-tile flex min-h-48 flex-1 flex-col overflow-hidden border bg-card transition-colors',
-        'focus-within:ring-2 focus-within:ring-ring',
-        responseTooLong ? 'border-destructive-20' : 'border-border',
+        'radius-field shadow-tile flex min-h-48 flex-1 flex-col overflow-hidden border bg-raised transition-colors',
+        'focus-within:ring-2 focus-within:ring-[var(--border-focused)]',
+        responseTooLong ? 'border-danger-subtle' : 'border-default',
         disabled && 'opacity-60',
       )}
       data-testid="write-editor"
@@ -89,7 +90,7 @@ export function WriteEditor({
       <textarea
         aria-describedby={ariaDescribedBy}
         aria-label="Your response in Norwegian"
-        className="type-body min-h-28 w-full flex-1 resize-none bg-transparent px-4 py-3 leading-roomy text-foreground placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed"
+        className={`min-h-28 w-full flex-1 resize-none bg-transparent px-4 py-3 text-default placeholder:text-subtle focus-visible:outline-none disabled:cursor-not-allowed ${textVariants({ size: 'large' })}`}
         disabled={disabled}
         lang="no"
         onChange={(event) => onChange(event.target.value)}
@@ -107,10 +108,10 @@ export function WriteEditor({
             <p
               aria-live="polite"
               className={cn(
-                'type-caption-sm',
-                countState === 'under' && 'text-muted-foreground',
-                countState === 'in-range' && 'text-accent-80',
-                countState === 'over' && 'text-warning-60',
+                textVariants({ size: 'small' }),
+                countState === 'under' && 'text-subtle',
+                countState === 'in-range' && 'text-success',
+                countState === 'over' && 'text-warning',
               )}
             >
               {countLabel}
@@ -119,8 +120,8 @@ export function WriteEditor({
           {characterLabel ? (
             <p
               className={cn(
-                'type-caption-sm',
-                responseTooLong ? 'text-destructive' : 'text-muted-foreground',
+                textVariants({ size: 'small' }),
+                responseTooLong ? 'text-danger' : 'text-subtle',
               )}
             >
               {characterLabel}
@@ -140,8 +141,8 @@ function DraftStatusLine({ draftStatus }: { draftStatus: DraftStatus | null }) {
   return (
     <p
       className={cn(
-        'type-label-xs',
-        draftStatus === 'saved' ? 'text-accent-80' : 'text-warning-60',
+        textVariants({ role: 'eyebrow' }),
+        draftStatus === 'saved' ? 'text-success' : 'text-warning',
       )}
       role="status"
     >
@@ -164,17 +165,20 @@ export function WriteNotices({
   return (
     <>
       {phase === 'unavailable' ? (
-        <div className="radius-field border border-warning-30 bg-warning-10 p-3">
-          <p className="type-caption text-foreground">
+        <div className="radius-field border border-warning-subtle bg-warning-subtle p-3">
+          <Text size="medium" tone="default">
             We couldn&rsquo;t check this right now.{' '}
             {draftStatus === 'saved'
               ? 'Your response is saved and you can keep going.'
               : 'Your response remains here, but it could not be saved for later.'}
-          </p>
+          </Text>
         </div>
       ) : null}
       {validationMessage ? (
-        <p className="type-caption text-destructive" role="alert">
+        <p
+          className={`text-danger ${textVariants({ size: 'medium' })}`}
+          role="alert"
+        >
           {validationMessage}
         </p>
       ) : null}
@@ -182,7 +186,7 @@ export function WriteNotices({
   );
 }
 
-export function WriteEscapeActions({
+export function WriteAlternativeActions({
   phase,
   onContinueUngraded,
   onRevise,
@@ -195,11 +199,7 @@ export function WriteEscapeActions({
 }) {
   if (phase === 'composing') {
     return (
-      <Button
-        className="w-full text-muted-foreground sm:w-auto"
-        onClick={onSkip}
-        variant="ghost"
-      >
+      <Button width="full-on-mobile" onClick={onSkip} variant="ghost">
         Skip for now
       </Button>
     );
@@ -211,14 +211,14 @@ export function WriteEscapeActions({
 
   return (
     <>
-      <Button className="w-full sm:w-auto" onClick={onRevise} variant="outline">
+      <Button width="full-on-mobile" onClick={onRevise} variant="outline">
         Revise
       </Button>
       {phase === 'unavailable' ? (
         <Button
-          className="w-full sm:w-auto"
+          width="full-on-mobile"
           onClick={onContinueUngraded}
-          variant="pill"
+          shape="pill"
         >
           Continue ungraded
         </Button>

@@ -28,6 +28,7 @@ from flyt.apps.flashcards.schemas import DefinitionPayload
 from flyt.apps.lessons.models import Lesson
 from flyt.apps.lessons.models import LessonRelease
 from flyt.apps.lessons.models import UserLessonProgress
+from flyt.apps.lessons.utils import estimate_lesson_minutes
 from flyt.apps.lexicons.models import Definition
 from flyt.apps.lexicons.models import Lemma
 from flyt.apps.lexicons.models import LemmaAlias
@@ -100,6 +101,7 @@ class UserFactory(AsyncSQLAlchemyFactory):
     avatar_url = None
     role = UserRole.USER
     is_active = True
+    session_version = 0
 
 
 class AuthIdentityFactory(AsyncSQLAlchemyFactory):
@@ -158,8 +160,7 @@ class DefinitionFactory(AsyncSQLAlchemyFactory):
             lemma = await LemmaFactory.create()
 
         if lemma is not None:
-            kwargs["lemma"] = lemma
-            kwargs.pop("lemma_id", None)
+            kwargs["lemma_id"] = lemma.id
 
         return await super().create_async(**kwargs)
 
@@ -180,8 +181,7 @@ class WordFormFactory(AsyncSQLAlchemyFactory):
             lemma = await LemmaFactory.create()
 
         if lemma is not None:
-            kwargs["lemma"] = lemma
-            kwargs.pop("lemma_id", None)
+            kwargs["lemma_id"] = lemma.id
 
         return await super().create_async(**kwargs)
 
@@ -204,8 +204,7 @@ class SeeAlsoFactory(AsyncSQLAlchemyFactory):
             lemma = await LemmaFactory.create()
 
         if lemma is not None:
-            kwargs["lemma"] = lemma
-            kwargs.pop("lemma_id", None)
+            kwargs["lemma_id"] = lemma.id
 
         return await super().create_async(**kwargs)
 
@@ -312,8 +311,7 @@ class CardPoolFactory(AsyncSQLAlchemyFactory):
         lemma = kwargs.pop("lemma", None)
 
         if lemma is not None:
-            kwargs["lemma"] = lemma
-            kwargs.pop("lemma_id", None)
+            kwargs["lemma_id"] = lemma.id
             kwargs.setdefault("lesson_id", None)
         elif lesson is None and "lesson_id" not in kwargs:
             lesson = await LessonFactory.create()
@@ -322,10 +320,7 @@ class CardPoolFactory(AsyncSQLAlchemyFactory):
             kwargs["lesson_id"] = lesson.id
             kwargs.setdefault("lemma_id", None)
 
-        pool = await super().create_async(**kwargs)
-        if lesson is not None and pool not in lesson.pools:
-            lesson.pools.append(pool)
-        return pool
+        return await super().create_async(**kwargs)
 
 
 class ReadingGroupFactory(AsyncSQLAlchemyFactory):
@@ -344,7 +339,6 @@ class StoryFactory(AsyncSQLAlchemyFactory):
 
     reading_group = Ignore()
     title = Use(lambda: fake.sentence()[:30])
-    content = Use(fake.paragraph)
     cefr_level = "A1"
     slug = Use(lambda: f"story-{uuid4().hex[:8]}")
     visibility = StoryVisibility.PUBLIC
@@ -363,23 +357,11 @@ class StoryFactory(AsyncSQLAlchemyFactory):
         if reading_group is not None:
             kwargs["reading_group_id"] = reading_group.id
 
-        if "word_count" not in kwargs:
-            content = kwargs.get("content")
-            if content is None:
-                story = await super().create_async(**kwargs)
-                # A null content (e.g. an import-kind story before ingress populates
-                # it) yields a zero word count.
-                story.word_count = len((story.content or "").split())
-                await cls.__async_session__.flush()
-                if reading_group is not None and story not in reading_group.stories:
-                    reading_group.stories.append(story)
-                return story
-            kwargs["word_count"] = len((content or "").split())
+        kwargs.setdefault("content", fake.paragraph())
+        content = kwargs["content"]
+        kwargs.setdefault("word_count", len((content or "").split()))
 
-        story = await super().create_async(**kwargs)
-        if reading_group is not None and story not in reading_group.stories:
-            reading_group.stories.append(story)
-        return story
+        return await super().create_async(**kwargs)
 
 
 class UserStoryFactory(AsyncSQLAlchemyFactory):
@@ -409,10 +391,7 @@ class UserStoryFactory(AsyncSQLAlchemyFactory):
                 story = await StoryFactory.create()
             kwargs["story_id"] = story.id
 
-        user_story = await super().create_async(**kwargs)
-        if story is not None and user_story not in story.user_stories:
-            story.user_stories.append(user_story)
-        return user_story
+        return await super().create_async(**kwargs)
 
 
 class StoryPageFactory(AsyncSQLAlchemyFactory):
@@ -433,10 +412,7 @@ class StoryPageFactory(AsyncSQLAlchemyFactory):
             if story is None:
                 story = await StoryFactory.create()
             kwargs["story_id"] = story.id
-        page = await super().create_async(**kwargs)
-        if story is not None and page not in story.pages:
-            story.pages.append(page)
-        return page
+        return await super().create_async(**kwargs)
 
 
 class LessonReleaseFactory(AsyncSQLAlchemyFactory):
@@ -501,6 +477,9 @@ class LessonFactory(AsyncSQLAlchemyFactory):
             )
             kwargs["packet_json"] = _minimal_packet(source_id, kwargs.get("title", ""))
 
+        kwargs.setdefault(
+            "estimated_minutes", estimate_lesson_minutes(kwargs["packet_json"])
+        )
         return await super().create_async(**kwargs)
 
 
@@ -539,6 +518,7 @@ class UserCardFactory(AsyncSQLAlchemyFactory):
     pool = Ignore()
     last_shown_card = Ignore()
     active_card = Ignore()
+    review_version = 0
     fsrs_stability = None
     fsrs_difficulty = None
     fsrs_step = None

@@ -1,23 +1,25 @@
-from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel
+from pydantic import ConfigDict
 from pydantic import Field
 from pydantic import field_validator
 from pydantic import model_validator
 
+from flyt.apps.flashcards.constants import K_MY_CARDS_DEFAULT_PAGE_SIZE
+from flyt.apps.flashcards.constants import K_MY_CARDS_MAX_PAGE_SIZE
 from flyt.apps.flashcards.constants import ReviewOutcome
 from flyt.apps.flashcards.models import CardState
 from flyt.apps.flashcards.models import CardType
 from flyt.apps.flashcards.models import FlashCard as FlashCardModel
-from flyt.apps.flashcards.models import LESSON_REVIEW_AUDIO_KEY
 from flyt.apps.flashcards.types import DueCard
-from flyt.apps.lessons.schemas import LessonAudioRead
 from flyt.apps.lessons.schemas import learner_safe_exercise_payload
 from flyt.apps.lexicons.models import LemmaPos
 from flyt.apps.lexicons.schemas import ExamplePair
 from flyt.apps.lexicons.schemas import WordFormRead
+
+from flyt.core.schemas import UtcDatetime
 
 
 class DefinitionEntry(BaseModel):
@@ -72,13 +74,11 @@ class FlashCardOperation(BaseModel):
         CardType.BUILD,
         CardType.JUDGE,
         CardType.FIND_FIX,
-        CardType.SPEAK,
         CardType.WRITE,
     ]
     payload: dict
     schema_version: str
     deck_id: int | None = None
-    audio: LessonAudioRead | None = None
 
 
 FlashCard = FlashCardDefinition | FlashCardOperation
@@ -92,7 +92,6 @@ def _strip_payload_metadata(payload: dict) -> dict:
 
 def serialize_flashcard(card: FlashCardModel) -> FlashCard:
     stored_payload = _strip_payload_metadata(card.payload_json)
-    audio = _exercise_audio_asset(stored_payload.pop(LESSON_REVIEW_AUDIO_KEY, None))
     payload_json = learner_safe_exercise_payload(stored_payload)
 
     match card.type:
@@ -112,14 +111,7 @@ def serialize_flashcard(card: FlashCardModel) -> FlashCard:
                 payload=payload_json,
                 schema_version=card.schema_version,
                 deck_id=card.deck_id,
-                audio=audio,
             )
-
-
-def _exercise_audio_asset(value: object) -> LessonAudioRead | None:
-    if not isinstance(value, dict):
-        return None
-    return LessonAudioRead.model_validate(value)
 
 
 class LemmaContextCreate(BaseModel):
@@ -154,13 +146,14 @@ class UserCardRead(BaseModel):
     id: int
     user_id: int
     pool_id: int
+    review_version: int
     lesson_id: int | None = None
     card: FlashCard
     fsrs_stability: float | None
     fsrs_difficulty: float | None
     fsrs_step: int | None
-    last_review_at: datetime | None
-    due_at: datetime
+    last_review_at: UtcDatetime | None
+    due_at: UtcDatetime
     state: CardState
     word_forms: list[WordFormRead] = []
     rating_previews: dict[str, str] = {}
@@ -173,6 +166,7 @@ class UserCardRead(BaseModel):
             id=user_card.id,
             user_id=user_card.user_id,
             pool_id=user_card.pool_id,
+            review_version=user_card.review_version,
             lesson_id=due_card.card.pool.lesson_id if due_card.card.pool else None,
             card=serialize_flashcard(due_card.card),
             fsrs_stability=user_card.fsrs_stability,
@@ -194,12 +188,14 @@ class UserCardRead(BaseModel):
 class ReviewSubmission(BaseModel):
     """One review outcome: graded work schedules; ungraded work advances only.
 
-    Speak/write exercises may finish without a grade. Those submissions carry
-    ``skipped`` or ``service_unavailable`` and must not create scheduling
-    evidence (no FSRS update, no review log).
+    Write exercises may finish with ``skipped`` or
+    ``service_unavailable``. Any card may finish with ``unsupported`` when the
+    client cannot render it. Ungraded outcomes carry no rating and create no
+    scheduling evidence (no FSRS update, no review log).
     """
 
     card_id: int = Field(..., description="FlashCard variant issued for this card")
+    review_version: int
     outcome: ReviewOutcome = ReviewOutcome.GRADED
     rating: int | None = Field(
         default=None, ge=1, le=4, description="Rating: 1=Again, 2=Hard, 3=Good, 4=Easy"
@@ -215,11 +211,12 @@ class ReviewSubmission(BaseModel):
 
 
 class ReviewResult(BaseModel):
+    review_version: int
     new_remaining: int
     learning_remaining: int
     review_remaining: int
     card_state: CardState
-    due_at: datetime
+    due_at: UtcDatetime
 
 
 class AddMoreNewResponse(BaseModel):
@@ -232,6 +229,20 @@ class AddMoreNewResponse(BaseModel):
 MasteryBucket = Literal["not_started", "learning", "familiar", "known", "mastered"]
 CardFacet = Literal["all", "vocab", "grammar"]
 CardSort = Literal["weakest", "recent", "alpha"]
+
+
+class MyCardsQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    facet: CardFacet = "all"
+    bucket: MasteryBucket | None = None
+    started_only: bool = True
+    q: str | None = Field(default=None, max_length=100)
+    sort: CardSort = "weakest"
+    page: int = Field(default=1, ge=1)
+    limit: int = Field(
+        default=K_MY_CARDS_DEFAULT_PAGE_SIZE, ge=1, le=K_MY_CARDS_MAX_PAGE_SIZE
+    )
 
 
 class MyCardsSummary(BaseModel):

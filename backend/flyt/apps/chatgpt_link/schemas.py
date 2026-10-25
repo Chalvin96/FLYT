@@ -1,20 +1,21 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
 
 from flyt.apps.chatgpt_link.types import PendingAuthorization
 
+from flyt.core.schemas import UtcDatetime
+
 
 class PendingAuthorizationRead(BaseModel):
     user_code: str
-    expires_at: datetime
+    expires_at: UtcDatetime
 
 
 class ChatGPTLinkRead(BaseModel):
     state: Literal["absent", "working", "broken"]
     broken_reason: str | None = None
-    connected_at: datetime | None = None
+    connected_at: UtcDatetime | None = None
     pending: PendingAuthorizationRead | None = None
     model: str | None = None
     available_models: list[str] = []
@@ -31,7 +32,7 @@ class ChatGPTLinkStartRequest(BaseModel):
 class ChatGPTLinkStartResponse(BaseModel):
     user_code: str
     verification_url: str
-    expires_at: datetime
+    expires_at: UtcDatetime
 
 
 class ChatGPTLinkPollResponse(BaseModel):

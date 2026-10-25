@@ -1,10 +1,5 @@
-import { expect, test } from '@playwright/test';
-
+import { expect, test } from './fixtures';
 import { loginAs } from './helpers/auth';
-
-// Always-on counterpart to the recorded walkthrough in storyGeneration.spec.ts.
-// Runs without OPENROUTER_API_KEY: the stack boots with the stub provider, and
-// the arq worker runs the real pipeline over its canned Norwegian text.
 
 // The worker still paginates, annotates, and links lemmas; generous upper
 // bound for the generate→ready transition, asserted on real conditions only.
@@ -20,7 +15,13 @@ test('generated story flow: stub provider drives ready, lookup, and import', asy
   await page.setViewportSize({ width: 390, height: 844 });
 
   await loginAs(page, 'learner@example.com');
+  const optionsResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/story-generation' &&
+      response.request().method() === 'GET',
+  );
   await page.goto('/reading/generate');
+  expect((await optionsResponse).ok()).toBe(true);
 
   await expect(
     page.getByRole('heading', { name: 'Generate a story to read' }),
@@ -38,7 +39,12 @@ test('generated story flow: stub provider drives ready, lookup, and import', asy
   await expect(chatgptProvider).toBeDisabled();
   await expect(page.getByText(/^Locked$/)).toBeVisible();
 
-  // 3. Generate from the no-anchor option.
+  // 3. Generate from the no-anchor option on the stub provider.
+  const stubProvider = page.getByRole('radio', { name: /stub/i });
+  await expect(stubProvider).toBeEnabled();
+  await stubProvider.click();
+  await expect(stubProvider).toHaveAttribute('aria-checked', 'true');
+
   const anythingAnchor = page.getByRole('radio', { name: /Anything/i });
   await expect(anythingAnchor).toBeEnabled();
   await anythingAnchor.click();

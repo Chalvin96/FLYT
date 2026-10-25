@@ -33,7 +33,7 @@ export function MessageScrollerViewport({
   return (
     <MessageScrollerPrimitive.Viewport
       className={cn(
-        'size-full min-h-0 min-w-0 overflow-y-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+        'size-full min-h-0 min-w-0 overflow-y-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--border-focused)]',
         className,
       )}
       data-slot="message-scroller-viewport"
@@ -80,7 +80,7 @@ export function MessageScrollerButton({
     <MessageScrollerPrimitive.Button
       aria-label={ariaLabel ?? 'Scroll to latest'}
       className={cn(
-        'absolute right-4 bottom-4 flex size-11 cursor-pointer items-center justify-center rounded-full border border-border bg-card text-secondary-80 shadow-soft transition-[opacity,background-color,color] hover:bg-secondary-10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[active=false]:pointer-events-none data-[active=false]:opacity-0',
+        'absolute right-4 bottom-4 flex size-11 cursor-pointer items-center justify-center rounded-full border border-default bg-raised text-subtle shadow-soft transition-[opacity,background-color,color] hover:bg-neutral-subtle hover:text-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focused)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background-neutral)] data-[active=false]:pointer-events-none data-[active=false]:opacity-0',
         className,
       )}
       data-slot="message-scroller-button"

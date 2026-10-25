@@ -1,3 +1,4 @@
+import { Heading } from '@flyt/ui';
 import { BookOpenText, BookText, Target, Zap } from 'lucide-react';
 import { m } from 'motion/react';
 
@@ -19,7 +20,7 @@ const QUICK_CARD: PracticeCardProps = {
   icon: Zap,
   title: 'Quick session',
   subtitle: 'A short review session when you are low on time',
-  iconTone: 'secondary',
+  iconTone: 'neutral',
 };
 
 const READING_CARD: PracticeCardProps = {
@@ -27,7 +28,7 @@ const READING_CARD: PracticeCardProps = {
   icon: BookText,
   title: 'Reading',
   subtitle: 'Read a short story to practise in context',
-  iconTone: 'warning',
+  iconTone: 'success',
 };
 
 export function DashboardPracticeCards({
@@ -45,7 +46,7 @@ export function DashboardPracticeCards({
     subtitle: reviewRemaining
       ? `${dueCount} card${dueCount === 1 ? ' is' : 's are'} due right now`
       : 'Keep recall strong with a short review session',
-    iconTone: 'primary',
+    iconTone: 'brand',
   };
   const lessonsCard: PracticeCardProps = {
     to: lessonsHref,
@@ -54,19 +55,19 @@ export function DashboardPracticeCards({
     subtitle: lessonsRemaining
       ? `${lessonCount} lesson${lessonCount === 1 ? '' : 's'} available in your path`
       : 'Pick up a new lesson when you have time',
-    iconTone: 'secondary',
+    iconTone: 'neutral',
   };
-  // No cards due (e.g. a brand-new user): lead with learning, not an empty
-  // review queue, and drop Quick session (it needs a populated queue).
-  const cards: PracticeCardProps[] =
-    dueCount > 0
-      ? [reviewCard, QUICK_CARD, lessonsCard, READING_CARD]
-      : [lessonsCard, READING_CARD, reviewCard];
+  const hasReviewQueue = dueCount > 0;
+  const cards: PracticeCardProps[] = hasReviewQueue
+    ? [reviewCard, QUICK_CARD, lessonsCard, READING_CARD]
+    : [lessonsCard, READING_CARD, reviewCard];
 
   return (
     <m.section variants={fadeUp}>
       <div className="mb-3 px-1">
-        <h2 className="type-title leading-none">Choose your next step</h2>
+        <Heading as="h2" size="large">
+          Choose your next step
+        </Heading>
       </div>
       <div className="flex flex-col gap-3 md:grid md:grid-cols-2 lg:flex lg:flex-col">
         {cards.map((item) => (

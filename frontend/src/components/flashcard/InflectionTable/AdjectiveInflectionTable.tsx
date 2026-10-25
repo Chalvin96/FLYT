@@ -1,26 +1,21 @@
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+  Text,
+} from '@flyt/ui';
+
 import type { WordFormRead } from '@/types/api';
 
+import type { InflectionLayout } from './inflectionStyles';
 import {
-  buildDesktopClassName,
-  buildMobileClassName,
-  dataCellCls,
-  headerCellCls,
-  panelCls,
-  sectionLabelCls,
-  tdCls,
-  tdMutedCls,
-  thCls,
-  type InflectionLayout,
-} from './inflectionStyles';
-import { shortenInflectionLabel } from './utils';
+  InflectionMobileRow,
+  InflectionSectionLabel,
+  InflectionSurface,
+} from './InflectionSurface';
+import { formatInflectionLabel } from './utils';
 
 type AdjectiveFormKey =
   | 'pos_masc_fem'
@@ -69,74 +64,55 @@ export function AdjectiveInflectionTable({
   const forms = collectAdjectiveForms(wordForms);
 
   return (
-    <div className="w-full type-caption">
-      <div className={buildDesktopClassName(layout)}>
-        <AdjectiveDesktopTable forms={forms} />
-      </div>
-
-      <div
-        className={buildMobileClassName(layout)}
-        data-testid="inflection-mobile"
-      >
-        <AdjectiveMobileList forms={forms} />
-      </div>
-    </div>
+    <InflectionSurface
+      layout={layout}
+      desktop={<AdjectiveDesktopRows forms={forms} />}
+      mobile={<AdjectiveMobileList forms={forms} />}
+    />
   );
 }
 
-function AdjectiveDesktopTable({
+function AdjectiveDesktopRows({
   forms,
 }: {
   forms: Partial<Record<AdjectiveFormKey, string>>;
 }) {
   return (
-    <div className={panelCls}>
-      <Table className="min-w-max border-collapse">
-        <TableHeader className="[&_tr]:border-0">
-          <TableRow className="border-0 hover:bg-transparent">
-            <TableHead className={thCls} colSpan={3}>
-              entall
-            </TableHead>
-            <TableHead className={thCls}>flertall</TableHead>
-          </TableRow>
-          <TableRow className="border-0 hover:bg-transparent">
-            <TableHead className={thCls}>
-              {shortenInflectionLabel('hankjønn / hunkjønn')}
-            </TableHead>
-            <TableHead className={thCls}>intetkjønn</TableHead>
-            <TableHead className={thCls}>bestemt form</TableHead>
-            <TableHead className={thCls}>flertall</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <TableRow className="border-0 hover:bg-transparent">
-            <TableCell className={tdCls}>
-              {forms['pos_masc_fem'] ?? '—'}
-            </TableCell>
-            <TableCell className={tdCls}>
-              {forms['pos_neuter'] ?? '—'}
-            </TableCell>
-            <TableCell className={tdCls}>
-              {forms['pos_def_sing'] ?? forms['pos_plural'] ?? '—'}
-            </TableCell>
-            <TableCell className={tdCls}>
-              {forms['pos_plural'] ?? '—'}
-            </TableCell>
-          </TableRow>
-          <ComparisonRow forms={forms} formKey="cmp" label="komparativ" />
-          <ComparisonRow
-            forms={forms}
-            formKey="sup_ind"
-            label={shortenInflectionLabel('superlativ ubestemt')}
-          />
-          <ComparisonRow
-            forms={forms}
-            formKey="sup_def"
-            label={shortenInflectionLabel('superlativ bestemt')}
-          />
-        </TableBody>
-      </Table>
-    </div>
+    <>
+      <TableHeader>
+        <TableRow>
+          <TableHead colSpan={3}>Entall</TableHead>
+          <TableHead>Flertall</TableHead>
+        </TableRow>
+        <TableRow>
+          <TableHead>{formatInflectionLabel('Hankjønn / hunkjønn')}</TableHead>
+          <TableHead>Intetkjønn</TableHead>
+          <TableHead>Bestemt form</TableHead>
+          <TableHead>Flertall</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow>
+          <TableCell>{forms['pos_masc_fem'] ?? '—'}</TableCell>
+          <TableCell>{forms['pos_neuter'] ?? '—'}</TableCell>
+          <TableCell>
+            {forms['pos_def_sing'] ?? forms['pos_plural'] ?? '—'}
+          </TableCell>
+          <TableCell>{forms['pos_plural'] ?? '—'}</TableCell>
+        </TableRow>
+        <ComparisonRow forms={forms} formKey="cmp" label="Komparativ" />
+        <ComparisonRow
+          forms={forms}
+          formKey="sup_ind"
+          label={formatInflectionLabel('Superlativ ubestemt')}
+        />
+        <ComparisonRow
+          forms={forms}
+          formKey="sup_def"
+          label={formatInflectionLabel('Superlativ bestemt')}
+        />
+      </TableBody>
+    </>
   );
 }
 
@@ -155,9 +131,11 @@ function ComparisonRow({
   }
 
   return (
-    <TableRow className="border-0 hover:bg-transparent">
-      <TableCell className={tdCls} colSpan={4}>
-        <span className={`${tdMutedCls} mr-2 inline-block w-24`}>{label}</span>
+    <TableRow>
+      <TableCell colSpan={4}>
+        <Text as="span" size="small" tone="subtle">
+          <span className="mr-2 inline-block w-24 italic">{label}</span>
+        </Text>
         {value}
       </TableCell>
     </TableRow>
@@ -170,51 +148,47 @@ function AdjectiveMobileList({
   forms: Partial<Record<AdjectiveFormKey, string>>;
 }) {
   const positiveRows = [
-    { label: 'hankjønn / hunkjønn', value: forms['pos_masc_fem'] },
-    { label: 'intetkjønn', value: forms['pos_neuter'] },
+    { label: 'Hankjønn / hunkjønn', value: forms['pos_masc_fem'] },
+    { label: 'Intetkjønn', value: forms['pos_neuter'] },
     {
-      label: 'flertall / bestemt form',
+      label: 'Flertall / bestemt form',
       value: forms['pos_plural'] ?? forms['pos_def_sing'],
     },
   ];
 
   const gradeRows = [
-    { label: 'komparativ', value: forms['cmp'] },
-    { label: 'superlativ ubestemt', value: forms['sup_ind'] },
-    { label: 'superlativ bestemt', value: forms['sup_def'] },
+    { label: 'Komparativ', value: forms['cmp'] },
+    { label: 'Superlativ ubestemt', value: forms['sup_ind'] },
+    { label: 'Superlativ bestemt', value: forms['sup_def'] },
   ].filter((row): row is { label: string; value: string } =>
     Boolean(row.value),
   );
 
   return (
     <>
-      <div className={`${sectionLabelCls} border-b border-border`}>positiv</div>
-      <div className="divide-y divide-border">
-        {positiveRows.map(({ label, value }) => (
-          <div className="flex" key={label}>
-            <div className={headerCellCls}>{shortenInflectionLabel(label)}</div>
-            <div className={dataCellCls}>{value ?? '—'}</div>
-          </div>
-        ))}
-      </div>
+      <InflectionSectionLabel>Positiv</InflectionSectionLabel>
+      <MobileRows rows={positiveRows} />
 
       {gradeRows.length > 0 ? (
         <>
-          <div className={`${sectionLabelCls} border-y border-border`}>
-            gradbøying
-          </div>
-          <div className="divide-y divide-border">
-            {gradeRows.map(({ label, value }) => (
-              <div className="flex" key={label}>
-                <div className={headerCellCls}>
-                  {shortenInflectionLabel(label)}
-                </div>
-                <div className={dataCellCls}>{value}</div>
-              </div>
-            ))}
-          </div>
+          <InflectionSectionLabel border="y">Gradbøying</InflectionSectionLabel>
+          <MobileRows rows={gradeRows} />
         </>
       ) : null}
     </>
+  );
+}
+
+function MobileRows({ rows }: { rows: { label: string; value?: string }[] }) {
+  return (
+    <div className="divide-y divide-[var(--border-default)]">
+      {rows.map(({ label, value }) => (
+        <InflectionMobileRow
+          key={label}
+          label={formatInflectionLabel(label)}
+          value={value ?? '—'}
+        />
+      ))}
+    </div>
   );
 }

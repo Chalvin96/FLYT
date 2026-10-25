@@ -140,7 +140,7 @@ def _my_cards_base_stmt(
     bucket: str | None,
     started_only: bool,
     q: str | None,
-) -> Select[tuple[UserCard, CardPool, Lemma, Lesson]]:
+) -> Select[UserCard, CardPool, Lemma, Lesson]:
     bucket_expr = mastery_bucket_sql_case(UserCard.state, UserCard.fsrs_stability)
     stmt = (
         select(UserCard, CardPool, Lemma, Lesson)
@@ -313,12 +313,10 @@ class MyCardsService:
             )
 
         offset = (page - 1) * limit
-        # The relationship's model-level lazy="selectin" must be overridden
-        # explicitly; entries never read word forms (search matches in SQL).
         page_stmt = (
             base.options(
-                Load(UserCard).lazyload("*"),
-                Load(CardPool).lazyload("*"),
+                Load(UserCard).raiseload("*"),
+                Load(CardPool).raiseload("*"),
                 Load(Lemma).lazyload("*"),
                 Load(Lesson).lazyload("*"),
             )

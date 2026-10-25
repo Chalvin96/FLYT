@@ -13,6 +13,23 @@ from flyt.content.schemas import LessonPacket
 from tests.helpers.lesson_packets import packet_minimal
 
 
+@pytest.mark.parametrize("schema_has_kind", [True, False])
+def test_load_lesson_import_given_legacy_packet_expect_unknown_kind(
+    tmp_path: Path, schema_has_kind: bool
+) -> None:
+    packet = _packet("lesson-a")
+    packet.pop("kind")
+    schema = LessonPacket.model_json_schema()
+    schema["required"] = [name for name in schema["required"] if name != "kind"]
+    if not schema_has_kind:
+        schema["properties"].pop("kind")
+    root = _write_import(tmp_path, {"lesson-a": packet}, schema=schema)
+
+    lesson_import = load_lesson_import_or_raise(root)
+
+    assert lesson_import.lessons[0].packet.kind is None
+
+
 def test_find_lesson_import_root_given_nested_catalog_expect_import_root(
     tmp_path: Path,
 ) -> None:
@@ -188,11 +205,83 @@ def test_load_lesson_import_given_symlinked_digest_entry_expect_error(
         load_lesson_import_or_raise(root)
 
 
+def test_load_lesson_import_given_schema_4_1_stimulus_packet_expect_success(
+    tmp_path: Path,
+) -> None:
+    from tests.helpers.lesson_packets import exercise_for
+    from tests.helpers.lesson_packets import packet_with_exercise
+
+    exercise = exercise_for("choose")
+    exercise["stimulus"] = [
+        {
+            "kind": "dialogue",
+            "turns": [
+                {
+                    "speaker": "Mina",
+                    "text": [{"kind": "text", "value": "«Du skulle ha kjøpt brød.»"}],
+                }
+            ],
+        }
+    ]
+    packet = packet_with_exercise(exercise)
+    packet["schema_version"] = "4.1"
+    root = _write_import(
+        tmp_path,
+        {"lesson-a": packet},
+        schema=_packet_schema(schema_version="4.1"),
+    )
+
+    lesson_import = load_lesson_import_or_raise(root)
+
+    parsed = lesson_import.lessons[0].packet
+    assert parsed.schema_version == "4.1"
+    stimulus = parsed.exercises[0].stimulus
+    assert stimulus is not None
+    assert stimulus[0].turns[0].speaker == "Mina"
+
+
+def test_load_lesson_import_given_unsupported_schema_version_expect_error(
+    tmp_path: Path,
+) -> None:
+    root = _write_import(
+        tmp_path,
+        {"lesson-a": _packet("lesson-a")},
+        schema=_packet_schema(schema_version="5.0"),
+    )
+
+    with pytest.raises(LessonImportError, match="schema_version contract"):
+        load_lesson_import_or_raise(root)
+
+
+def test_load_lesson_import_given_schema_missing_goal_expect_error_without_optional_kind(
+    tmp_path: Path,
+) -> None:
+    schema = _packet_schema(schema_version="4.1")
+    schema["properties"].pop("goal")
+    schema["required"] = [name for name in schema["required"] if name != "goal"]
+    root = _write_import(tmp_path, {"lesson-a": _packet("lesson-a")}, schema=schema)
+
+    with pytest.raises(LessonImportError) as error:
+        load_lesson_import_or_raise(root)
+
+    message = str(error.value)
+    assert "missing ['goal']" in message
+    assert "'kind'" not in message.split("missing")[1]
+
+
 def _packet(lesson_id: str) -> dict:
     packet = deepcopy(packet_minimal())
     packet["id"] = lesson_id
     packet["title"] = f"Packet {lesson_id}"
     return packet
+
+
+def _packet_schema(*, schema_version: str) -> dict:
+    schema = LessonPacket.model_json_schema()
+    version_schema = schema["properties"]["schema_version"]
+    version_schema.pop("enum", None)
+    version_schema["const"] = schema_version
+    return schema
 
 
 def _write_import(

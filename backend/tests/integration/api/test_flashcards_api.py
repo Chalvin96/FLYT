@@ -1,6 +1,4 @@
-from datetime import datetime
 from datetime import timedelta
-from datetime import UTC
 from http import HTTPStatus
 from uuid import uuid4
 
@@ -13,7 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from flyt.apps.flashcards.models import CardState
 from flyt.apps.flashcards.models import CardType
 from flyt.apps.flashcards.models import Enrollment
+from flyt.apps.flashcards.models import StatsReviewLog
 from flyt.apps.flashcards.models import UserCard
+from flyt.libs.utils.date import now
 from tests.factories import CardPoolFactory
 from tests.factories import DeckFactory
 from tests.factories import FlashCardFactory
@@ -21,11 +21,13 @@ from tests.factories import LemmaFactory
 from tests.factories import LessonFactory
 from tests.factories import UserCardFactory
 from tests.factories import UserFactory
+from tests.factories import WordFormFactory
 from tests.helpers.auth import authenticate
 
 pytestmark = pytest.mark.anyio
 
 K_EXPECTED_SUBSCRIBED_USER_CARD_COUNT = 2
+K_EXPECTED_SESSION_REVIEW_COUNT = 2
 
 
 async def test_subscribe_to_deck_given_authenticated_user_expect_cards_created_and_idempotent(
@@ -41,6 +43,7 @@ async def test_subscribe_to_deck_given_authenticated_user_expect_cards_created_a
     await FlashCardFactory.create(deck=deck, pool=pool_b, is_addable=True)
 
     await authenticate(client, user)
+    db.expunge_all()
 
     response_1 = await client.post(f"/me/decks/{deck.id}/subscribe")
     assert response_1.status_code == HTTPStatus.OK
@@ -72,6 +75,7 @@ async def test_subscribe_to_deck_given_missing_deck_expect_not_found(
 
 async def test_issue_due_cards_given_lesson_pool_expect_lesson_id(
     client: AsyncClient,
+    db: AsyncSession,
 ) -> None:
     user = await UserFactory.create()
     lesson = await LessonFactory.create()
@@ -79,6 +83,7 @@ async def test_issue_due_cards_given_lesson_pool_expect_lesson_id(
     await FlashCardFactory.create(pool=pool, is_addable=True)
     await UserCardFactory.create(user=user, pool=pool, state=CardState.REVIEW)
     await authenticate(client, user)
+    db.expunge_all()
 
     response = await client.get("/me/cards/due")
 
@@ -130,7 +135,7 @@ async def test_review_card_given_sibling_variant_expect_not_found(
         user=user,
         pool=pool,
         state=CardState.REVIEW,
-        due_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=1),
+        due_at=now() - timedelta(minutes=1),
         last_shown_card=sibling,
     )
     await authenticate(client, user)
@@ -141,7 +146,11 @@ async def test_review_card_given_sibling_variant_expect_not_found(
 
     response = await client.post(
         f"/me/cards/{user_card.id}/review",
-        json={"outcome": "service_unavailable", "card_id": sibling.id},
+        json={
+            "outcome": "service_unavailable",
+            "card_id": sibling.id,
+            "review_version": 0,
+        },
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -150,27 +159,194 @@ async def test_review_card_given_sibling_variant_expect_not_found(
 
 async def test_review_card_given_authenticated_user_expect_ok_and_schedule(
     client: AsyncClient,
+    db: AsyncSession,
 ) -> None:
     user = await UserFactory.create()
     pool = await CardPoolFactory.create()
     variant = await FlashCardFactory.create(pool=pool, is_addable=True)
     user_card = await UserCardFactory.create(user=user, pool=pool, state=CardState.NEW)
     await authenticate(client, user)
+    db.expunge_all()
 
     due_response = await client.get("/me/cards/due")
     assert due_response.status_code == HTTPStatus.OK
     shown_card_id = due_response.json()[0]["card"]["id"]
     assert shown_card_id == variant.id
+    db.expunge_all()
 
     response = await client.post(
         f"/me/cards/{user_card.id}/review",
-        json={"rating": 3, "card_id": shown_card_id},
+        json={"rating": 3, "card_id": shown_card_id, "review_version": 0},
     )
 
     assert response.status_code == HTTPStatus.OK
     body = response.json()
     assert body["card_state"] in {"learning", "review", "relearning"}
     assert "due_at" in body
+
+
+async def test_review_card_given_learning_step_repeat_without_reissue_expect_scheduled(
+    client: AsyncClient,
+    db: AsyncSession,
+) -> None:
+    user = await UserFactory.create()
+    pool = await CardPoolFactory.create()
+    await FlashCardFactory.create(pool=pool, is_addable=True)
+    user_card = await UserCardFactory.create(user=user, pool=pool)
+    await authenticate(client, user)
+    db.expunge_all()
+
+    due_response = await client.get("/me/cards/due")
+    assert due_response.status_code == HTTPStatus.OK
+    issued = due_response.json()[0]
+    assert issued["review_version"] == 0
+
+    first_response = await client.post(
+        f"/me/cards/{user_card.id}/review",
+        json={"card_id": issued["card"]["id"], "rating": 1, "review_version": 0},
+    )
+    assert first_response.status_code == HTTPStatus.OK
+    first_result = first_response.json()
+    assert first_result["card_state"] == "learning"
+    assert first_result["review_version"] == 1
+    db.expunge_all()
+
+    second_response = await client.post(
+        f"/me/cards/{user_card.id}/review",
+        json={
+            "card_id": issued["card"]["id"],
+            "rating": 3,
+            "review_version": first_result["review_version"],
+        },
+    )
+
+    assert second_response.status_code == HTTPStatus.OK
+    assert second_response.json()["review_version"] == K_EXPECTED_SESSION_REVIEW_COUNT
+    db.expunge_all()
+    reloaded = await db.get(UserCard, user_card.id)
+    assert reloaded is not None
+    assert reloaded.review_version == K_EXPECTED_SESSION_REVIEW_COUNT
+    assert (
+        await db.scalar(
+            select(func.count(StatsReviewLog.id)).where(
+                StatsReviewLog.user_card_id == user_card.id
+            )
+        )
+    ) == K_EXPECTED_SESSION_REVIEW_COUNT
+
+
+@pytest.mark.parametrize("outcome", ["graded", "unsupported"])
+async def test_review_card_given_duplicate_version_expect_conflict_without_extra_log(
+    client: AsyncClient,
+    db: AsyncSession,
+    outcome: str,
+) -> None:
+    user = await UserFactory.create()
+    pool = await CardPoolFactory.create()
+    await FlashCardFactory.create(pool=pool, is_addable=True)
+    user_card = await UserCardFactory.create(user=user, pool=pool)
+    await authenticate(client, user)
+
+    due_response = await client.get("/me/cards/due")
+    assert due_response.status_code == HTTPStatus.OK
+    payload = {
+        "card_id": due_response.json()[0]["card"]["id"],
+        "outcome": outcome,
+        "review_version": 0,
+    }
+    if outcome == "graded":
+        payload["rating"] = 1
+    first_response = await client.post(f"/me/cards/{user_card.id}/review", json=payload)
+    assert first_response.status_code == HTTPStatus.OK
+    db.expunge_all()
+
+    duplicate_response = await client.post(
+        f"/me/cards/{user_card.id}/review", json=payload
+    )
+
+    assert duplicate_response.status_code == HTTPStatus.CONFLICT
+    assert duplicate_response.json()["detail"]["code"] == "REVIEW_STALE"
+    db.expunge_all()
+    reloaded = await db.get(UserCard, user_card.id)
+    assert reloaded is not None
+    assert reloaded.review_version == 1
+    assert (
+        await db.scalar(
+            select(func.count(StatsReviewLog.id)).where(
+                StatsReviewLog.user_card_id == user_card.id
+            )
+        )
+    ) == (1 if outcome == "graded" else 0)
+
+
+async def test_review_card_given_unsupported_choose_outcome_expect_ok_and_issuance_cleared(
+    client: AsyncClient,
+    db: AsyncSession,
+) -> None:
+    user = await UserFactory.create()
+    pool = await CardPoolFactory.create()
+    variant = await FlashCardFactory.create(
+        pool=pool,
+        type=CardType.CHOOSE,
+        schema_version="unsupported",
+        is_addable=True,
+        payload_json={},
+    )
+    user_card = await UserCardFactory.create(user=user, pool=pool, active_card=variant)
+    await authenticate(client, user)
+    db.expunge_all()
+
+    response = await client.post(
+        f"/me/cards/{user_card.id}/review",
+        json={"outcome": "unsupported", "card_id": variant.id, "review_version": 0},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    db.expunge_all()
+    reloaded = await db.get(UserCard, user_card.id)
+    assert reloaded is not None
+    assert reloaded.last_shown_card_id == variant.id
+    assert reloaded.active_card_id is None
+
+
+async def test_list_my_cards_given_reloaded_vocab_and_lesson_pools_expect_items(
+    client: AsyncClient,
+    db: AsyncSession,
+) -> None:
+    user = await UserFactory.create()
+    lemma = await LemmaFactory.create(word="bok", primary_translation="book")
+    lesson = await LessonFactory.create(title="Past tense")
+    vocab_pool = await CardPoolFactory.create(lemma=lemma)
+    lesson_pool = await CardPoolFactory.create(lesson=lesson, description="Verbs")
+    await UserCardFactory.create(
+        user=user, pool=vocab_pool, state=CardState.REVIEW, fsrs_stability=40.0
+    )
+    await UserCardFactory.create(
+        user=user, pool=lesson_pool, state=CardState.REVIEW, fsrs_stability=40.0
+    )
+    await authenticate(client, user)
+    db.expunge_all()
+
+    response = await client.get("/me/cards")
+
+    assert response.status_code == HTTPStatus.OK
+    body = response.json()
+    assert body["summary"]["total"] == len(body["cards"])
+    assert {(card["facet"], card["label"]) for card in body["cards"]} == {
+        ("vocab", "bok"),
+        ("grammar", "Verbs"),
+    }
+
+
+async def test_list_my_cards_given_unknown_query_parameter_expect_422(
+    client: AsyncClient,
+) -> None:
+    user = await UserFactory.create()
+    await authenticate(client, user)
+
+    response = await client.get("/me/cards", params={"bukcet": "learning"})
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
 async def _make_deck_with_pools(deck, keys: list[str]) -> list:
@@ -235,7 +411,7 @@ async def test_review_card_given_out_of_range_rating_expect_validation_error(
 
     response = await client.post(
         f"/me/cards/{user_card.id}/review",
-        json={"rating": 5, "card_id": variant.id},
+        json={"rating": 5, "card_id": variant.id, "review_version": 0},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -243,9 +419,11 @@ async def test_review_card_given_out_of_range_rating_expect_validation_error(
 
 async def test_issue_due_cards_given_authenticated_user_expect_ordered_payloads(  # ume-ignore: UME-PY003
     client: AsyncClient,
+    db: AsyncSession,
 ) -> None:
     user = await UserFactory.create()
     first_lemma = await LemmaFactory.create()
+    await WordFormFactory.create(lemma=first_lemma, form="hunder", tags_json=["Plur"])
     first_pool = await CardPoolFactory.create(
         key="first-pool",
         lemma=first_lemma,
@@ -278,7 +456,7 @@ async def test_issue_due_cards_given_authenticated_user_expect_ordered_payloads(
             "definitions": [],
         },
     )
-    now_n = datetime.now(UTC).replace(tzinfo=None)
+    now_n = now()
     later_user_card = await UserCardFactory.create(
         user=user,
         pool=second_pool,
@@ -293,6 +471,7 @@ async def test_issue_due_cards_given_authenticated_user_expect_ordered_payloads(
     )
 
     await authenticate(client, user)
+    db.expunge_all()
 
     response = await client.get("/me/cards/due")
 
@@ -305,6 +484,7 @@ async def test_issue_due_cards_given_authenticated_user_expect_ordered_payloads(
     assert body[0]["card"]["schema_version"] == "3.0"
     assert body[0]["card"]["payload"]["lemma_uuid"] == str(first_lemma.uuid)
     assert body[0]["card"]["payload"]["primary_translation"] == "dog"
+    assert body[0]["word_forms"][0]["form"] == "hunder"
     assert body[1]["card"]["payload"]["lemma_uuid"] == str(second_lemma.uuid)
     assert body[1]["card"]["payload"]["primary_translation"] == "cat"
 
@@ -326,7 +506,7 @@ async def test_issue_due_cards_given_quick_mode_expect_first_ten_cards_only(  # 
 ) -> None:
     user = await UserFactory.create()
     queued_user_cards = []
-    base = datetime.now(UTC).replace(tzinfo=None)
+    base = now()
 
     for minute in range(12):
         pool = await CardPoolFactory.create(key=f"pool-{minute}")
@@ -335,7 +515,7 @@ async def test_issue_due_cards_given_quick_mode_expect_first_ten_cards_only(  # 
             user=user,
             pool=pool,
             state=CardState.LEARNING,
-            due_at=base + timedelta(minutes=minute),
+            due_at=base - timedelta(minutes=11 - minute),
         )
         queued_user_cards.append(user_card)
 
@@ -369,7 +549,7 @@ async def test_review_card_given_missing_user_card_expect_not_found(
 
     response = await client.post(
         "/me/cards/999999/review",
-        json={"rating": 3, "card_id": variant.id},
+        json={"rating": 3, "card_id": variant.id, "review_version": 0},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -391,7 +571,7 @@ async def test_review_card_given_variant_from_other_pool_expect_not_found(
 
     response = await client.post(
         f"/me/cards/{user_card.id}/review",
-        json={"rating": 3, "card_id": other_variant.id},
+        json={"rating": 3, "card_id": other_variant.id, "review_version": 0},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -410,7 +590,7 @@ async def test_review_card_given_invalid_rating_zero_expect_validation_error(
 
     response = await client.post(
         f"/me/cards/{user_card.id}/review",
-        json={"rating": 0, "card_id": variant.id},
+        json={"rating": 0, "card_id": variant.id, "review_version": 0},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY

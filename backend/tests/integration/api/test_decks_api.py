@@ -38,6 +38,7 @@ async def test_list_decks_given_authenticated_user_expect_deck_summaries(
     await UserCardFactory.create(user=user, pool=pool)
 
     await authenticate(client, user)
+    db.expunge_all()
 
     response = await client.get("/me/decks")
 

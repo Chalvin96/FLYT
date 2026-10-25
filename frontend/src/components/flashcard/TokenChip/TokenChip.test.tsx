@@ -10,34 +10,45 @@ describe('TokenChip', () => {
     const word = screen.getByText('snakker');
     expect(word).toBeInTheDocument();
     expect(word).toHaveAttribute('lang', 'no');
-    expect(word).toHaveClass('whitespace-normal', 'break-words', 'min-w-0');
   });
 
   it('defaults to the idle state', () => {
     render(<TokenChip text="Jeg" />);
     const chip = screen.getByTestId('token-chip');
     expect(chip).toHaveAttribute('data-state', 'idle');
-    expect(chip).toHaveClass('bg-card', 'text-foreground');
+  });
+
+  it('test_token_chip_given_every_state_expect_matching_state_attribute', () => {
+    const states: TokenChipState[] = [
+      'idle',
+      'selected',
+      'dragging',
+      'correct',
+      'incorrect',
+      'fixed',
+    ];
+
+    for (const state of states) {
+      const { unmount } = render(<TokenChip text="ord" state={state} />);
+      expect(screen.getByTestId('token-chip')).toHaveAttribute(
+        'data-state',
+        state,
+      );
+      unmount();
+    }
   });
 
   it.each([
-    ['idle', ['bg-card', 'text-foreground', 'border-border', 'shadow-tile']],
-    ['selected', ['bg-primary-5', 'border-primary-60', 'shadow-tile']],
-    ['dragging', ['bg-primary-5', 'border-primary-60', 'shadow-lift']],
-    ['correct', ['bg-primary-5', 'text-primary-90', 'border-primary-30']],
-    [
-      'wrong',
-      ['bg-destructive-10', 'text-destructive-90', 'border-destructive-40'],
-    ],
-    ['fixed', ['bg-secondary-10', 'text-muted-foreground']],
-  ] as Array<[TokenChipState, string[]]>)(
-    'applies the expected tokens for the %s state',
-    (state, expectedClasses) => {
-      render(<TokenChip text="ord" state={state} />);
-      const chip = screen.getByTestId('token-chip');
-      for (const cls of expectedClasses) {
-        expect(chip).toHaveClass(cls);
-      }
+    ['correct', 'correct'],
+    ['incorrect', 'incorrect'],
+  ] as Array<[TokenChipState, string]>)(
+    'test_token_chip_given_graded_state_expect_announced_verdict',
+    (state, verdict) => {
+      render(<TokenChip state={state} text="ord" />);
+
+      expect(screen.getByTestId('token-chip')).toHaveAccessibleName(
+        new RegExp(verdict),
+      );
     },
   );
 

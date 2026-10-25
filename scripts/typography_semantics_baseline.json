@@ -1,0 +1,19 @@
+{
+  "findings": [
+    {
+      "file": "packages/ui/src/components/card.tsx",
+      "candidate": "tracking-tight",
+      "reason": "CardTitle pairs the vocabulary's size and weight with a tracking the vocabulary has no step for"
+    },
+    {
+      "file": "packages/ui/src/components/dialog.tsx",
+      "candidate": "tracking-tight",
+      "reason": "DialogTitle pairs the vocabulary's size and weight with a tracking the vocabulary has no step for"
+    },
+    {
+      "file": "packages/ui/src/components/inline-trigger-variants.ts",
+      "candidate": "[font:inherit]",
+      "reason": "InlineTrigger inherits the surrounding font rather than setting one, so it stays a word in the sentence"
+    }
+  ]
+}

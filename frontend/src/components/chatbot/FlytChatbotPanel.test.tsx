@@ -2,7 +2,12 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import { CHATBOT_MODEL_IDS, CHATBOT_MODEL_REASONS } from '@/api/chatbot';
+
 import { FlytChatbotPanel } from './FlytChatbotPanel';
+import { CHATBOT_MODEL_PILL_STATES } from './types';
+
+await Promise.all([import('react-markdown'), import('remark-gfm')]);
 
 const userMessage = {
   id: 'question-1',
@@ -41,6 +46,21 @@ describe('FlytChatbotPanel', () => {
         'Norwegian main clauses use the V2 rule: the finite verb stays second.',
       ),
     ).toBeVisible();
+  });
+
+  it('test_chatbot_panel_given_z_ai_message_expect_authored_provider_name', () => {
+    render(
+      <FlytChatbotPanel
+        messages={[
+          userMessage,
+          { ...chatbotMessage, model: CHATBOT_MODEL_IDS.GLM },
+        ]}
+      />,
+    );
+
+    const conversation = screen.getByRole('log', { name: 'Conversation' });
+    expect(within(conversation).getByText('z.ai')).toBeVisible();
+    expect(within(conversation).queryByText('Z.ai')).not.toBeInTheDocument();
   });
 
   it('test_chatbot_panel_given_chatbot_markdown_expect_structured_answer_rendered', async () => {
@@ -84,9 +104,7 @@ describe('FlytChatbotPanel', () => {
     );
     expect(loadingSkeleton).toBeVisible();
     expect(loadingSkeleton).toHaveAttribute('aria-hidden', 'true');
-    expect(loadingSkeleton).toHaveClass('import-cover-shimmer');
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
-    expect(image).toHaveClass('opacity-0');
     expect(image).toHaveAttribute('referrerpolicy', 'no-referrer');
 
     fireEvent.load(image);
@@ -94,7 +112,6 @@ describe('FlytChatbotPanel', () => {
     expect(
       screen.queryByTestId('chatbot-markdown-image-loading'),
     ).not.toBeInTheDocument();
-    expect(image).toHaveClass('opacity-100', 'transition-opacity');
   });
 
   it('test_chatbot_panel_given_cached_image_expect_image_revealed_without_load_event', async () => {
@@ -119,10 +136,9 @@ describe('FlytChatbotPanel', () => {
         />,
       );
 
-      const image = await screen.findByRole('img', {
+      await screen.findByRole('img', {
         name: 'Cached V2 diagram',
       });
-      expect(image).toHaveClass('opacity-100');
       expect(
         screen.queryByTestId('chatbot-markdown-image-loading'),
       ).not.toBeInTheDocument();
@@ -243,7 +259,6 @@ describe('FlytChatbotPanel', () => {
     const userText = screen.getByText('**Do not format this**', {
       exact: false,
     });
-    expect(userText).toHaveClass('whitespace-pre-wrap');
     expect(userText).toHaveTextContent('- keep the dash');
   });
 
@@ -293,7 +308,7 @@ describe('FlytChatbotPanel', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Send message' }));
 
-    expect(onSend).toHaveBeenCalledWith('Explain V2', 'flyt');
+    expect(onSend).toHaveBeenCalledWith('Explain V2', CHATBOT_MODEL_IDS.FLYT);
     expect(screen.getByRole('textbox', { name: 'Ask a question' })).toHaveValue(
       '',
     );
@@ -371,8 +386,6 @@ describe('FlytChatbotPanel', () => {
     const removeButton = screen.getByRole('button', {
       name: 'Remove context',
     });
-    expect(removeButton).toHaveClass('size-7');
-    expect(removeButton).toHaveClass('after:-inset-2');
     await user.click(removeButton);
 
     expect(onContextRemove).toHaveBeenCalledWith(context);
@@ -381,13 +394,18 @@ describe('FlytChatbotPanel', () => {
   it('test_chatbot_panel_given_unavailable_flyt_expect_chatgpt_selected_and_sendable', async () => {
     const user = userEvent.setup();
     const onSend = vi.fn();
-    render(<FlytChatbotPanel onSend={onSend} unavailableModels={['flyt']} />);
+    render(
+      <FlytChatbotPanel
+        onSend={onSend}
+        unavailableModels={[CHATBOT_MODEL_IDS.FLYT]}
+      />,
+    );
 
     expect(
       screen.getByRole('radio', {
         name: 'Flyt, not available right now',
       }),
-    ).toBeDisabled();
+    ).toHaveAttribute('aria-disabled', 'true');
     expect(
       screen.getByRole('radio', { name: 'ChatGPT, powered by Luna' }),
     ).toHaveAttribute('aria-checked', 'true');
@@ -401,7 +419,7 @@ describe('FlytChatbotPanel', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Send message' }));
 
-    expect(onSend).toHaveBeenCalledWith('Hei', 'chatgpt');
+    expect(onSend).toHaveBeenCalledWith('Hei', CHATBOT_MODEL_IDS.CHATGPT);
   });
 
   it('test_chatbot_panel_given_flyt_availability_expect_no_usage_details', () => {
@@ -445,15 +463,18 @@ describe('FlytChatbotPanel', () => {
   it('test_chatbot_panel_given_unconfigured_direct_provider_expect_account_guidance', () => {
     render(
       <FlytChatbotPanel
-        modelReasons={{ deepseek: 'openrouter_key_required' }}
-        unavailableModels={['deepseek']}
+        modelReasons={{
+          [CHATBOT_MODEL_IDS.DEEPSEEK]:
+            CHATBOT_MODEL_REASONS.OPENROUTER_KEY_REQUIRED,
+        }}
+        unavailableModels={[CHATBOT_MODEL_IDS.DEEPSEEK]}
       />,
     );
 
     const deepseek = screen.getByRole('radio', {
       name: 'DeepSeek, set up a provider key in Account settings',
     });
-    expect(deepseek).toBeDisabled();
+    expect(deepseek).toHaveAttribute('aria-disabled', 'true');
     expect(deepseek).toHaveAttribute(
       'title',
       'DeepSeek · set up a provider key in Account settings',
@@ -470,7 +491,12 @@ describe('FlytChatbotPanel', () => {
     render(
       <FlytChatbotPanel
         onSend={onSend}
-        unavailableModels={['flyt', 'chatgpt', 'deepseek', 'glm']}
+        unavailableModels={[
+          CHATBOT_MODEL_IDS.FLYT,
+          CHATBOT_MODEL_IDS.CHATGPT,
+          CHATBOT_MODEL_IDS.DEEPSEEK,
+          CHATBOT_MODEL_IDS.GLM,
+        ]}
       />,
     );
 
@@ -488,7 +514,12 @@ describe('FlytChatbotPanel', () => {
   it('test_chatbot_panel_given_no_connected_model_expect_send_blocked_with_notice', () => {
     render(
       <FlytChatbotPanel
-        unavailableModels={['flyt', 'chatgpt', 'deepseek', 'glm']}
+        unavailableModels={[
+          CHATBOT_MODEL_IDS.FLYT,
+          CHATBOT_MODEL_IDS.CHATGPT,
+          CHATBOT_MODEL_IDS.DEEPSEEK,
+          CHATBOT_MODEL_IDS.GLM,
+        ]}
       />,
     );
 
@@ -501,8 +532,8 @@ describe('FlytChatbotPanel', () => {
   it('test_chatbot_panel_given_unavailable_selected_model_expect_fallback_notice', () => {
     render(
       <FlytChatbotPanel
-        defaultModel="chatgpt"
-        unavailableModels={['chatgpt']}
+        defaultModel={CHATBOT_MODEL_IDS.CHATGPT}
+        unavailableModels={[CHATBOT_MODEL_IDS.CHATGPT]}
       />,
     );
 
@@ -532,7 +563,7 @@ describe('FlytChatbotPanel', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Send message' }));
 
-    expect(onSend).toHaveBeenCalledWith('Hei', 'chatgpt');
+    expect(onSend).toHaveBeenCalledWith('Hei', CHATBOT_MODEL_IDS.CHATGPT);
   });
 
   it('test_chatbot_panel_given_model_pills_expect_arrow_key_moves_selection', async () => {
@@ -542,27 +573,31 @@ describe('FlytChatbotPanel', () => {
 
     const flyt = screen.getByRole('radio', { name: /^Flyt/ });
     flyt.focus();
-    await user.keyboard('{ArrowRight}');
+    await user.keyboard('{ArrowRight>}');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await user.keyboard('{/ArrowRight}');
 
     const chatgpt = screen.getByRole('radio', { name: /^ChatGPT/ });
     expect(chatgpt).toHaveFocus();
     expect(chatgpt).toHaveAttribute('aria-checked', 'true');
     expect(flyt).toHaveAttribute('aria-checked', 'false');
-    expect(onModelChange).toHaveBeenCalledWith('chatgpt');
+    expect(onModelChange).toHaveBeenCalledWith(CHATBOT_MODEL_IDS.CHATGPT);
   });
 
-  it('test_chatbot_panel_given_disabled_model_expect_arrow_key_skips_it', async () => {
+  it('test_chatbot_panel_given_locked_model_expect_arrow_key_focuses_without_selection', async () => {
     const user = userEvent.setup();
-    render(<FlytChatbotPanel unavailableModels={['chatgpt']} />);
+    render(
+      <FlytChatbotPanel unavailableModels={[CHATBOT_MODEL_IDS.CHATGPT]} />,
+    );
 
     const flyt = screen.getByRole('radio', { name: /^Flyt/ });
     flyt.focus();
     await user.keyboard('{ArrowRight}');
 
-    const deepseek = screen.getByRole('radio', { name: /^DeepSeek/ });
-    expect(deepseek).toHaveFocus();
-    expect(deepseek).toHaveAttribute('aria-checked', 'true');
-    expect(flyt).toHaveAttribute('aria-checked', 'false');
+    const chatgpt = screen.getByRole('radio', { name: /^ChatGPT/ });
+    expect(chatgpt).toHaveFocus();
+    expect(chatgpt).toHaveAttribute('aria-checked', 'false');
+    expect(flyt).toHaveAttribute('aria-checked', 'true');
   });
 
   it('test_chatbot_panel_given_completed_answer_expect_follow_up_actions', async () => {
@@ -654,7 +689,7 @@ describe('FlytChatbotPanel', () => {
   it('test_chatbot_panel_given_chatgpt_reply_expect_model_name_announced', () => {
     const chatgptMessage = {
       ...chatbotMessage,
-      model: 'chatgpt' as const,
+      model: CHATBOT_MODEL_IDS.CHATGPT,
     };
     render(<FlytChatbotPanel messages={[userMessage, chatgptMessage]} />);
 
@@ -683,8 +718,8 @@ describe('FlytChatbotPanel', () => {
   it('test_chatbot_panel_given_fallback_expect_announced_notice', () => {
     render(
       <FlytChatbotPanel
-        defaultModel="chatgpt"
-        unavailableModels={['chatgpt']}
+        defaultModel={CHATBOT_MODEL_IDS.CHATGPT}
+        unavailableModels={[CHATBOT_MODEL_IDS.CHATGPT]}
       />,
     );
 
@@ -696,7 +731,10 @@ describe('FlytChatbotPanel', () => {
   it('test_chatbot_panel_given_flyt_percentage_expect_only_while_flyt_selected', async () => {
     const user = userEvent.setup();
     render(
-      <FlytChatbotPanel flytRemainingPercent={42} defaultModel="chatgpt" />,
+      <FlytChatbotPanel
+        flytRemainingPercent={42}
+        defaultModel={CHATBOT_MODEL_IDS.CHATGPT}
+      />,
     );
 
     expect(screen.queryByTestId('chatbot-flyt-usage')).not.toBeInTheDocument();
@@ -721,8 +759,8 @@ describe('FlytChatbotPanel', () => {
     );
 
     const marker = screen.getByTestId('chatbot-context-note');
-    expect(marker).toHaveClass('before:bg-border');
-    expect(marker).toHaveClass('after:bg-border');
+    expect(marker).toHaveAttribute('data-message-role', 'note');
+    expect(marker).toHaveTextContent('Current lesson');
   });
 
   it('test_chatbot_panel_given_starter_prompts_expect_capped_at_three', () => {
@@ -778,28 +816,35 @@ describe('FlytChatbotPanel', () => {
   });
 
   it('test_chatbot_panel_given_locked_model_expect_readable_state_without_opacity', () => {
-    render(<FlytChatbotPanel unavailableModels={['deepseek']} />);
+    render(
+      <FlytChatbotPanel unavailableModels={[CHATBOT_MODEL_IDS.DEEPSEEK]} />,
+    );
 
     const deepseek = screen.getByRole('radio', {
       name: 'DeepSeek, not connected',
     });
-    expect(deepseek).toHaveClass('text-muted-foreground');
-    expect(deepseek).toHaveClass('bg-muted');
-    expect(deepseek).not.toHaveClass('opacity-45');
+    expect(deepseek).toHaveAttribute('aria-disabled', 'true');
+    expect(deepseek).toHaveAttribute(
+      'data-availability-state',
+      CHATBOT_MODEL_PILL_STATES.LOCKED,
+    );
   });
 
-  it('test_chatbot_panel_given_composer_hint_expect_hidden_below_desktop_viewport', () => {
+  it('test_chatbot_panel_given_composer_hint_expect_reserved_desktop_space', () => {
     render(<FlytChatbotPanel />);
 
-    const hint = screen.getByText('Shift + Enter for a new line');
-    expect(hint).toHaveClass('hidden');
-    expect(hint).toHaveClass('md:group-has-[textarea:focus]/composer:block');
+    const hint = screen.getByTestId('chatbot-composer-hint');
+    expect(hint).toHaveTextContent(
+      'Enter to send · Shift + Enter for a new line',
+    );
   });
 
   it('test_chatbot_panel_given_header_actions_expect_labelled_icon_button_targets', () => {
     render(<FlytChatbotPanel onClose={() => undefined} />);
 
     for (const label of ['New conversation', 'Close chatbot']) {
+      // The role query already matched the label; the target box is what is
+      // left to assert, and jsdom paints nothing, so the utility is the box.
       expect(screen.getByRole('button', { name: label })).toHaveClass(
         'size-11',
       );
@@ -809,21 +854,17 @@ describe('FlytChatbotPanel', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('test_chatbot_panel_given_message_viewport_expect_contained_scrolling', () => {
+  it('test_chatbot_panel_given_message_viewport_expect_labelled_scroller_with_sized_control', () => {
     render(<FlytChatbotPanel messages={[userMessage]} />);
 
     const viewport = screen.getByTestId('chatbot-messages');
-    expect(viewport).toHaveClass('overscroll-contain');
-    expect(viewport).toHaveClass('overflow-y-auto');
-    expect(viewport).toHaveStyle({ overflowAnchor: 'none' });
+    expect(viewport).toHaveAccessibleName('Messages');
     expect(viewport).toHaveAttribute('data-slot', 'message-scroller-viewport');
-    expect(viewport).toHaveClass('focus-visible:ring-2');
 
-    const scrollButton = screen.getByRole('button', {
-      name: 'Scroll to latest',
-    });
-    expect(scrollButton).toHaveClass('size-11');
-    expect(scrollButton).toHaveClass('focus-visible:ring-2');
+    // jsdom paints nothing, so the target box is the size utility itself.
+    expect(
+      screen.getByRole('button', { name: 'Scroll to latest' }),
+    ).toHaveClass('size-11');
   });
 
   it('test_chatbot_panel_given_send_control_expect_minimum_touch_target', () => {

@@ -1,6 +1,15 @@
-import { Popover, PopoverContent, PopoverTrigger } from '@flyt/ui';
+import {
+  Heading,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  RadioGroup,
+  RadioGroupItem,
+  Row,
+  Text,
+} from '@flyt/ui';
 import { Check, ChevronDown } from 'lucide-react';
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useState } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -12,34 +21,12 @@ type LessonLevelSelectorProps = {
   onSelect: (level: string) => void;
 };
 
-function deriveNextOptionIndex(
-  key: string,
-  currentIndex: number,
-  optionCount: number,
-): number | null {
-  if (key === 'ArrowDown' || key === 'ArrowRight') {
-    return (currentIndex + 1) % optionCount;
-  }
-  if (key === 'ArrowUp' || key === 'ArrowLeft') {
-    return (currentIndex - 1 + optionCount) % optionCount;
-  }
-  if (key === 'Home') {
-    return 0;
-  }
-  if (key === 'End') {
-    return optionCount - 1;
-  }
-
-  return null;
-}
-
 export function LessonLevelSelector({
   options,
   selectedLevel,
   onSelect,
 }: LessonLevelSelectorProps) {
   const [open, setOpen] = useState(false);
-  const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const selectedOption =
     options.find((option) => option.level === selectedLevel) ?? options[0];
 
@@ -50,117 +37,115 @@ export function LessonLevelSelector({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
+        <Row
           aria-label={`Choose active course, currently Norwegian ${selectedOption.level}, ${selectedOption.completed} of ${selectedOption.total} lessons completed`}
-          className="flex min-h-20 w-full items-center gap-3 radius-section border border-border bg-card px-4 py-3 text-left shadow-soft transition-colors hover:border-secondary-30 hover:bg-secondary-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          leading={
+            <span className="flex size-11 items-center justify-center rounded-full bg-neutral-subtle">
+              <Text as="span" size="large" weight="semibold" tone="default">
+                {selectedOption.level}
+              </Text>
+            </span>
+          }
+          size="md"
+          surface="framed"
+          trailing={
+            <ChevronDown
+              aria-hidden
+              className="icon-md text-subtle transition-transform group-data-[state=open]:rotate-180"
+            />
+          }
         >
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary-10 type-body font-semibold text-secondary-90">
-            {selectedOption.level}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block type-label text-muted-foreground">
+          <span className="block">
+            <Heading as="span" size="xxsmall" tone="subtle">
               Active course
-            </span>
-            <span className="mt-0.5 block truncate type-body font-semibold text-foreground">
+            </Heading>
+          </span>
+          <span className="mt-0.5 block truncate">
+            <Text as="span" size="large" weight="semibold" tone="default">
               Norwegian {selectedOption.level}
-            </span>
-            <span className="mt-0.5 block type-label text-muted-foreground">
+            </Text>
+          </span>
+          <span className="mt-0.5 block">
+            <Heading as="span" size="xxsmall" tone="subtle">
               {selectedOption.completed} of {selectedOption.total} lessons
               completed
-            </span>
+            </Heading>
           </span>
-          <ChevronDown
-            aria-hidden
-            className={cn(
-              'icon-md shrink-0 text-muted-foreground transition-transform',
-              open && 'rotate-180',
-            )}
-          />
-        </button>
+        </Row>
       </PopoverTrigger>
 
       <PopoverContent
         align="start"
         sideOffset={8}
-        className="max-h-[calc(100dvh-2rem)] w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-2rem)] overflow-y-auto p-1.5"
+        padding="compact"
+        scroll
+        width="trigger"
       >
-        <div
+        <RadioGroup
           aria-label="Choose CEFR level"
           aria-orientation="vertical"
-          className="space-y-1"
-          role="radiogroup"
+          asChild
+          onValueChange={onSelect}
+          value={selectedOption.level}
         >
-          {options.map((option, optionIndex) => {
-            const isSelected = option.level === selectedOption.level;
-            const completion =
-              option.total > 0
-                ? Math.round((option.completed / option.total) * 100)
-                : 0;
+          <div className="space-y-1">
+            {options.map((option) => {
+              const isSelected = option.level === selectedOption.level;
+              const completion =
+                option.total > 0
+                  ? Math.round((option.completed / option.total) * 100)
+                  : 0;
 
-            return (
-              <button
-                key={option.level}
-                type="button"
-                role="radio"
-                aria-checked={isSelected}
-                ref={(element) => {
-                  optionRefs.current[optionIndex] = element;
-                }}
-                tabIndex={isSelected ? 0 : -1}
-                className={cn(
-                  'flex w-full items-start gap-3 radius-field px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
-                  isSelected
-                    ? 'bg-secondary-10 text-foreground'
-                    : 'text-foreground hover:bg-secondary-5',
-                )}
-                onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
-                  const nextIndex = deriveNextOptionIndex(
-                    event.key,
-                    optionIndex,
-                    options.length,
-                  );
-                  if (nextIndex === null) {
-                    return;
-                  }
-
-                  event.preventDefault();
-                  onSelect(options[nextIndex].level);
-                  optionRefs.current[nextIndex]?.focus();
-                }}
-                onClick={() => {
-                  onSelect(option.level);
-                  setOpen(false);
-                }}
-              >
-                <span
-                  className={cn(
-                    'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border',
-                    isSelected
-                      ? 'border-secondary-70 bg-secondary-70 text-white-100'
-                      : 'border-border text-transparent',
-                  )}
-                >
-                  <Check aria-hidden className="icon-sm" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block type-body font-semibold">
-                    Norwegian {option.level}
-                  </span>
-                  <span className="mt-0.5 block type-label text-muted-foreground">
-                    {option.total} lessons · {option.completed} completed
-                  </span>
-                  <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-black-10">
-                    <span
-                      className="block h-full rounded-full bg-secondary-60 transition-[width]"
-                      style={{ width: `${completion}%` }}
-                    />
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
+              return (
+                <RadioGroupItem asChild key={option.level} value={option.level}>
+                  <Row
+                    onClick={(event) => {
+                      if (event.detail > 0) setOpen(false);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') return;
+                      event.preventDefault();
+                      onSelect(option.level);
+                      setOpen(false);
+                    }}
+                    leading={
+                      <span
+                        className={cn(
+                          'flex size-5 items-center justify-center rounded-full border',
+                          isSelected
+                            ? 'border-strong-hovered bg-neutral-bold text-inverse'
+                            : 'border-default text-transparent',
+                        )}
+                      >
+                        <Check aria-hidden className="icon-sm" />
+                      </span>
+                    }
+                    selected={isSelected}
+                    size="sm"
+                    surface="plain"
+                  >
+                    <span className="block">
+                      <Text as="span" size="large" weight="semibold">
+                        Norwegian {option.level}
+                      </Text>
+                    </span>
+                    <span className="mt-0.5 block">
+                      <Heading as="span" size="xxsmall" tone="subtle">
+                        {option.total} lessons · {option.completed} completed
+                      </Heading>
+                    </span>
+                    <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-disabled">
+                      <span
+                        className="block h-full rounded-full bg-[var(--chart-neutral-2)] transition-[width]"
+                        style={{ width: `${completion}%` }}
+                      />
+                    </span>
+                  </Row>
+                </RadioGroupItem>
+              );
+            })}
+          </div>
+        </RadioGroup>
       </PopoverContent>
     </Popover>
   );

@@ -13,12 +13,14 @@ from flyt.apps.chatgpt_link.clients.manager import auth
 from flyt.apps.chatgpt_link.models import ChatGPTLink
 from flyt.apps.flashcards.models import StatsReviewLog
 from flyt.apps.flashcards.models import UserCard
+from flyt.apps.lessons.models import UserLessonProgress
 from flyt.apps.reading.models import Story
 from flyt.apps.reading.models import StoryPage
 from flyt.apps.reading.models import UserStory
 from flyt.apps.stats.queries import StatsQueryService
+from flyt.apps.story_generation.models import Generation
+from flyt.apps.story_generation.models import ProviderRequest
 from flyt.apps.reading.models import ImportMeta
-from flyt.apps.reading.models import ImportQuota
 from flyt.apps.users.deletion import AccountDeletionService
 from flyt.apps.users.models import AuthIdentity
 from flyt.apps.users.models import User
@@ -27,13 +29,17 @@ from flyt.apps.users.models import UserSettings
 from flyt.apps.users.types import UserRole
 from tests.factories import AuthIdentityFactory
 from tests.factories import ChatGPTLinkFactory
+from tests.factories import GenerationFactory
 from tests.factories import ImportMetaFactory
+from tests.factories import LessonFactory
+from tests.factories import ProviderRequestFactory
 from tests.factories import StatsReviewLogFactory
 from tests.factories import StoryFactory
 from tests.factories import StoryPageFactory
 from tests.factories import UserCardFactory
 from tests.factories import UserFactory
 from tests.factories import UserLemmaFactory
+from tests.factories import UserLessonProgressFactory
 from tests.factories import UserSettingsFactory
 from tests.factories import UserStoryFactory
 
@@ -70,9 +76,14 @@ async def test_delete_account_given_directly_owned_rows_expect_none_survive(
     await UserLemmaFactory.create(user_id=user.id)
     user_card = await UserCardFactory.create(user_id=user.id)
     await StatsReviewLogFactory.create(user_id=user.id, user_card_id=user_card.id)
-    db.add(ImportQuota(user_id=user.id, used=1))
+    lesson = await LessonFactory.create()
+    await UserLessonProgressFactory.create(user_id=user.id, lesson_id=lesson.id)
+    generation = await GenerationFactory.create_async(user_id=user.id)
+    await ProviderRequestFactory.create_async(generation_id=generation.id)
     await db.flush()
     user_id = user.id
+    generation_id = generation.id
+    db.expunge_all()
 
     await delete_account_as_route(db, user_id)
 
@@ -83,9 +94,16 @@ async def test_delete_account_given_directly_owned_rows_expect_none_survive(
         (UserLemma, UserLemma.user_id),
         (UserCard, UserCard.user_id),
         (StatsReviewLog, StatsReviewLog.user_id),
-        (ImportQuota, ImportQuota.user_id),
+        (UserLessonProgress, UserLessonProgress.user_id),
+        (Generation, Generation.user_id),
     ):
         assert await count_where(db, model, column == user_id) == 0
+    assert (
+        await count_where(
+            db, ProviderRequest, ProviderRequest.generation_id == generation_id
+        )
+        == 0
+    )
 
 
 async def test_delete_account_given_sole_reference_import_expect_story_erased(
@@ -166,7 +184,6 @@ async def test_deletion_preview_given_imports_expect_enumerated_count_not_quota_
     user = await UserFactory.create()
     meta = await ImportMetaFactory.create()
     await UserStoryFactory.create(user_id=user.id, story_id=meta.story_id)
-    db.add(ImportQuota(user_id=user.id, used=3))
     await db.flush()
 
     preview = await deletion_service(db).deletion_preview(user.id)
@@ -202,6 +219,7 @@ async def test_delete_account_given_chatgpt_link_expect_refresh_token_revoked(
     )
     await db.flush()
     user_id = user.id
+    db.expunge_all()
 
     revoke = AsyncMock()
     monkeypatch.setattr(auth, "revoke_refresh_token", revoke)

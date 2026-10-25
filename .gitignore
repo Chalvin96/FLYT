@@ -14,6 +14,7 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+.env.production
 .env.*.local
 
 # Database files
@@ -102,11 +103,18 @@ frontend/.claude/
 # TanStack Router generated temp files
 frontend/.tanstack/
 
-# Visual-companion runtime markers and state (keep design content tracked)
-.agent-skills/visual-companion/.last-port
-.agent-skills/visual-companion/.last-token
-.agent-skills/visual-companion/*/state/
-.agent-skills/visual-companion/*/state/**
+# Design-system escape ratchet scratch config (scripts/check_design_system_escapes.py)
+eslint.config.*.ratchet-base.mjs
 
-# Spike credentials (never commit)
-openspec/changes/**/artifacts/spike/*.json
+# Intermediate design and visual-review output (mockups, proof screenshots)
+.agent-skills/
+*.tsbuildinfo
+artifacts/
+
+# design-sync: local-only prototype, nothing in the repo consumes it
+.design-sync/
+.ds-sync/
+ds-bundle/
+
+# Local evaluation outputs
+backend/reports/

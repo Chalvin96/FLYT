@@ -65,7 +65,7 @@ describe('FlashCardBuild — no-op interactions do not bypass the dirty gate', (
   }
 
   it('a same-slot move after a wrong check keeps Check disabled', () => {
-    render(<FlashCardBuild exercise={buildExercise()} />);
+    render(<FlashCardBuild allowRetry exercise={buildExercise()} />);
 
     fillBoardWrong();
     // Check enabled (board complete, phase working).
@@ -88,7 +88,7 @@ describe('FlashCardBuild — no-op interactions do not bypass the dirty gate', (
   });
 
   it('handleAdd when all slots are full does not re-enable Check', () => {
-    render(<FlashCardBuild exercise={buildExercise()} />);
+    render(<FlashCardBuild allowRetry exercise={buildExercise()} />);
 
     fillBoardWrong();
     wrongCheck();
@@ -104,7 +104,7 @@ describe('FlashCardBuild — no-op interactions do not bypass the dirty gate', (
   });
 
   it('handleRemove with an out-of-bounds index does not re-enable Check', () => {
-    render(<FlashCardBuild exercise={buildExercise()} />);
+    render(<FlashCardBuild allowRetry exercise={buildExercise()} />);
 
     fillBoardWrong();
     wrongCheck();
@@ -120,7 +120,7 @@ describe('FlashCardBuild — no-op interactions do not bypass the dirty gate', (
   });
 
   it('handleRemove on an already-empty slot does not re-enable Check', () => {
-    render(<FlashCardBuild exercise={buildExercise()} />);
+    render(<FlashCardBuild allowRetry exercise={buildExercise()} />);
 
     fillBoardWrong();
     // Slots: [t3, t2]. Check enabled (board complete, phase working).
@@ -153,7 +153,7 @@ describe('FlashCardBuild — no-op interactions do not bypass the dirty gate', (
 
   it('a real board change after a wrong check re-enables Check', () => {
     // Positive control: verify the gate DOES open on a real change.
-    render(<FlashCardBuild exercise={buildExercise()} />);
+    render(<FlashCardBuild allowRetry exercise={buildExercise()} />);
 
     fillBoardWrong();
     wrongCheck();

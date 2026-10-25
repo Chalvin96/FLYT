@@ -1,5 +1,4 @@
 import pytest
-
 from flyt.core.base import Base
 from flyt import main
 

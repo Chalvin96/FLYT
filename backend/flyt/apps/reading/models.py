@@ -2,10 +2,12 @@ from enum import Enum as PyEnum
 from uuid import UUID
 from uuid import uuid4
 
+from sqlalchemy import and_
 from sqlalchemy import Boolean
 from sqlalchemy import Enum
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
+from sqlalchemy import Index
 from sqlalchemy import JSON
 from sqlalchemy import String
 from sqlalchemy import Text
@@ -40,7 +42,7 @@ class ReadingGroup(BaseModel, DateTimeMixin):
         "Story",
         back_populates="reading_group",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="raise",
     )
 
 
@@ -51,8 +53,9 @@ class Story(BaseModel, DateTimeMixin):
         Uuid(as_uuid=True), unique=True, nullable=False, default=uuid4, index=True
     )
     title: Mapped[str] = mapped_column(String, nullable=False)
-    # Imports store their normalized source text here; curated ingest also uses it.
-    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content: Mapped[str | None] = mapped_column(
+        Text, nullable=True, deferred=True, deferred_raiseload=True
+    )
     # The three columns below are curation-only. Imports have no CEFR level, no
     # public slug and no reading group; curated ingest enforces them.
     cefr_level: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
@@ -83,21 +86,32 @@ class Story(BaseModel, DateTimeMixin):
         index=True,
     )
 
-    reading_group = relationship(
-        "ReadingGroup", back_populates="stories", lazy="selectin"
-    )
+    reading_group = relationship("ReadingGroup", back_populates="stories", lazy="raise")
     pages = relationship(
         "StoryPage",
         back_populates="story",
         cascade="all, delete-orphan",
         order_by="StoryPage.index",
-        lazy="selectin",
+        lazy="raise",
     )
     user_stories = relationship(
         "UserStory",
         back_populates="story",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="write_only",
+        passive_deletes=True,
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_reading_stories_public_group_created_id",
+            "reading_group_id",
+            "created_at",
+            "id",
+            postgresql_where=and_(
+                visibility == StoryVisibility.PUBLIC, is_ready.is_(True)
+            ),
+        ),
     )
 
 
@@ -129,8 +143,8 @@ class UserStory(BaseModel, DateTimeMixin):
         index=True,
     )
 
-    user = relationship("User", foreign_keys=[user_id], lazy="selectin")
-    story = relationship("Story", back_populates="user_stories", lazy="selectin")
+    user = relationship("User", foreign_keys=[user_id], lazy="raise")
+    story = relationship("Story", back_populates="user_stories", lazy="raise")
     last_page_index: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
@@ -161,7 +175,7 @@ class StoryPage(BaseModel, DateTimeMixin):
     )
     word_count: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    story = relationship("Story", back_populates="pages", lazy="selectin")
+    story = relationship("Story", back_populates="pages", lazy="raise")
 
     __table_args__ = (
         UniqueConstraint("story_id", "index", name="uq_story_page_story_index"),
@@ -205,29 +219,4 @@ class ImportMeta(BaseModel, DateTimeMixin):
         String(ERROR_MESSAGE_MAX_LENGTH), nullable=True
     )
 
-    story = relationship("Story", lazy="selectin")
-
-
-class ImportQuota(BaseModel):
-    """Monotonic lifetime count of imports a user has created.
-
-    Incremented once per new import association; never decremented on delete, so the
-    cap is a true lifetime limit, not a 'currently saved' limit.
-    """
-
-    __tablename__ = "story_import_quota"
-
-    user_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey(
-            "user_users.id",
-            name="fk_story_import_quota_user_id",
-            ondelete="CASCADE",
-        ),
-        unique=True,
-        nullable=False,
-        index=True,
-    )
-    used: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
+    story = relationship("Story", lazy="raise")

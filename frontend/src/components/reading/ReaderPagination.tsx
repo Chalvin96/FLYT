@@ -1,113 +1,82 @@
-import { Button } from '@/components/common/Button/Button';
-
-import { getReaderEllipsisTarget, getReaderPaginationItems } from './utils';
+import { Button, Text } from '@flyt/ui';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 
 export interface ReaderPaginationProps {
   requestedPage: number;
   settledPage?: number;
   onPageChange: (page: number) => void;
+  onFinish: () => void;
   totalPages: number;
+  finishing?: boolean;
 }
 
 export function ReaderPagination({
   requestedPage,
   settledPage,
   onPageChange,
+  onFinish,
   totalPages,
+  finishing = false,
 }: ReaderPaginationProps) {
-  if (totalPages <= 1) return null;
-
   const isFirst = requestedPage <= 1;
   const isLast = requestedPage >= totalPages;
 
   return (
     <nav
       aria-label="Story pages"
-      className="mt-6 flex flex-wrap items-center justify-center gap-2 sm:flex-nowrap sm:gap-1.5"
+      className="mx-auto flex w-full max-w-prose items-center gap-3 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6"
     >
-      <div className="order-2 flex flex-1 justify-start gap-1 sm:order-1 sm:flex-none">
-        <Button
-          type="button"
-          variant="ghost"
-          className="px-3"
-          aria-label="First page"
-          disabled={isFirst}
-          onClick={() => onPageChange(1)}
-        >
-          First
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          className="px-3"
-          aria-label="Previous page"
-          disabled={isFirst}
-          onClick={() => onPageChange(requestedPage - 1)}
-        >
-          &larr; Previous
-        </Button>
-      </div>
-
-      <div className="order-1 flex w-full flex-wrap items-center justify-center gap-1 sm:order-2 sm:w-auto sm:flex-nowrap">
-        {getReaderPaginationItems(requestedPage, totalPages).map((item) =>
-          typeof item === 'number' ? (
-            <Button
-              key={item}
-              type="button"
-              variant={item === requestedPage ? 'default' : 'ghost'}
-              size="icon"
-              aria-current={item === requestedPage ? 'page' : undefined}
-              aria-label={`Page ${item}`}
-              onClick={() => onPageChange(item)}
-            >
-              {item}
-            </Button>
-          ) : (
-            <Button
-              key={item}
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={
-                item === 'ellipsis-start'
-                  ? 'Jump back 3 pages'
-                  : 'Jump forward 3 pages'
-              }
-              onClick={() =>
-                onPageChange(
-                  getReaderEllipsisTarget(item, requestedPage, totalPages),
-                )
-              }
-            >
-              &hellip;
-            </Button>
-          ),
+      <div className="flex min-w-0 flex-1 justify-start">
+        {!isFirst && (
+          <Button
+            type="button"
+            variant="outline"
+            width="full"
+            aria-label="Previous page"
+            disabled={finishing}
+            onClick={() => onPageChange(requestedPage - 1)}
+          >
+            <ArrowLeft aria-hidden />
+            Previous
+          </Button>
         )}
       </div>
-
-      <div className="order-3 flex flex-1 justify-end gap-1 sm:flex-none">
+      <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5 text-center">
+        <progress
+          aria-label="Story page progress"
+          max={totalPages}
+          value={settledPage}
+          aria-valuetext={
+            settledPage === undefined
+              ? 'Loading page'
+              : `Page ${settledPage} of ${totalPages}`
+          }
+          className="story-mastery-progress h-1 w-full appearance-none overflow-hidden rounded-full border-0 bg-neutral-subtle"
+        />
+        <Text as="span" size="medium" tone="subtle">
+          Page {requestedPage} of {totalPages}
+        </Text>
+      </div>
+      <div className="flex min-w-0 flex-1 justify-end">
         <Button
           type="button"
-          variant="ghost"
-          className="px-3"
-          aria-label="Next page"
-          disabled={isLast}
-          onClick={() => onPageChange(requestedPage + 1)}
+          width="full"
+          aria-label={isLast ? 'Finish story' : 'Next page'}
+          disabled={finishing || (isLast && settledPage === undefined)}
+          onClick={() =>
+            isLast ? onFinish() : onPageChange(requestedPage + 1)
+          }
         >
-          Next &rarr;
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          className="px-3"
-          aria-label="Last page"
-          disabled={isLast}
-          onClick={() => onPageChange(totalPages)}
-        >
-          Last
+          {finishing ? 'Finishing…' : isLast ? 'Finish story' : 'Next'}
+          {!isLast && <ArrowRight aria-hidden />}
         </Button>
       </div>
-      <span aria-live="polite" className="sr-only">
+      <span
+        role="status"
+        aria-label="Current story page"
+        aria-live="polite"
+        className="sr-only"
+      >
         {settledPage === undefined
           ? ''
           : `Page ${settledPage} of ${totalPages}`}

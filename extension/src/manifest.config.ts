@@ -1,20 +1,40 @@
 import { defineManifest } from '@crxjs/vite-plugin';
 
-// host_permissions is scoped to the (build-time configurable) API origin - least privilege,
-// since it both CORS-exempts the service worker and scopes the cookie read of the app's
-// session JWT. "cookies" is the only auth permission: the extension reads the app's
-// httpOnly session cookie and resends it as a Bearer header, never persisted (no `storage`,
-// no `identity` - sign-in opens the app's own OAuth in a tab).
-export default function manifestFactory(apiOrigin: string) {
+import { version } from '../package.json';
+
+export default function manifestFactory(
+  apiOrigin: string,
+  browser: 'chrome' | 'firefox',
+) {
   return defineManifest({
     manifest_version: 3,
     name: 'FlytLese — read & learn',
-    version: '0.1.0',
+    version,
     description:
       'Translate Norwegian text, look up words, and add vocabulary while reading.',
     permissions: ['cookies', 'contextMenus'],
     host_permissions: [`${apiOrigin}/*`],
-    background: { service_worker: 'src/background/index.ts', type: 'module' },
+    options_ui: { page: 'src/options/index.html', open_in_tab: true },
+    background:
+      browser === 'firefox'
+        ? { scripts: ['src/background/index.ts'] }
+        : { service_worker: 'src/background/index.ts', type: 'module' },
+    ...(browser === 'firefox' && {
+      browser_specific_settings: {
+        gecko: {
+          id: 'flytlese@flyt.umebocchi.my.id',
+          strict_min_version: '142.0',
+          data_collection_permissions: {
+            required: [
+              'authenticationInfo',
+              'browsingActivity',
+              'searchTerms',
+              'websiteContent',
+            ],
+          },
+        },
+      },
+    }),
     content_scripts: [
       {
         matches: ['<all_urls>'],

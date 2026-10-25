@@ -349,9 +349,6 @@ def _add_expression_aliases(
     lemma: Lemma,
     presentation: ExpressionPresentation | None,
 ) -> None:
-    # Import/update callers may inspect the returned ORM object before the
-    # transaction is committed. Initialise the select-in relationship without
-    # triggering async lazy IO, then keep it in sync with the rows being added.
     if "aliases" not in lemma.__dict__:
         set_committed_value(lemma, "aliases", [])
     if presentation is None:
@@ -493,12 +490,11 @@ async def update_article(  # ume-ignore: UME-PY003
                 cross_reference_article_id,
                 cross_reference_word,
             )
-            for wf in list(existing.word_forms):
-                await db.delete(wf)
-            for defn in list(existing.definitions):
-                await db.delete(defn)
-            for sa in list(existing.see_also):
-                await db.delete(sa)
+            await db.execute(delete(WordForm).where(WordForm.lemma_id == existing.id))
+            await db.execute(
+                delete(Definition).where(Definition.lemma_id == existing.id)
+            )
+            await db.execute(delete(SeeAlso).where(SeeAlso.lemma_id == existing.id))
             await db.execute(
                 delete(LemmaAlias).where(LemmaAlias.lemma_id == existing.id)
             )

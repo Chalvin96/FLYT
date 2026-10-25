@@ -210,7 +210,7 @@ async def main(count: int) -> None:
                 cefr_level=cefr,
                 reading_group_id=groups[gkey].id,
                 visibility=StoryVisibility.PUBLIC,
-                is_ready=True,
+                is_ready=False,
                 content=body,
                 word_count=len(body.split()),
             )
@@ -223,7 +223,7 @@ async def main(count: int) -> None:
             await client.aclose()
 
         for sid in created_ids:
-            await generate_story_pages({}, sid)
+            await generate_story_pages({}, sid, True)
         print(f"Done. {len(created_ids)} stories created + paginated.")
 
 

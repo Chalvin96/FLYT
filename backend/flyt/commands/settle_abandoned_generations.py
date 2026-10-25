@@ -36,6 +36,7 @@ async def settle_expired_generations(dry_run: bool) -> tuple[int, int, int]:
                         .where(
                             or_(
                                 Generation.topic.is_not(None),
+                                Generation.title.is_not(None),
                                 Generation.text.is_not(None),
                                 Generation.pages.is_not(None),
                             )
@@ -69,11 +70,12 @@ async def settle_expired_generations(dry_run: bool) -> tuple[int, int, int]:
                             Generation.created_at < cutoff,
                             or_(
                                 Generation.topic.is_not(None),
+                                Generation.title.is_not(None),
                                 Generation.text.is_not(None),
                                 Generation.pages.is_not(None),
                             ),
                         )
-                        .values(topic=None, text=None, pages=None)
+                        .values(topic=None, title=None, text=None, pages=None)
                         .returning(Generation.id)
                     )
                 )

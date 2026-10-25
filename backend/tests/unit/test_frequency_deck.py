@@ -12,9 +12,6 @@ Covers:
 - GET /decks shape
 """
 
-from datetime import datetime
-from datetime import UTC
-
 import pytest
 from sqlalchemy import func
 from sqlalchemy import select
@@ -31,10 +28,11 @@ from flyt.apps.flashcards.user_cards_service import MyCardsService
 from flyt.apps.lexicons.types import K_USER_LEMMA_STATE_LEARNING
 from flyt.apps.lexicons.types import K_USER_LEMMA_STATE_MASTERED
 from flyt.apps.lexicons.types import K_USER_LEMMA_STATE_NEW
-from flyt.apps.reading.services import ReadingService
+from flyt.apps.reading.queries import get_user_states_for_tokens
 from flyt.apps.stats.queries import StatsQueryService
 from flyt.apps.users.models import UserLemma
 from flyt.apps.users.services import UserLemmaService
+from flyt.libs.utils.date import now
 from tests.factories import CardPoolFactory
 from tests.factories import DeckFactory
 from tests.factories import FlashCardFactory
@@ -220,7 +218,7 @@ async def test_issue_due_cards_given_ranked_new_pools_expect_topup_ordered_by_fr
             pool=pool,
             state=CardState.NEW,
             enrollment_state=Enrollment.ACTIVE,
-            due_at=datetime.now(UTC).replace(tzinfo=None),
+            due_at=now(),
         )
         pools_by_rank[rank] = pool
 
@@ -248,7 +246,7 @@ async def test_issue_due_cards_given_ranked_new_pools_over_daily_limit_expect_to
             pool=pool,
             state=CardState.NEW,
             enrollment_state=Enrollment.ACTIVE,
-            due_at=datetime.now(UTC).replace(tzinfo=None),
+            due_at=now(),
         )
 
     due = await review_service(async_session).issue_due_cards(user_id=user.id)
@@ -272,7 +270,7 @@ async def test_issue_due_cards_given_insufficient_active_new_expect_upcoming_pro
         pool=active_pool,
         state=CardState.NEW,
         enrollment_state=Enrollment.ACTIVE,
-        due_at=datetime.now(UTC).replace(tzinfo=None),
+        due_at=now(),
     )
 
     # Two UPCOMING cards (ranks 2, 3) — should be promoted to fill the limit.
@@ -285,7 +283,7 @@ async def test_issue_due_cards_given_insufficient_active_new_expect_upcoming_pro
             pool=pool,
             state=CardState.NEW,
             enrollment_state=Enrollment.UPCOMING,
-            due_at=datetime.now(UTC).replace(tzinfo=None),
+            due_at=now(),
         )
         upcoming_pools.append(pool)
 
@@ -310,7 +308,7 @@ async def test_issue_due_cards_given_null_frequency_rank_expect_reading_card_aft
         pool=freq_pool,
         state=CardState.NEW,
         enrollment_state=Enrollment.ACTIVE,
-        due_at=datetime.now(UTC).replace(tzinfo=None),
+        due_at=now(),
     )
 
     # Reading-discovered card (null frequency_rank).
@@ -321,7 +319,7 @@ async def test_issue_due_cards_given_null_frequency_rank_expect_reading_card_aft
         pool=reading_pool,
         state=CardState.NEW,
         enrollment_state=Enrollment.ACTIVE,
-        due_at=datetime.now(UTC).replace(tzinfo=None),
+        due_at=now(),
     )
 
     due = await review_service(async_session).issue_due_cards(user_id=user.id)
@@ -435,9 +433,8 @@ async def test_reading_derivation_upcoming_renders_as_new(
         user=user, pool=pool, enrollment_state=Enrollment.UPCOMING
     )
 
-    service = ReadingService(async_session)
-    states = await service._get_user_states_for_tokens(
-        [{"lemmaUuid": str(lemma.uuid)}], user.id
+    states = await get_user_states_for_tokens(
+        async_session, [{"lemmaUuid": str(lemma.uuid)}], user.id
     )
 
     assert states[str(lemma.uuid)] == K_USER_LEMMA_STATE_NEW
@@ -458,9 +455,8 @@ async def test_reading_derivation_active_card_without_user_lemma_renders_as_new(
         user=user, pool=pool, enrollment_state=Enrollment.ACTIVE
     )
 
-    service = ReadingService(async_session)
-    states = await service._get_user_states_for_tokens(
-        [{"lemmaUuid": str(lemma.uuid)}], user.id
+    states = await get_user_states_for_tokens(
+        async_session, [{"lemmaUuid": str(lemma.uuid)}], user.id
     )
 
     assert states[str(lemma.uuid)] == K_USER_LEMMA_STATE_NEW
@@ -482,9 +478,8 @@ async def test_get_user_states_for_tokens_given_saved_lemma_and_active_card_expe
         state=CardState.NEW,
     )
 
-    service = ReadingService(async_session)
-    states = await service._get_user_states_for_tokens(
-        [{"lemmaUuid": str(lemma.uuid)}], user.id
+    states = await get_user_states_for_tokens(
+        async_session, [{"lemmaUuid": str(lemma.uuid)}], user.id
     )
 
     assert states[str(lemma.uuid)] == K_USER_LEMMA_STATE_LEARNING
@@ -505,9 +500,8 @@ async def test_reading_derivation_user_lemma_mastered(
     async_session.add(UserLemma(user_id=user.id, lemma_id=lemma.id, is_mastered=True))
     await async_session.flush()
 
-    service = ReadingService(async_session)
-    states = await service._get_user_states_for_tokens(
-        [{"lemmaUuid": str(lemma.uuid)}], user.id
+    states = await get_user_states_for_tokens(
+        async_session, [{"lemmaUuid": str(lemma.uuid)}], user.id
     )
 
     assert states[str(lemma.uuid)] == K_USER_LEMMA_STATE_MASTERED

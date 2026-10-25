@@ -32,7 +32,7 @@ const buildExercise: Extract<Exercise, { operation: 'build' }> = {
 };
 
 const meta = {
-  title: 'Flashcard/FlashCardBuild',
+  title: 'Features/Flashcard/FlashCardBuild',
   component: FlashCardBuild,
   tags: ['autodocs'],
   decorators: [
@@ -46,7 +46,7 @@ const meta = {
     ),
   ],
   parameters: { layout: 'fullscreen' },
-  args: { className: 'flex-1', desktopExpanded: true },
+  args: { allowRetry: true, layout: 'fill', desktopExpanded: true },
   argTypes: {
     exercise: { control: 'object' },
     onFinished: { action: 'onFinished' },
@@ -60,39 +60,31 @@ export const Default: Story = {
   args: { exercise: buildExercise, desktopExpanded: true },
 };
 
-/**
- * Play function: taps each movable bank chip in the correct order,
- * clicks Check, and verifies the "Correct" banner appears.
- */
 export const ResultCorrect: Story = {
   args: { exercise: buildExercise, desktopExpanded: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    // movableAnswerOrder = snakker, ikke, norsk, enn.
     await userEvent.click(canvas.getByRole('button', { name: /add snakker/i }));
     await userEvent.click(canvas.getByRole('button', { name: /add ikke/i }));
     await userEvent.click(canvas.getByRole('button', { name: /add norsk/i }));
     await userEvent.click(canvas.getByRole('button', { name: /add enn/i }));
 
     await userEvent.click(canvas.getByRole('button', { name: /check/i }));
-    await expect(canvas.getByText(/correct/i)).toBeInTheDocument();
+    await expect(canvas.getByTestId('operation-banner')).toHaveTextContent(
+      /^correct$/i,
+    );
     await expect(
       canvas.getByText(/ikke usually follows the verb/i),
     ).toBeInTheDocument();
   },
 };
 
-/**
- * Reveal is a terminal state too: after a wrong check the explanation is
- * still absent; revealing shows the answer and the explanation together.
- */
 export const RevealedAfterWrongCheck: Story = {
   args: { exercise: buildExercise, desktopExpanded: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    // Wrong order: ikke before snakker.
     await userEvent.click(canvas.getByRole('button', { name: /add ikke/i }));
     await userEvent.click(canvas.getByRole('button', { name: /add snakker/i }));
     await userEvent.click(canvas.getByRole('button', { name: /add norsk/i }));

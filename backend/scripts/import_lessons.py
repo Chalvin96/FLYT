@@ -28,6 +28,8 @@ from flyt.apps.lessons.deps import build_lesson_content_service
 from flyt.apps.lessons.types import LessonImportBatch
 from flyt.apps.lessons.types import LessonImportItem
 from flyt.content.exceptions import LessonImportError
+from flyt.content.schemas import K_LESSON_LANGUAGE
+from flyt.content.schemas import K_SUPPORTED_LESSON_PACKET_SCHEMA_VERSIONS
 from flyt.content.schemas import LessonCatalog
 from flyt.content.schemas import LessonCatalogEntry
 from flyt.content.schemas import LessonPacket
@@ -62,8 +64,9 @@ K_PACKET_PROPERTIES = frozenset(
         "media",
     }
 )
+K_OPTIONAL_PACKET_PROPERTIES = frozenset({"kind"})
 K_REQUIRED_PACKET_PROPERTIES = frozenset(
-    K_PACKET_PROPERTIES - {"schema_version", "language"}
+    K_PACKET_PROPERTIES - {"schema_version", "language"} - K_OPTIONAL_PACKET_PROPERTIES
 )
 
 
@@ -229,20 +232,22 @@ def _validate_schema_artifact_or_raise(schema_path: Path) -> None:
             f"Invalid lesson schema at {schema_path}: properties is not an object"
         )
     actual_properties = set(properties)
-    if actual_properties != K_PACKET_PROPERTIES:
+    missing_properties = (
+        K_PACKET_PROPERTIES - K_OPTIONAL_PACKET_PROPERTIES - actual_properties
+    )
+    unsupported_properties = actual_properties - K_PACKET_PROPERTIES
+    if missing_properties or unsupported_properties:
         raise LessonImportError(
-            f"Lesson schema at {schema_path} has packet properties "
-            f"{sorted(actual_properties)!r}, expected {sorted(K_PACKET_PROPERTIES)!r}"
+            f"Lesson schema at {schema_path} has invalid packet properties: "
+            f"missing {sorted(missing_properties)!r}, "
+            f"unsupported {sorted(unsupported_properties)!r}"
         )
-    for property_name, expected in (
-        ("schema_version", "4.0"),
-        ("language", "nb-NO"),
+    for property_name, supported in (
+        ("schema_version", K_SUPPORTED_LESSON_PACKET_SCHEMA_VERSIONS),
+        ("language", frozenset({K_LESSON_LANGUAGE})),
     ):
-        property_schema = properties[property_name]
-        if (
-            not isinstance(property_schema, dict)
-            or property_schema.get("const") != expected
-        ):
+        declared = _collect_declared_string_values(properties[property_name])
+        if not declared or not declared <= supported:
             raise LessonImportError(
                 f"Lesson schema at {schema_path} has an invalid "
                 f"{property_name} contract"
@@ -264,6 +269,19 @@ def _validate_schema_artifact_or_raise(schema_path: Path) -> None:
         raise LessonImportError(
             f"Lesson schema at {schema_path} has invalid required packet fields"
         )
+
+
+def _collect_declared_string_values(property_schema: object) -> frozenset[str] | None:
+    """Literals a packet property schema pins with `const`, or derives as `enum`."""
+    if not isinstance(property_schema, dict):
+        return None
+    const = property_schema.get("const")
+    if isinstance(const, str):
+        return frozenset({const})
+    enum = property_schema.get("enum")
+    if isinstance(enum, list) and all(isinstance(value, str) for value in enum):
+        return frozenset(enum)
+    return None
 
 
 def _catalog_entries_by_id_or_raise(

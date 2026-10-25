@@ -1,5 +1,4 @@
-import { AppCard } from '@/components/common/AppCard/AppCard';
-import { Button } from '@/components/common/Button/Button';
+import { Button, Card, Heading, Text } from '@flyt/ui';
 
 type UnsupportedFlashcardCardProps = {
   cardType: string;
@@ -13,23 +12,21 @@ export function UnsupportedFlashcardCard({
   onContinue,
 }: UnsupportedFlashcardCardProps) {
   return (
-    <AppCard className="flex min-h-0 flex-1 flex-col justify-between p-6">
+    <Card fillHeight padding="roomy">
       <div className="space-y-2">
-        <h2 className="type-section font-semibold text-foreground">
+        <Heading as="h2" size="medium">
           Unsupported lesson step
-        </h2>
-        <p className="type-caption text-muted-foreground">
+        </Heading>
+        <Text size="medium" tone="subtle">
           This lesson contains a step type ({cardType}) that is not available in
           this app version.
-        </p>
+        </Text>
       </div>
-      <Button
-        className="mt-4 w-full"
-        disabled={isSubmitting}
-        onClick={onContinue}
-      >
-        Continue
-      </Button>
-    </AppCard>
+      <div className="mt-4">
+        <Button disabled={isSubmitting} onClick={onContinue} width="full">
+          Continue
+        </Button>
+      </div>
+    </Card>
   );
 }

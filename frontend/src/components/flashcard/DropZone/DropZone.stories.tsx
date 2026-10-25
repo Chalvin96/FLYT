@@ -1,10 +1,13 @@
 import { DndContext } from '@dnd-kit/core';
+import { Text } from '@flyt/ui';
 import type { Meta, StoryObj } from '@storybook/react';
 
 import { DropZone } from './DropZone';
 
+const chipClassName = 'radius-field border border-default bg-raised px-4 py-3';
+
 const meta = {
-  title: 'Flashcard/DropZone',
+  title: 'Features/Flashcard/DropZone',
   component: DropZone,
   tags: ['autodocs'],
   decorators: [
@@ -38,8 +41,10 @@ export const Highlighted: Story = {
   args: { isOver: true },
   render: (args) => (
     <DropZone {...args} className="w-64">
-      <span className="radius-field border border-border bg-card px-4 py-3 text-base font-semibold">
-        en bok
+      <span className={chipClassName}>
+        <Text as="span" size="large" weight="semibold">
+          en bok
+        </Text>
       </span>
     </DropZone>
   ),
@@ -52,11 +57,15 @@ export const EmptyNoLabel: Story = {
 export const WithChips: Story = {
   render: () => (
     <DropZone id="bucket-1" label="Neuter" className="w-64">
-      <span className="radius-field border border-border bg-card px-4 py-3 text-base font-semibold">
-        et hus
+      <span className={chipClassName}>
+        <Text as="span" size="large" weight="semibold">
+          et hus
+        </Text>
       </span>
-      <span className="radius-field border border-border bg-card px-4 py-3 text-base font-semibold">
-        ett eple
+      <span className={chipClassName}>
+        <Text as="span" size="large" weight="semibold">
+          ett eple
+        </Text>
       </span>
     </DropZone>
   ),

@@ -87,19 +87,19 @@ class Lemma(BaseModel, DateTimeMixin):
         "Definition",
         back_populates="lemma",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="raise",
     )
     word_forms = relationship(
         "WordForm",
         back_populates="lemma",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="raise",
     )
     see_also = relationship(
         "SeeAlso",
         back_populates="lemma",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="raise",
         order_by="SeeAlso.ordinal",
     )
     aliases = relationship(
@@ -111,6 +111,7 @@ class Lemma(BaseModel, DateTimeMixin):
     )
 
     __table_args__ = (
+        Index("ix_lexicon_lemmas_word_lower", func.lower(word)),
         # Identity of a lemma is its Ordbøkene (article, lemma id). (word, pos,
         # hgno) is NOT unique — the same (word, pos, hgno) can name two distinct
         # senses (e.g. legg "fold" vs "setting hair", both NOUN hgno 3) — so the
@@ -219,7 +220,7 @@ class WordForm(BaseModel, DateTimeMixin):
     ipa_approximate: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
-    lemma = relationship("Lemma", back_populates="word_forms", lazy="selectin")
+    lemma = relationship("Lemma", back_populates="word_forms", lazy="raise")
 
     __table_args__ = (
         Index(
@@ -255,7 +256,7 @@ class Definition(BaseModel, DateTimeMixin):
     translation_source: Mapped[str | None] = mapped_column(String, nullable=True)
     examples_json: Mapped[list] = mapped_column(JSON, default=list)
 
-    lemma = relationship("Lemma", back_populates="definitions", lazy="selectin")
+    lemma = relationship("Lemma", back_populates="definitions", lazy="raise")
 
     def __str__(self):
         return self.definition
@@ -278,7 +279,7 @@ class SeeAlso(BaseModel, DateTimeMixin):
     relation: Mapped[str] = mapped_column(String)
     ordinal: Mapped[int] = mapped_column(Integer)
 
-    lemma = relationship("Lemma", back_populates="see_also", lazy="selectin")
+    lemma = relationship("Lemma", back_populates="see_also", lazy="raise")
 
     def __str__(self):
         return f"{self.relation} {self.target_word}"

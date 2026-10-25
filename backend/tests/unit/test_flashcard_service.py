@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flyt.apps.flashcards.exceptions import CardNotFoundError
+from flyt.apps.flashcards.exceptions import StaleReviewError
 from flyt.apps.flashcards.models import CardPool
 from flyt.apps.flashcards.models import CardState
 from flyt.apps.flashcards.models import CardType
@@ -40,6 +41,7 @@ from flyt.apps.users.models import UserLemma
 from flyt.apps.users.models import UserSettings
 from flyt.apps.users.services import UserLemmaService
 from flyt.libs.utils.date import now as now_utc
+from flyt.libs.utils.date import now_aware
 from tests.factories import CardPoolFactory
 from tests.factories import DeckFactory
 from tests.factories import DefinitionFactory
@@ -107,7 +109,7 @@ async def test_issue_due_cards_given_lesson_card_expect_packet_not_loaded(
         user=user,
         pool=pool,
         state=CardState.REVIEW,
-        due_at=datetime.now(UTC).replace(tzinfo=None),
+        due_at=now_utc(),
     )
     await async_session.flush()
     async_session.expunge_all()
@@ -376,19 +378,40 @@ async def test_mastery_bucket_given_boundary_values_expect_sql_and_python_agree(
     assert sql_bucket == derive_mastery_bucket(state, stability)
 
 
-async def _create_user_card_with_variant(
-    user,
-    state: CardState = CardState.NEW,
-    due_at: datetime | None = None,
-    deck=None,
-) -> tuple[UserCard, object, object]:
-    pool = await CardPoolFactory.create()
-    card = await FlashCardFactory.create(pool=pool, deck=deck, is_addable=True)
-    user_card_kwargs = {"user": user, "pool": pool, "state": state}
-    if due_at is not None:
-        user_card_kwargs["due_at"] = due_at
-    user_card = await UserCardFactory.create(**user_card_kwargs)
-    return user_card, card, pool
+@pytest.mark.anyio
+async def test_due_set_given_utc_midnight_expect_tomorrow_learning_excluded(
+    async_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current_time = datetime(2026, 10, 3, 23, 59, 59, tzinfo=UTC).replace(tzinfo=None)
+    monkeypatch.setattr("flyt.apps.flashcards.review_service.now", lambda: current_time)
+    monkeypatch.setattr("flyt.apps.flashcards.queries.now", lambda: current_time)
+    user = await UserFactory.create()
+    await UserSettingsFactory.create(user=user)
+    today_pool = await CardPoolFactory.create()
+    await FlashCardFactory.create(pool=today_pool, is_addable=True)
+    today = await UserCardFactory.create(
+        user=user,
+        pool=today_pool,
+        state=CardState.LEARNING,
+        due_at=current_time - timedelta(seconds=1),
+    )
+    tomorrow_pool = await CardPoolFactory.create()
+    await FlashCardFactory.create(pool=tomorrow_pool, is_addable=True)
+    tomorrow = await UserCardFactory.create(
+        user=user,
+        pool=tomorrow_pool,
+        state=CardState.LEARNING,
+        due_at=current_time + timedelta(seconds=1),
+    )
+
+    service = review_service(async_session)
+    due_cards = await service.issue_due_cards(user.id)
+    counts = await service.count_due_states(user.id)
+
+    assert [due_card.user_card.id for due_card in due_cards] == [today.id]
+    assert counts.learning == 1
+    assert tomorrow.active_card_id is None
 
 
 def test_format_interval_buckets() -> None:
@@ -433,7 +456,7 @@ async def test_issue_due_cards_given_due_card_expect_all_four_rating_previews(  
         user=user,
         pool=pool,
         state=CardState.NEW,
-        due_at=datetime.now(UTC).replace(tzinfo=None),
+        due_at=now_utc(),
     )
 
     due = await review_service(async_session).issue_due_cards(user_id=user.id)
@@ -463,7 +486,11 @@ async def test_review_promotes_upcoming_card_to_active(
     due = await service.issue_due_cards(user.id)
     assert due[0].card.id == variant.id
     reviewed = await service.review_card(
-        user_id=user.id, user_card_id=uc.id, rating=3, card_id=due[0].card.id
+        user_id=user.id,
+        user_card_id=uc.id,
+        rating=3,
+        card_id=due[0].card.id,
+        review_version=0,
     )
 
     assert reviewed.enrollment_state == Enrollment.ACTIVE
@@ -497,7 +524,7 @@ async def test_issue_due_cards_given_mixed_due_dates_expect_due_and_today_learni
     async_session: AsyncSession,
 ) -> None:
     user = await UserFactory.create()
-    now_n = datetime.now(UTC).replace(tzinfo=None)
+    now_n = now_utc()
 
     async def mk(state: CardState, off_min: int):
         pool = await CardPoolFactory.create()
@@ -510,7 +537,7 @@ async def test_issue_due_cards_given_mixed_due_dates_expect_due_and_today_learni
         )
 
     due_review = await mk(CardState.REVIEW, -60)  # due now -> included
-    today_step = await mk(CardState.LEARNING, 5)  # due in 5m, same day -> included
+    today_step = await mk(CardState.LEARNING, -5)
     future_rev = await mk(CardState.REVIEW, 60 * 24 * 2)  # due in 2 days -> excluded
     svc = review_service(async_session)
     ids = {dc.user_card.id for dc in await svc.issue_due_cards(user_id=user.id)}
@@ -532,7 +559,7 @@ async def test_issue_due_cards_given_new_cards_beyond_daily_limit_expect_topup_c
             user=user,
             pool=pool,
             state=CardState.NEW,
-            due_at=datetime.now(UTC).replace(tzinfo=None),
+            due_at=now_utc(),
         )
     svc = review_service(async_session)
     new_cards = [
@@ -561,7 +588,7 @@ async def test_promote_upcoming_to_fill_flips_want_respects_exclude_orders_by_ra
             pool=pool,
             state=CardState.NEW,
             enrollment_state=Enrollment.UPCOMING,
-            due_at=datetime.now(UTC).replace(tzinfo=None),
+            due_at=now_utc(),
         )
         pools_by_rank[rank] = pool
 
@@ -590,7 +617,7 @@ async def test_issue_due_cards_given_queued_cards_expect_ordered_cards_with_payl
     async_session: AsyncSession,
 ) -> None:
     user = await UserFactory.create()
-    now_n = datetime.now(UTC).replace(tzinfo=None)
+    now_n = now_utc()
     later_pool = await CardPoolFactory.create()
     later_card = await FlashCardFactory.create(pool=later_pool, is_addable=True)
     later_user_card = await UserCardFactory.create(
@@ -635,10 +662,12 @@ async def test_issue_due_cards_given_empty_queue_expect_empty_list(  # ume-ignor
 @pytest.mark.anyio
 async def test_issue_due_cards_given_quick_mode_expect_first_ten_cards_only(  # ume-ignore: UME-PY003
     async_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     user = await UserFactory.create()
     queued_user_cards = []
-    base = datetime.now(UTC).replace(tzinfo=None)
+    base = datetime(2026, 10, 3, 23, 59, 59, tzinfo=UTC).replace(tzinfo=None)
+    monkeypatch.setattr("flyt.apps.flashcards.review_service.now", lambda: base)
 
     for minute in range(12):
         pool = await CardPoolFactory.create()
@@ -647,7 +676,7 @@ async def test_issue_due_cards_given_quick_mode_expect_first_ten_cards_only(  # 
             user=user,
             pool=pool,
             state=CardState.LEARNING,
-            due_at=base + timedelta(minutes=minute),
+            due_at=base - timedelta(minutes=11 - minute),
         )
         queued_user_cards.append(user_card)
 
@@ -676,7 +705,7 @@ async def test_issue_due_cards_given_active_issuance_expect_same_variant_on_repe
         user=user,
         pool=pool,
         state=CardState.NEW,
-        due_at=datetime.now(UTC).replace(tzinfo=None),
+        due_at=now_utc(),
     )
 
     service = review_service(async_session)
@@ -702,13 +731,15 @@ async def test_issue_due_cards_given_resolved_card_expect_rotation_history_prese
         user=user,
         pool=pool,
         state=CardState.NEW,
-        due_at=datetime.now(UTC).replace(tzinfo=None),
+        due_at=now_utc(),
     )
     service = review_service(async_session)
 
     issued = (await service.issue_due_cards(user.id))[0]
-    await service.review_card(user.id, user_card.id, Rating.Good, issued.card.id)
-    user_card.due_at = datetime.now(UTC).replace(tzinfo=None)
+    await service.review_card(
+        user.id, user_card.id, Rating.Good, issued.card.id, review_version=0
+    )
+    user_card.due_at = now_utc()
     await async_session.flush()
 
     rotated = (await service.issue_due_cards(user.id))[0]
@@ -731,7 +762,7 @@ async def test_count_due_states_splits_eligible_cards_by_state(
     """
     user = await UserFactory.create()
     await UserSettingsFactory.create(user=user, daily_new_limit=2)
-    now_n = datetime.now(UTC).replace(tzinfo=None)
+    now_n = now_utc()
 
     async def mk(state, due_offset_min, enrollment=Enrollment.ACTIVE):
         pool = await CardPoolFactory.create()
@@ -844,7 +875,7 @@ async def test_subscribe_to_deck_given_concurrent_insert_after_snapshot_expect_n
                 UserCard.__table__.insert().values(
                     user_id=user.id,
                     pool_id=pool.id,
-                    due_at=datetime.now(UTC),
+                    due_at=now_aware(),
                     state=CardState.NEW,
                     enrollment_state="upcoming",
                 )
@@ -875,7 +906,7 @@ async def test_enroll_pools_given_owned_pool_expect_scheduling_preserved(  # ume
     user = await UserFactory.create()
     owned_pool = await CardPoolFactory.create()
     new_pool = await CardPoolFactory.create()
-    reviewed_at = datetime.now(UTC).replace(tzinfo=None)
+    reviewed_at = now_utc()
     due_at = reviewed_at + timedelta(days=3)
     existing = await UserCardFactory.create(
         user=user,
@@ -943,7 +974,7 @@ async def test_review_card_given_existing_user_card_expect_fsrs_fields_set(
     await UserSettingsFactory.create(user=user)
     pool = await CardPoolFactory.create()
     variant = await FlashCardFactory.create(pool=pool, is_addable=True)
-    due_at = datetime.now(UTC) - timedelta(hours=1)
+    due_at = now_aware() - timedelta(hours=1)
     user_card = await UserCardFactory.create(
         user=user,
         pool=pool,
@@ -960,6 +991,7 @@ async def test_review_card_given_existing_user_card_expect_fsrs_fields_set(
         user_card_id=user_card.id,
         rating=3,
         card_id=due[0].card.id,
+        review_version=0,
     )
     updated_user_card = await async_session.get(UserCard, user_card.id)
     assert updated_user_card is not None
@@ -977,6 +1009,7 @@ async def test_review_card_given_existing_user_card_expect_fsrs_fields_set(
     assert review_log.user_id == user_card.user_id
     assert review_log.rating == Rating.Good
     assert review_log.reviewed_at == updated_user_card.last_review_at
+    assert updated_user_card.introduced_at == updated_user_card.last_review_at
     assert updated_user_card.state in {
         CardState.LEARNING,
         CardState.REVIEW,
@@ -997,20 +1030,25 @@ async def test_review_sets_introduced_at_on_first_transition(
     due = await svc.issue_due_cards(user.id)
     assert due[0].card.id == variant.id
     reviewed = await svc.review_card(
-        user_id=user.id, user_card_id=uc.id, rating=3, card_id=due[0].card.id
+        user_id=user.id,
+        user_card_id=uc.id,
+        rating=3,
+        card_id=due[0].card.id,
+        review_version=0,
     )
     assert reviewed.introduced_at is not None
     assert reviewed.last_shown_card_id == variant.id
     assert reviewed.active_card_id is None
     first = reviewed.introduced_at
     # Reissue the now-due card before the second review.
-    uc.due_at = datetime.now(UTC).replace(tzinfo=None)
+    uc.due_at = now_utc()
     second_due = await svc.issue_due_cards(user.id)
     again = await svc.review_card(
         user_id=user.id,
         user_card_id=uc.id,
         rating=3,
         card_id=second_due[0].card.id,
+        review_version=reviewed.review_version,
     )
     assert again.introduced_at == first
 
@@ -1021,7 +1059,7 @@ async def test_review_card_given_deleted_user_card_expect_card_not_found_error(
 ) -> None:
     user_card, variant, _ = await _create_user_card_with_variant(
         await UserFactory.create(),
-        due_at=(datetime.now(UTC) - timedelta(hours=1)).replace(tzinfo=None),
+        due_at=(now_aware() - timedelta(hours=1)).replace(tzinfo=None),
     )
     user_id = user_card.user_id
     user_card_id = user_card.id
@@ -1033,7 +1071,11 @@ async def test_review_card_given_deleted_user_card_expect_card_not_found_error(
 
     with pytest.raises(CardNotFoundError):
         await service.review_card(
-            user_id=user_id, user_card_id=user_card_id, rating=3, card_id=variant_id
+            user_id=user_id,
+            user_card_id=user_card_id,
+            rating=3,
+            card_id=variant_id,
+            review_version=0,
         )
 
 
@@ -1090,6 +1132,7 @@ async def test_find_or_create_lemma_pool_with_definition_card_given_missing_pool
         examples_json=[{"no": "en fisk", "en": None}],
     )
     service = card_service(async_session)
+    async_session.expunge_all()
 
     pool = await service.find_or_create_lemma_pool_with_definition_card(lemma)
 
@@ -1102,6 +1145,7 @@ async def test_find_or_create_lemma_pool_with_definition_card_given_missing_pool
     assert card.is_addable is True
     assert card.payload_json["lemma_uuid"] == str(lemma.uuid)
     assert card.payload_json["primary_translation"] == "fish"
+    assert card.payload_json["definitions"][0]["definition"] == "dyr som lever i vann"
 
 
 @pytest.mark.anyio
@@ -1187,7 +1231,7 @@ async def test_find_or_create_lemma_pool_with_definition_card_given_existing_car
 
 
 @pytest.mark.anyio
-async def test_activate_pool_for_user_given_missing_card_expect_active_card_and_user_lemma(
+async def test_activate_pools_for_user_given_missing_card_expect_active_card_and_user_lemma(
     async_session: AsyncSession,
 ) -> None:
     user = await UserFactory.create()
@@ -1195,7 +1239,7 @@ async def test_activate_pool_for_user_given_missing_card_expect_active_card_and_
     pool = await CardPoolFactory.create(lemma=lemma)
     service = card_service(async_session)
 
-    user_card = await service.activate_pool_for_user(user.id, pool.id)
+    user_card = (await service.activate_pools_for_user(user.id, [pool.id]))[0]
 
     assert user_card.enrollment_state == Enrollment.ACTIVE
     assert user_card.state == CardState.NEW
@@ -1212,7 +1256,7 @@ async def test_activate_pool_for_user_given_missing_card_expect_active_card_and_
 
 
 @pytest.mark.anyio
-async def test_activate_pool_for_user_given_upcoming_card_expect_promoted_in_place(
+async def test_activate_pools_for_user_given_upcoming_card_expect_promoted_in_place(
     async_session: AsyncSession,
 ) -> None:
     user = await UserFactory.create()
@@ -1223,11 +1267,11 @@ async def test_activate_pool_for_user_given_upcoming_card_expect_promoted_in_pla
         pool=pool,
         state=CardState.NEW,
         enrollment_state=Enrollment.UPCOMING,
-        due_at=datetime.now(UTC).replace(tzinfo=None),
+        due_at=now_utc(),
     )
     service = card_service(async_session)
 
-    activated = await service.activate_pool_for_user(user.id, pool.id)
+    activated = (await service.activate_pools_for_user(user.id, [pool.id]))[0]
 
     assert activated.id == existing.id
     assert activated.enrollment_state == Enrollment.ACTIVE
@@ -1235,24 +1279,24 @@ async def test_activate_pool_for_user_given_upcoming_card_expect_promoted_in_pla
 
 
 @pytest.mark.anyio
-async def test_activate_pool_for_user_given_existing_active_card_expect_schedule_preserved(
+async def test_activate_pools_for_user_given_existing_active_card_expect_schedule_preserved(
     async_session: AsyncSession,
 ) -> None:
     user = await UserFactory.create()
     lemma = await LemmaFactory.create()
     pool = await CardPoolFactory.create(lemma=lemma)
-    original_due_at = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=3)
+    original_due_at = now_utc() + timedelta(days=3)
     existing = await UserCardFactory.create(
         user=user,
         pool=pool,
         state=CardState.REVIEW,
         enrollment_state=Enrollment.ACTIVE,
         due_at=original_due_at,
-        introduced_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(days=5),
+        introduced_at=now_utc() - timedelta(days=5),
     )
     service = card_service(async_session)
 
-    activated = await service.activate_pool_for_user(user.id, pool.id)
+    activated = (await service.activate_pools_for_user(user.id, [pool.id]))[0]
 
     assert activated.id == existing.id
     assert activated.state == CardState.REVIEW
@@ -1260,7 +1304,7 @@ async def test_activate_pool_for_user_given_existing_active_card_expect_schedule
 
 
 @pytest.mark.anyio
-async def test_activate_pool_for_user_given_lesson_pool_expect_no_user_lemma(
+async def test_activate_pools_for_user_given_lesson_pool_expect_no_user_lemma(
     async_session: AsyncSession,
 ) -> None:
     """Lesson-owned pools (null lemma_id) must not trigger UserLemma creation."""
@@ -1268,7 +1312,7 @@ async def test_activate_pool_for_user_given_lesson_pool_expect_no_user_lemma(
     pool = await CardPoolFactory.create()
     service = card_service(async_session)
 
-    await service.activate_pool_for_user(user.id, pool.id)
+    await service.activate_pools_for_user(user.id, [pool.id])
 
     user_lemma_count = await async_session.scalar(
         select(func.count(UserLemma.id)).where(UserLemma.user_id == user.id)
@@ -1292,7 +1336,7 @@ async def test_issue_due_cards_given_upcoming_lemma_card_expect_user_lemma_backf
         pool=pool,
         state=CardState.NEW,
         enrollment_state=Enrollment.UPCOMING,
-        due_at=datetime.now(UTC).replace(tzinfo=None),
+        due_at=now_utc(),
     )
     service = review_service(async_session)
 
@@ -1500,7 +1544,6 @@ async def _cleanup_committed_review_fixture(ids: dict[str, int]) -> None:
 async def test_review_card_given_concurrent_same_card_expect_serialized_transitions(
     setup_database: None,
 ) -> None:
-    """Concurrent submissions serialize and only the active issuance resolves."""
     ids = await _seed_committed_review_fixture()
     try:
         single_state = await _single_review_state(ids)
@@ -1516,6 +1559,7 @@ async def test_review_card_given_concurrent_same_card_expect_serialized_transiti
         assert log_count == 1
 
         assert concurrent_card is not None
+        assert concurrent_card.review_version == 1
         assert concurrent_card.state == single_state
     finally:
         await _cleanup_committed_review_fixture(ids)
@@ -1540,19 +1584,24 @@ async def test_review_card_given_sequential_ratings_expect_ordered_transitions_a
     assert due[0].card.id == variant.id
 
     first = await svc.review_card(
-        user_id=user.id, user_card_id=uc.id, rating=Rating.Good, card_id=due[0].card.id
+        user_id=user.id,
+        user_card_id=uc.id,
+        rating=Rating.Good,
+        card_id=due[0].card.id,
+        review_version=0,
     )
     first_state = first.state
     first_step = first.fsrs_step
     assert first.fsrs_stability is not None
 
-    uc.due_at = datetime.now(UTC).replace(tzinfo=None)
+    uc.due_at = now_utc()
     second_due = await svc.issue_due_cards(user.id)
     second = await svc.review_card(
         user_id=user.id,
         user_card_id=uc.id,
         rating=Rating.Good,
         card_id=second_due[0].card.id,
+        review_version=first.review_version,
     )
     second_state = second.state
     second_step = second.fsrs_step
@@ -1584,6 +1633,7 @@ async def _single_review_state(ids: dict[str, int]) -> CardState:
             user_card_id=ids["uc_single_id"],
             rating=Rating.Good,
             card_id=ids["variant_single_id"],
+            review_version=0,
         )
         await session.commit()
         assert result.fsrs_stability is not None
@@ -1603,6 +1653,8 @@ async def _review_and_commit(
 ) -> UserCard | None:
     session = _independent_session(review_loaded=loaded, release_review=release_load)
     try:
+        cached_user_card = await session.get(UserCard, user_card_id)
+        assert cached_user_card is not None
         service = review_service(session)
         try:
             result = await service.review_card(
@@ -1610,8 +1662,9 @@ async def _review_and_commit(
                 user_card_id=user_card_id,
                 rating=rating,
                 card_id=card_id,
+                review_version=0,
             )
-        except CardNotFoundError:
+        except StaleReviewError:
             return None
         await session.commit()
         return result
@@ -1715,3 +1768,18 @@ async def _make_search_grammar_card(
     return await UserCardFactory.create(
         user=user, pool=pool, state=CardState.REVIEW, fsrs_stability=stability
     )
+
+
+async def _create_user_card_with_variant(
+    user,
+    state: CardState = CardState.NEW,
+    due_at: datetime | None = None,
+    deck=None,
+) -> tuple[UserCard, object, object]:
+    pool = await CardPoolFactory.create()
+    card = await FlashCardFactory.create(pool=pool, deck=deck, is_addable=True)
+    user_card_kwargs = {"user": user, "pool": pool, "state": state}
+    if due_at is not None:
+        user_card_kwargs["due_at"] = due_at
+    user_card = await UserCardFactory.create(**user_card_kwargs)
+    return user_card, card, pool

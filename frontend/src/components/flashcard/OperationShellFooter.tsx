@@ -1,35 +1,30 @@
+import { Button, Text } from '@flyt/ui';
 import { Loader2 } from 'lucide-react';
 import type { ReactNode, RefObject } from 'react';
 
-import { Button } from '@/components/common/Button/Button';
 import { cn } from '@/lib/utils';
 
-import type { FooterView, StatusTone } from './operationShellView';
-
-const STATUS_TONE_CLASS: Record<StatusTone, string> = {
-  accent: 'text-accent-80',
-  destructive: 'text-destructive',
-  muted: 'text-muted-foreground',
-};
+import { verdictFooterStatusClass, type StatusVerdict } from './answerVerdict';
+import type { FooterView } from './operationShellView';
 
 export function OperationFooterBar({
   ariaLive,
   continueRef,
-  escapeAction,
+  alternativeActions,
   footerView,
   reducedMotion,
   status,
   statusFirstOnMobile,
-  statusTone,
+  statusVerdict,
 }: {
   ariaLive: 'polite' | undefined;
   continueRef: RefObject<HTMLButtonElement | null>;
-  escapeAction?: ReactNode;
+  alternativeActions?: ReactNode;
   footerView: FooterView;
   reducedMotion: boolean;
   status: string;
   statusFirstOnMobile: boolean;
-  statusTone: StatusTone;
+  statusVerdict: StatusVerdict;
 }) {
   return (
     <div
@@ -39,15 +34,18 @@ export function OperationFooterBar({
       )}
       data-testid="flashcard-footer"
     >
-      <p
-        aria-live={ariaLive}
-        className={cn('type-caption', STATUS_TONE_CLASS[statusTone])}
-        data-testid="flashcard-action-status"
-      >
-        {status}
-      </p>
+      <div className={verdictFooterStatusClass[statusVerdict]}>
+        <Text
+          as="p"
+          aria-live={ariaLive}
+          data-testid="flashcard-action-status"
+          size="medium"
+        >
+          {status}
+        </Text>
+      </div>
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-        {escapeAction}
+        {alternativeActions}
         <FooterActions
           continueRef={continueRef}
           reducedMotion={reducedMotion}
@@ -70,7 +68,7 @@ function FooterActions({
   switch (view.kind) {
     case 'pending':
       return (
-        <Button className="w-full sm:w-auto" disabled variant="pill">
+        <Button width="full-on-mobile" disabled shape="pill">
           <Loader2
             aria-hidden="true"
             className={cn('mr-1 size-4', !reducedMotion && 'animate-spin')}
@@ -81,11 +79,11 @@ function FooterActions({
     case 'continue':
       return (
         <Button
-          className="w-full sm:w-auto"
+          width="full-on-mobile"
           disabled={view.disabled}
           onClick={view.onContinue}
           ref={continueRef}
-          variant="pill"
+          shape="pill"
         >
           Continue
           <span aria-hidden="true" className="ml-0.5">
@@ -96,10 +94,10 @@ function FooterActions({
     case 'check':
       return (
         <Button
-          className="w-full sm:w-auto"
+          width="full-on-mobile"
           disabled={view.disabled}
           onClick={view.onCheck}
-          variant="pill"
+          shape="pill"
         >
           Check
           <span aria-hidden="true" className="ml-0.5">
@@ -112,7 +110,7 @@ function FooterActions({
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
           {view.canReveal ? (
             <Button
-              className="w-full sm:w-auto"
+              width="full-on-mobile"
               onClick={view.onReveal}
               variant="outline"
             >
@@ -120,10 +118,10 @@ function FooterActions({
             </Button>
           ) : null}
           <Button
-            className="w-full sm:w-auto"
+            width="full-on-mobile"
             disabled={view.disabled}
             onClick={view.onCheck}
-            variant="pill"
+            shape="pill"
           >
             Check
             <span aria-hidden="true" className="ml-0.5">

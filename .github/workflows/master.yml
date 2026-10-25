@@ -6,6 +6,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  DOCKER_BUILD_SUMMARY: false
+  DOCKER_BUILD_RECORD_UPLOAD: false
 
 jobs:
   ci:
@@ -14,7 +16,11 @@ jobs:
   build-backend:
     name: Build & Push Backend
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     needs: ci
+    concurrency:
+      group: flyt-release-backend
+      cancel-in-progress: false
     permissions:
       contents: read
       packages: write
@@ -31,7 +37,6 @@ jobs:
         run: |
           owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "image=${{ env.REGISTRY }}/$owner/flyt-backend" >> "$GITHUB_OUTPUT"
-          echo "release=flyt@${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -51,9 +56,14 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
+        with:
+          name: flyt-release-backend
+          keep-state: true
+          cache-binary: false
 
       - name: Build (load to daemon, no push)
         id: build
+        timeout-minutes: 30
         uses: docker/build-push-action@v7
         with:
           context: ./backend
@@ -61,40 +71,49 @@ jobs:
           load: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            RELEASE=${{ steps.images.outputs.release }}
 
       - name: Trivy image scan (gates push)
         uses: aquasecurity/trivy-action@v0.36.0
+        env:
+          TRIVY_IMAGE_SRC: docker
         with:
-          image-ref: ${{ steps.images.outputs.image }}:latest
+          image-ref: ${{ steps.build.outputs.imageid }}
+          cache: "false"
+          cache-dir: ${{ runner.tool_cache }}/trivy-backend
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
 
-      - name: Push (cache hit)
-        uses: docker/build-push-action@v7
-        with:
-          context: ./backend
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          build-args: |
-            RELEASE=${{ steps.images.outputs.release }}
+      - name: Push scanned image
+        timeout-minutes: 10
+        env:
+          IMAGE_ID: ${{ steps.build.outputs.imageid }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: bash scripts/push_scanned_image.sh
 
   build-frontend:
     name: Build & Push Frontend
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     needs: ci
+    concurrency:
+      group: flyt-release-frontend
+      cancel-in-progress: false
     permissions:
       contents: read
       packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Validate frontend API URL
+        env:
+          FLYT_API_URL: ${{ vars.FLYT_API_URL }}
+        run: |
+          if [[ "$FLYT_API_URL" != https://* ]]; then
+            echo "Set the FLYT_API_URL repository variable to the public HTTPS API origin." >&2
+            exit 1
+          fi
 
       - name: Resolve image name
         id: images
@@ -121,9 +140,14 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
+        with:
+          name: flyt-release-frontend
+          keep-state: true
+          cache-binary: false
 
       - name: Build (load to daemon, no push)
         id: build
+        timeout-minutes: 30
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -132,29 +156,25 @@ jobs:
           load: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           build-args: |
             FLYT_API_URL=${{ vars.FLYT_API_URL }}
             FLYT_RELEASE=${{ steps.images.outputs.release }}
 
       - name: Trivy image scan (gates push)
         uses: aquasecurity/trivy-action@v0.36.0
+        env:
+          TRIVY_IMAGE_SRC: docker
         with:
-          image-ref: ${{ steps.images.outputs.image }}:latest
+          image-ref: ${{ steps.build.outputs.imageid }}
+          cache: "false"
+          cache-dir: ${{ runner.tool_cache }}/trivy-frontend
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
 
-      - name: Push (cache hit)
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: frontend/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          build-args: |
-            FLYT_API_URL=${{ vars.FLYT_API_URL }}
-            FLYT_RELEASE=${{ steps.images.outputs.release }}
+      - name: Push scanned image
+        timeout-minutes: 10
+        env:
+          IMAGE_ID: ${{ steps.build.outputs.imageid }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: bash scripts/push_scanned_image.sh

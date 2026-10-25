@@ -1,25 +1,27 @@
 # Lexicon
 
-A lemma is identified by headword, part of speech, and homograph identity. Word forms point to lemmas; definitions and glosses belong to the lemma meaning. Never use a translated meaning as a lemma identity.
+Lemma identity comes from the producer's article and lemma IDs. A word, part of speech,
+and homograph number can still describe two distinct entries, so translated meaning is
+not an identity key.
 
-The imported Ordbokene artifact is producer-owned and versioned. Imports preserve source identity, release compatibility, primary translations, and pronunciation provenance. The shared `@flyt/lexicon` package is the frontend/extension component boundary; app-local adapters should not duplicate its exports.
+Verified expression aliases are alternate forms of their owning lemma. They resolve to
+that same lemma and therefore share its learner state and card pool.
 
-Norwegian Kelly frequency ranks order word packs; the source has no CEFR column, so rank must not imply a CEFR level.
+An expression keeps its canonical producer headword as source identity. Verified aliases
+affect display and lookup, not identity; legacy entries fall back to the canonical form.
 
-Saving a lemma carries sentence context privately to the learner's card. Source URLs are retained for reading imports but are not stored as lemma context.
-Expression lemmas use the `expression` POS and retain the canonical multiword
-headword, including source punctuation and bracket alternatives, as their
-internal identity. A producer-verified primary display form and complete
-alternatives are optional learner-facing forms; the importer validates and
-de-duplicates them without expanding ambiguous punctuation. Legacy artifacts
-without structured forms keep the canonical fallback.
+IPA, intonation, and audio come from the dictionary source. Browser synthesis would make
+pronunciation depend on the learner's device.
 
-Verified forms are stored in `lexicon_lemma_aliases` under the owning lemma.
-Their NFC/case-folded values have exact and prefix indexes, and suggestions and
-resolution search them with the canonical headword and word forms in bounded,
-set-based SQL. Exact matches rank before prefixes, ties are deterministic, and
-alias reads are eager-loaded so result rendering does not create N+1 queries.
-Natural forms are used for visible and accessible learner-facing text. When an
-expression has verified aliases, its canonical bracket or pipe headword is
-suppressed from suggestions; the canonical value remains available for source
-identity and direct resolution, while legacy rows use the fallback formatter.
+Saving a lemma may attach its source sentence and title as private learner context. A
+reading page's URL belongs to the imported story, not the lemma context.
+
+Norwegian Kelly frequency ranks order word packs, but the source has no CEFR column.
+Frequency rank must not be presented as a CEFR level.
+
+On a direct lemma miss, the optional flyt-tagger suggests deinflected or decomposed
+forms. Its client fails open to no candidates if the service fails.
+
+The gender badge shows the Norwegian article because that is the form a learner must
+produce: en, ei, or et. Inflection detection respects a known part of speech; a
+determiner's neuter tag must not force it into a noun table.

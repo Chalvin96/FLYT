@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +13,10 @@ const repositoryDirectory = resolve(frontendDirectory, '..');
 const outputPath = resolve(frontendDirectory, 'src/types/api.generated.ts');
 const checkOnly = process.argv.includes('--check');
 
+const codegenKeyring = JSON.stringify([
+  randomBytes(32).toString('base64url') + '=',
+]);
+
 const codegenEnvironment = {
   PATH: process.env.PATH,
   ENV: 'test',
@@ -23,10 +28,8 @@ const codegenEnvironment = {
   ADMIN_SESSION_SECRET: 'codegen-admin-secret-123456789012345678901234567890',
   GOOGLE_CLIENT_ID: 'codegen-client-id',
   GOOGLE_CLIENT_SECRET: 'codegen-client-secret',
-  CHATGPT_LINK_ENCRYPTION_KEYS:
-    '["kkx-ZViSkteSQGh9z5FDskkiQGFImdcA1ceQt2DnwAk="]',
-  PROVIDER_CREDENTIAL_ENCRYPTION_KEYS:
-    '["kkx-ZViSkteSQGh9z5FDskkiQGFImdcA1ceQt2DnwAk="]',
+  CHATGPT_LINK_ENCRYPTION_KEYS: codegenKeyring,
+  PROVIDER_CREDENTIAL_ENCRYPTION_KEYS: codegenKeyring,
   OPENROUTER_API_KEY: 'codegen-openrouter-key',
 };
 

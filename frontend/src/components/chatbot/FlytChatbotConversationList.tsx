@@ -61,7 +61,7 @@ export function ChatbotConversationList({
   };
 
   return (
-    <div className="relative min-h-0 min-w-0 bg-card">
+    <div className="relative min-h-0 min-w-0 bg-raised">
       <MessageScroller>
         <MessageScrollerViewport
           aria-label="Messages"
@@ -182,14 +182,15 @@ function ConversationStatusItems({
       ) : null}
       {error ? (
         <MessageScrollerItem messageId="chatbot-error">
-          <ErrorMessage
-            className="mt-4 max-w-full"
-            error={error}
-            onDismiss={onErrorDismiss}
-            onRetry={onErrorRetry}
-            role="none"
-            title="Unable to answer"
-          />
+          <div className="mt-4 max-w-full">
+            <ErrorMessage
+              error={error}
+              onDismiss={onErrorDismiss}
+              onRetry={onErrorRetry}
+              role="none"
+              title="Unable to answer"
+            />
+          </div>
         </MessageScrollerItem>
       ) : null}
     </>

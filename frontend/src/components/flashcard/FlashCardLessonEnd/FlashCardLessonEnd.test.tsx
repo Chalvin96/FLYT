@@ -5,33 +5,43 @@ import { describe, expect, it, vi } from 'vitest';
 import { FlashCardLessonEnd } from './FlashCardLessonEnd';
 
 describe('FlashCardLessonEnd', () => {
-  it('renders the completion message', () => {
+  it('test_lesson_end_given_no_action_expect_completion_message', () => {
     render(<FlashCardLessonEnd />);
 
     expect(screen.getByText('Lesson complete!')).toBeInTheDocument();
   });
 
-  it('renders the Finish button when onFinished is provided', () => {
-    render(<FlashCardLessonEnd onFinished={vi.fn()} />);
-
-    expect(screen.getByRole('button', { name: 'Finish' })).toBeInTheDocument();
-  });
-
-  it('calls onFinished when Finish is clicked', async () => {
+  it('test_lesson_end_given_secondary_action_expect_caller_action_rendered', async () => {
     const user = userEvent.setup();
-    const onFinished = vi.fn();
+    const onSecondaryAction = vi.fn();
+    render(
+      <FlashCardLessonEnd
+        onPrimaryAction={vi.fn()}
+        secondaryAction={<button onClick={onSecondaryAction}>Close</button>}
+      />,
+    );
 
-    render(<FlashCardLessonEnd onFinished={onFinished} />);
-
-    await user.click(screen.getByRole('button', { name: 'Finish' }));
-    expect(onFinished).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onSecondaryAction).toHaveBeenCalledOnce();
   });
 
-  it('does not render Finish button when onFinished is omitted', () => {
+  it('test_lesson_end_given_done_click_expect_primary_action_handler_called', async () => {
+    const user = userEvent.setup();
+    const onPrimaryAction = vi.fn();
+
+    render(<FlashCardLessonEnd onPrimaryAction={onPrimaryAction} />);
+
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(onPrimaryAction).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  it('test_lesson_end_given_no_primary_action_handler_expect_no_done_button', () => {
     render(<FlashCardLessonEnd />);
 
     expect(
-      screen.queryByRole('button', { name: 'Finish' }),
+      screen.queryByRole('button', { name: 'Done' }),
     ).not.toBeInTheDocument();
   });
 });

@@ -24,12 +24,12 @@ export const DAY_LABELS = [
 ] as const;
 
 export const CELL_PALETTE = [
-  'bg-secondary-10',
-  'bg-secondary-20',
-  'bg-secondary-40',
-  'bg-secondary-60',
-  'bg-secondary-80',
-  'bg-secondary-100',
+  'bg-neutral-subtle',
+  'bg-neutral-pressed',
+  'bg-[var(--chart-neutral-1)]',
+  'bg-[var(--chart-neutral-2)]',
+  'bg-[var(--chart-neutral-3)]',
+  'bg-inverse',
 ] as const;
 
 export function getCellLevel(value: number) {

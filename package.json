@@ -3,11 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@12.4.2",
+  "packageManager": "pnpm@12.14.0",
   "scripts": {
     "preinstall": "node scripts/check_pnpm_version.mjs",
-    "spec:validate": "openspec validate --all --strict --no-interactive",
-    "test:names": "python3 scripts/check_test_names.py --all",
     "test:names:staged": "python3 scripts/check_test_names.py --staged",
     "test:names:backend:staged": "python3 scripts/check_test_names.py --staged --scope backend",
     "test:names:frontend:staged": "python3 scripts/check_test_names.py --staged --scope frontend",
@@ -16,10 +14,19 @@
     "quality:conventions": "python3 scripts/check_conventions.py --staged",
     "quality:ruff": "uv run --directory backend --locked ruff check .",
     "quality:dependencies": "uv run --directory backend --locked pip-audit --local && pnpm audit --prod --audit-level high",
-    "quality:check": "pnpm quality:test && pnpm quality:conventions && pnpm quality:ruff && pnpm quality:dependencies"
+    "quality:check": "pnpm quality:test && pnpm quality:conventions && pnpm quality:ruff && pnpm quality:dependencies",
+    "design-system:escapes": "python3 scripts/check_design_system_escapes.py",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
-    "@fission-ai/openspec": "1.13.0",
-    "react-doctor": "0.9.14"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "eslint-plugin-better-tailwindcss": "^4.10.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "eslint-plugin-testing-library": "^7.16.2",
+    "react-doctor": "0.9.18",
+    "typescript-eslint": "^8.72.0"
   }
 }

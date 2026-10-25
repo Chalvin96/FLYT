@@ -1,4 +1,10 @@
-import { audioPlaybackController } from '@flyt/ui';
+import {
+  audioPlaybackController,
+  Button,
+  Glyph,
+  Heading,
+  Text,
+} from '@flyt/ui';
 import { Play, Square } from 'lucide-react';
 import {
   useCallback,
@@ -9,13 +15,13 @@ import {
   useState,
 } from 'react';
 
-import { Button } from '@/components/common/Button/Button';
-import { cn } from '@/lib/utils';
+import { cn, sentenceCaseLabel } from '@/lib/utils';
 import type { AudioAsset, ReadingBlock } from '@/types/lesson-contracts';
 
 import { isPlayableAudio } from './audio';
 import { AudioPlayButton } from './AudioPlayButton';
 import { speakerIds, type DialogueGroup } from './dialogueGrouping';
+import { disclosureTriggerClassName } from './disclosureTrigger';
 import { SpanView } from './SpanView';
 
 type DialogueViewProps = {
@@ -50,23 +56,30 @@ function TurnRow({
     >
       <div
         data-testid={`dialogue-turn-${turn.id}`}
+        data-active={active}
         className={cn(
           'radius-field min-w-0 max-w-[85%] border p-3 transition-colors',
           active
-            ? 'border-primary-30 bg-primary-10'
-            : 'border-border bg-secondary-5',
+            ? 'border-brand-subtle bg-selected'
+            : 'border-default bg-neutral',
         )}
       >
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
             {turn.speaker_name ? (
-              <p className="type-label mb-1 text-muted-foreground">
-                {turn.speaker_name}
+              <p className="mb-1">
+                <Heading
+                  as="span"
+                  size="xxsmall"
+                  tone={active ? 'default' : 'subtle'}
+                >
+                  {sentenceCaseLabel(turn.speaker_name)}
+                </Heading>
               </p>
             ) : null}
-            <p lang="no" className="type-body leading-roomy text-foreground">
+            <Text as="p" lang="no" size="large" tone="default">
               <SpanView spans={turn.spans} />
-            </p>
+            </Text>
           </div>
           <AudioPlayButton
             asset={audio}
@@ -78,24 +91,22 @@ function TurnRow({
           />
         </div>
         {showTranslation && turn.translation ? (
-          <p lang="en" className="type-caption mt-1.5 text-muted-foreground">
-            {turn.translation}
-          </p>
+          <div className="mt-1.5">
+            <Text
+              as="p"
+              lang="en"
+              size="medium"
+              tone={active ? 'default' : 'subtle'}
+            >
+              {turn.translation}
+            </Text>
+          </div>
         ) : null}
       </div>
     </li>
   );
 }
 
-/**
- * Plays a dialogue's turns in authored order through one media element.
- *
- * Duration timers cannot represent buffering, failure, or the learner
- * stopping playback, so sequencing rides on the audio elements' own
- * `ended`/`error` events. A run token invalidates callbacks from a previous
- * run after stop/unmount, and turns without a playable asset are skipped
- * rather than pretended through.
- */
 export function DialogueView({
   group,
   audioById = EMPTY_AUDIO_BY_ID,
@@ -171,8 +182,6 @@ export function DialogueView({
   }, [playFrom]);
 
   const speakers = speakerIds(group.turns);
-  // Two speakers read as a conversation when sides alternate. Three or more
-  // become unreadable that way, so they stay in a single column.
   const alternating = speakers.length === 2;
   const playing = activeIndex !== null;
   const hasTranslations = group.turns.some((turn) => turn.translation);
@@ -181,30 +190,26 @@ export function DialogueView({
     <section
       aria-label={title ?? 'Dialogue'}
       className={cn(
-        'radius-section border border-border bg-card p-4',
+        'radius-section border border-default bg-raised p-4',
         className,
       )}
     >
-      <header className="mb-3 flex items-center justify-between gap-3">
-        <h4 className="type-section font-semibold text-foreground">
+      <header className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <Heading as="h4" size="medium" tone="default">
           {title ?? 'Dialogue'}
-        </h4>
-        <div className="flex items-center gap-2">
+        </Heading>
+        <div className="flex flex-wrap items-center gap-2">
           {hasTranslations ? (
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              size="sm"
               onClick={() => setShowTranslations((value) => !value)}
               aria-expanded={showTranslations}
               aria-controls={translationId}
-              className="!px-0 !py-0 h-auto justify-start gap-1.5 text-left type-caption font-medium text-secondary-70 hover:bg-transparent hover:text-secondary-90"
+              className={disclosureTriggerClassName}
             >
-              <span aria-hidden="true" className="text-[10px] leading-none">
-                {showTranslations ? '▼' : '▶'}
-              </span>
+              <Glyph size="2xs">{showTranslations ? '▼' : '▶'}</Glyph>
               {showTranslations ? 'Hide translation' : 'Show translation'}
-            </Button>
+            </button>
           ) : null}
           <Button
             type="button"
@@ -214,9 +219,9 @@ export function DialogueView({
             onClick={() => (playing ? stop() : playFrom(0, ++runRef.current))}
           >
             {playing ? (
-              <Square aria-hidden="true" className="size-3.5" />
+              <Square aria-hidden="true" className="size-4" />
             ) : (
-              <Play aria-hidden="true" className="size-3.5" />
+              <Play aria-hidden="true" className="size-4" />
             )}
             {playing ? 'Stop' : 'Play all'}
           </Button>

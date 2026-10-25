@@ -41,8 +41,8 @@ services:
       GOOGLE_CLIENT_ID: e2e-google-client-id
       GOOGLE_CLIENT_SECRET: e2e-google-client-secret
       OAUTH_SESSION_SECRET: e2e-oauth-session-secret
-      PROVIDER_CREDENTIAL_ENCRYPTION_KEYS: '["wHSKA4TUDMuFtp8ZSA6JtccDnozP86AbZo9PHvmpVVk="]'
-      FRONTEND_ORIGINS: '["http://127.0.0.1:4173","http://localhost:4173"]'
+      PROVIDER_CREDENTIAL_ENCRYPTION_KEYS: '["${FLYT_E2E_PROVIDER_CREDENTIAL_KEY:?run through scripts/run_e2e.sh}"]'
+      FRONTEND_ORIGINS: '["http://${FLYT_E2E_FRONTEND_HOST:-127.0.0.1}:${FLYT_E2E_FRONTEND_PORT:-4173}","http://localhost:${FLYT_E2E_FRONTEND_PORT:-4173}","http://${FLYT_E2E_API_HOST:-127.0.0.1}:${FLYT_E2E_API_PORT:-18000}"]'
       FRONTEND_LOGIN_SUCCESS_URL: http://127.0.0.1:4173/home
       FRONTEND_LOGIN_FAILURE_URL: http://127.0.0.1:4173/login
       # Real OpenRouter key sourced from the host environment only — never
@@ -53,7 +53,7 @@ services:
       # ChatGPT stays offered (locked) so the surface mirrors production.
       STORY_GENERATION_ENABLED_PROVIDERS: ${STORY_GENERATION_ENABLED_PROVIDERS:-["openrouter","chatgpt"]}
     ports:
-      - "${FLYT_E2E_API_PORT:-18000}:8000"
+      - "127.0.0.1:${FLYT_E2E_API_PORT:-18000}:8000"
 
   # Imports are enqueued by the API and only reach `ready` once the worker
   # processes them, so the import journey is untestable without this service.

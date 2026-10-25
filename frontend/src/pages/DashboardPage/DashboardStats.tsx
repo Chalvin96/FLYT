@@ -1,6 +1,6 @@
+import { Badge } from '@flyt/ui';
 import { m } from 'motion/react';
 
-import { Badge } from '@/components/ui/badge';
 import { formatNumber } from '@/lib/utils';
 
 import { fadeUp } from './constants';
@@ -16,18 +16,10 @@ type Props = {
 
 function AccuracyBadge({ accuracy }: { accuracy: number }) {
   if (accuracy >= 0.85) {
-    return (
-      <Badge className="border-secondary-30 bg-secondary-10 px-2 py-0.5 type-caption-sm text-secondary-70 hover:bg-secondary-10">
-        Strong
-      </Badge>
-    );
+    return <Badge>Strong</Badge>;
   }
   if (accuracy >= 0.75) {
-    return (
-      <Badge className="border-secondary-30 bg-secondary-10 px-2 py-0.5 type-caption-sm text-secondary-70 hover:bg-secondary-10">
-        Steady
-      </Badge>
-    );
+    return <Badge>Steady</Badge>;
   }
   return null;
 }
@@ -47,13 +39,13 @@ export function DashboardStats({
       variants={fadeUp}
     >
       <StatCard
-        borderClass="border-secondary-50"
-        label="New · Review due"
+        borderClass="border-hovered"
+        label="New · review due"
         value={`${formatNumber(dueNew)} / ${formatNumber(dueReview)}`}
       />
 
       <StatCard
-        borderClass="border-accent-40"
+        borderClass="border-success-subtle"
         label="Accuracy this week"
         value={
           accuracy7d === null ? (
@@ -70,20 +62,18 @@ export function DashboardStats({
       />
 
       <StatCard
-        borderClass="border-warning-40"
+        borderClass="border-strong"
         label="Cards this week"
         value={formatNumber(cardsThisWeek)}
         badge={
           cardsThisWeek >= 50 ? (
-            <Badge className="border-accent-20 bg-accent-10 px-2 py-0.5 type-caption-sm text-accent-70 hover:bg-accent-10">
-              50+ this week
-            </Badge>
+            <Badge tone="success">50+ this week</Badge>
           ) : undefined
         }
       />
 
       <StatCard
-        borderClass="border-primary-70"
+        borderClass="border-selected"
         label="Words practiced"
         value={formatNumber(totalWordsPracticed)}
       />

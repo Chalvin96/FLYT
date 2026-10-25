@@ -17,6 +17,7 @@ else:
 
 async_engine = create_async_engine(
     to_async_database_url(settings.DATABASE_URL),
+    hide_parameters=True,
     **engine_kwargs,
 )
 AsyncSessionLocal = async_sessionmaker(

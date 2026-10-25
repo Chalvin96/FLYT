@@ -1,7 +1,9 @@
 from collections.abc import AsyncGenerator
+import json
 import os
 from typing import Any
 
+from cryptography.fernet import Fernet
 import pytest
 from httpx import ASGITransport
 from httpx import AsyncClient
@@ -15,18 +17,56 @@ from sqlalchemy.pool import NullPool
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client-id")
 os.environ.setdefault("GOOGLE_CLIENT_SECRET", "test-google-client-secret")
 os.environ.setdefault("ENV", "test")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production")
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:55432/test_db"
+)
+os.environ.setdefault(
+    "TEST_DATABASE_URL",
+    "postgresql+psycopg://postgres:postgres@localhost:55432/test_db",
+)
+os.environ.setdefault("REDIS_URL", "redis://localhost:56379/0")
 os.environ.setdefault("OAUTH_SESSION_SECRET", "test-oauth-session-secret")
 os.environ.setdefault(
     "ADMIN_SESSION_SECRET", "test-admin-session-secret-not-for-production"
 )
 os.environ.setdefault(
     "PROVIDER_CREDENTIAL_ENCRYPTION_KEYS",
-    '["kkx-ZViSkteSQGh9z5FDskkiQGFImdcA1ceQt2DnwAk="]',
+    json.dumps([Fernet.generate_key().decode()]),
 )
 os.environ.setdefault("OPENROUTER_API_KEY", "test-openrouter-key-not-real")
 
 from flyt.core.config import settings
 from flyt.core.database_url import to_async_database_url
+
+
+@pytest.fixture(scope="function")
+async def request_rate_limiters() -> AsyncGenerator[None, None]:
+    from limits.aio.storage import MemoryStorage
+
+    from flyt.core.rate_limit import MovingWindowRateLimiter
+    from flyt.core.rate_limit import K_IMPORT_MAX_REQUESTS_PER_USER
+    from flyt.core.rate_limit import K_GENERATION_MAX_REQUESTS_PER_USER
+    from flyt.core.rate_limit import K_LEXICON_MAX_REQUESTS_PER_IP
+    from flyt.core.rate_limit import K_RATE_WINDOW_SECONDS
+
+    limits = {
+        "import_rate_limiter": K_IMPORT_MAX_REQUESTS_PER_USER,
+        "generation_rate_limiter": K_GENERATION_MAX_REQUESTS_PER_USER,
+        "lexicon_rate_limiter": K_LEXICON_MAX_REQUESTS_PER_IP,
+    }
+    previous = {name: getattr(app.state, name, None) for name in limits}
+    for name, maximum in limits.items():
+        setattr(
+            app.state,
+            name,
+            MovingWindowRateLimiter(MemoryStorage(), maximum, K_RATE_WINDOW_SECONDS),
+        )
+    try:
+        yield
+    finally:
+        for name, limiter in previous.items():
+            setattr(app.state, name, limiter)
 
 
 def _parse_postgres_url(url: str, context: str) -> URL:
@@ -198,25 +238,6 @@ async def override_async_db_dependency(
 
 
 @pytest.fixture(scope="function")
-async def speech_rate_limiter() -> AsyncGenerator[None, None]:
-    from limits.aio.storage import MemoryStorage
-
-    from flyt.core.rate_limit import MovingWindowRateLimiter
-
-    limiter = MovingWindowRateLimiter(
-        MemoryStorage(),
-        settings.STT_PROXY_MAX_REQUESTS_PER_USER,
-        settings.STT_PROXY_RATE_WINDOW_SECONDS,
-    )
-    previous = getattr(app.state, "speech_rate_limiter", None)
-    app.state.speech_rate_limiter = limiter
-    try:
-        yield
-    finally:
-        app.state.speech_rate_limiter = previous
-
-
-@pytest.fixture(scope="function")
 async def exercise_evaluation_rate_limiter() -> AsyncGenerator[None, None]:
     from limits.aio.storage import MemoryStorage
 
@@ -238,11 +259,12 @@ async def exercise_evaluation_rate_limiter() -> AsyncGenerator[None, None]:
 @pytest.fixture(scope="function")
 async def client(
     override_async_db_dependency: None,
-    speech_rate_limiter: None,
     exercise_evaluation_rate_limiter: None,
+    request_rate_limiters: None,
 ) -> AsyncGenerator[AsyncClient, None]:
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
+        headers={"Origin": settings.FRONTEND_ORIGINS[0]},
     ) as async_client:
         yield async_client

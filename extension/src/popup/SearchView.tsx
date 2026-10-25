@@ -1,6 +1,7 @@
 import { useRef, useState, type Ref } from "react";
 import { SearchBar } from "@flyt/lexicon";
-import { formatLookupLabel } from "@flyt/lexicon/grammar";
+import { buildHeadwordForms } from "@flyt/lexicon/grammar";
+import { Button } from "@flyt/ui";
 
 import { MSG_KIND, MSG_RESULT_KIND, sendMessage } from "../lib/messages";
 
@@ -45,7 +46,7 @@ export function SearchView({
   };
 
   return (
-    <div className="flyt-search">
+    <div className="flex flex-col gap-1.5 px-3.5 py-3">
       <SearchBar
         ref={inputRef}
         value={query}
@@ -55,19 +56,27 @@ export function SearchView({
         placeholder="Search Norwegian"
       />
       {suggestions.length > 0 && (
-        <ul role="list" className="flyt-suggestions">
-          {suggestions.map((label, index) => (
-            <li key={label + "-" + index}>
-              <button
-                type="button"
-                className="flyt-suggestion"
-                onClick={() => onResolveWord(label)}
-                aria-label={label}
-              >
-                {formatLookupLabel(label)}
-              </button>
-            </li>
-          ))}
+        <ul
+          role="list"
+          className="m-0 mt-1 flex max-h-55 list-none flex-col gap-1 overflow-y-auto p-0"
+        >
+          {suggestions.map((label, index) => {
+            const forms = buildHeadwordForms(label);
+            return (
+              <li key={label + "-" + index}>
+                <Button
+                  variant="ghost"
+                  align="start"
+                  width="full"
+                  size="sm"
+                  aria-label={forms.canonical}
+                  onClick={() => onResolveWord(forms.canonical)}
+                >
+                  {forms.display}
+                </Button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

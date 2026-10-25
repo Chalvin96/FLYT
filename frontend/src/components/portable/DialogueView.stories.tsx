@@ -105,7 +105,7 @@ const packetPathAudioById: Record<string, AudioAsset> = Object.fromEntries(
 );
 
 const meta = {
-  title: 'Portable/DialogueView',
+  title: 'Features/Portable/DialogueView',
   component: DialogueView,
   tags: ['autodocs'],
   parameters: {

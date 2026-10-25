@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test';
-
+import { expect, test } from './fixtures';
 import { loginAs } from './helpers/auth';
 
 // Navigate from the reading list to the first available story and return the
@@ -68,86 +67,119 @@ test('"← Back" link returns the user to the reading list', async ({ page }) =>
 
 // ── Desktop side panel ───────────────────────────────────────────────────────
 
-test('desktop side panel shows empty-state prompt before any word is tapped', async ({
+test('test_readerRail_given_no_selected_word_expect_page_vocabulary', async ({
   page,
 }) => {
   await loginAs(page, 'learner@example.com');
   await openFirstStory(page);
 
-  // The definition panel is persistent on desktop (lg breakpoint). It should
-  // show the empty-state copy while no word is selected.
+  const rail = page.getByRole('complementary', {
+    name: 'Words on this page',
+  });
+  await expect(rail).toBeVisible();
   await expect(
-    page.getByText('Tap a word to look it up', { exact: false }),
+    rail.getByRole('heading', { name: 'Words on this page' }),
   ).toBeVisible();
+  await expect(
+    rail.getByText('Click a word to see its meaning.'),
+  ).toBeVisible();
+  await expect(rail.getByLabel('Page vocabulary')).toBeVisible();
+  await expect(rail.getByTestId('word-button').first()).toBeVisible();
+  await expect(rail.getByTestId('definition-panel')).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
-test('tapping an interactive word loads its definition in the side panel without a modal', async ({
+test('test_readerRail_given_word_lookup_expect_definition_and_return_to_word_list', async ({
   page,
 }) => {
   await loginAs(page, 'learner@example.com');
   await openFirstStory(page);
 
-  // Interactive words are rendered as <button data-testid="word-button">
-  // inside the story body.
-  const wordButton = page.locator('[data-testid="word-button"]').first();
+  const wordButton = page
+    .getByRole('main')
+    .getByRole('button', { name: 'bok', exact: true })
+    .first();
   await expect(wordButton).toBeVisible();
-
-  // Wait for the definition lookup response before asserting panel content.
-  const definitionResponse = page.waitForResponse(
-    (res) => res.url().includes('/headword') || res.url().includes('/lemma'),
-  );
-
   await wordButton.click();
-  await definitionResponse;
-
-  // The empty-state copy must disappear once a word is selected.
-  await expect(
-    page.getByText('Tap a word to look it up', { exact: false }),
-  ).toHaveCount(0);
-
-  // Definition content must appear in the side panel, not a modal/dialog.
+  const rail = page.getByRole('complementary', {
+    name: 'Words on this page',
+  });
+  await expect(rail.getByTestId('definition-panel')).toBeVisible();
+  await expect(rail.getByTestId('reader-lookup')).toBeVisible();
+  await expect(rail.getByText('book', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-
-  // The panel is visible and now contains some non-empty definition text.
-  // We verify the side panel region has become populated rather than matching
-  // an exact string (which would couple the test to seed data).
-  const panel = page.locator('[data-testid="definition-panel"]');
-  if ((await panel.count()) > 0) {
-    await expect(panel).not.toBeEmpty();
-  } else {
-    // Fallback: assert the empty-state is gone and no modal appeared, which
-    // already confirms the panel received content (asserted above).
-  }
+  await rail.getByRole('button', { name: 'Back to word list' }).click();
+  await expect(rail.getByTestId('definition-panel')).toHaveCount(0);
+  await expect(rail.getByLabel('Page vocabulary')).toBeVisible();
 });
 
 // ── Mobile layout (<1024px) ──────────────────────────────────────────────────
 
-test('mobile: bottom navigation bar is visible in the reader', async ({
+test('test_readingMode_given_mobile_reader_expect_pinned_header_and_page_controls', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await loginAs(page, 'learner@example.com');
   await openFirstStory(page);
 
-  // The reader layout includes AppMobileNavbar on mobile. It renders a <nav>
-  // with navigation links ("Reading", "Home", etc.).
-  const nav = page.getByRole('navigation', { name: /mobile navigation/i });
-  await expect(nav).toBeVisible();
+  await expect(
+    page.getByRole('navigation', { name: /mobile navigation/i }),
+  ).toHaveCount(0);
+  const header = page.getByRole('banner');
+  await expect(
+    header.getByRole('link', { name: 'Back to Reading' }),
+  ).toBeVisible();
+  await expect(header.getByRole('button', { name: 'Ask Flyt' })).toBeVisible();
+  await expect(header.getByText(/^1 \/ \d+$/)).toBeVisible();
+  const title = await page.getByRole('heading', { level: 1 }).innerText();
+  await expect(header).toContainText(title);
+  const pagination = page.getByRole('navigation', { name: 'Story pages' });
+  await expect(pagination).toBeVisible();
+  await expect(
+    pagination.getByRole('button', { name: 'Previous page' }),
+  ).toHaveCount(0);
+  await expect(
+    pagination.getByRole('button', { name: /^(Next page|Finish story)$/ }),
+  ).toBeVisible();
+  await expect(
+    pagination.getByRole('progressbar', { name: 'Story page progress' }),
+  ).toHaveAttribute('aria-valuetext', /^Page 1 of \d+$/);
+  const reader = page.getByTestId('reader-scroll');
+  const shortViewportHeight = 240;
+  await page.setViewportSize({ width: 375, height: shortViewportHeight });
+  await expect
+    .poll(() =>
+      reader.evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+        return element.scrollTop;
+      }),
+    )
+    .toBeGreaterThan(0);
+  await expect(header).toBeInViewport();
+  await expect(pagination).toBeInViewport();
+  const headerBounds = await header.boundingBox();
+  const footerBounds = await page.getByRole('contentinfo').boundingBox();
+  expect(headerBounds?.y).toBe(0);
+  expect(footerBounds && footerBounds.y + footerBounds.height).toBe(
+    shortViewportHeight,
+  );
 });
 
-test('mobile: side panel is not rendered at 375px width', async ({ page }) => {
+test('test_readerVocabulary_given_mobile_reader_expect_word_list_sheet_without_rail', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await loginAs(page, 'learner@example.com');
   await openFirstStory(page);
 
-  // The aside element is conditionally rendered only on desktop (isDesktop hook
-  // gates on ≥1024px). At 375px it must be absent from the DOM entirely.
-  await expect(page.locator('aside')).toHaveCount(0);
-
-  // The empty-state copy lives inside the aside, so it must also be absent.
   await expect(
-    page.getByText('Tap a word to look it up', { exact: false }),
+    page.getByRole('complementary', { name: 'Words on this page' }),
   ).toHaveCount(0);
+  await page.getByRole('button', { name: 'Word list' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Words on this page' });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByLabel('Page vocabulary')).toBeVisible();
+  await expect(sheet.getByTestId('word-button').first()).toBeVisible();
 });
 
 test('mobile: tapping an interactive word opens a bottom sheet dialog', async ({

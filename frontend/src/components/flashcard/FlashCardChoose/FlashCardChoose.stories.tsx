@@ -41,7 +41,7 @@ const chooseExercise: Extract<Exercise, { operation: 'choose' }> = {
 };
 
 const meta = {
-  title: 'Flashcard/FlashCardChoose',
+  title: 'Features/Flashcard/FlashCardChoose',
   component: FlashCardChoose,
   tags: ['autodocs'],
   decorators: [
@@ -55,7 +55,7 @@ const meta = {
     ),
   ],
   parameters: { layout: 'fullscreen' },
-  args: { className: 'flex-1' },
+  args: { allowRetry: false, layout: 'fill' },
   argTypes: {
     exercise: { control: 'object' },
     onFinished: { action: 'onFinished' },
@@ -135,5 +135,15 @@ export const WithLongStem: Story = {
         ],
       },
     },
+  },
+};
+
+export const InLesson: Story = {
+  args: { allowRetry: true, exercise: chooseExercise },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole('button', { name: /reveal answer/i }),
+    ).toBeVisible();
   },
 };
