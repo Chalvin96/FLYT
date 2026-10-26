@@ -1,6 +1,6 @@
+import { Button, Heading, Text } from '@flyt/ui';
 import { Clock } from 'lucide-react';
 
-import { Button } from '@/components/common/Button/Button';
 import { ExerciseSheet } from '@/components/flashcard/ExerciseSheet';
 import { useIsDesktop } from '@/hooks/ui/useIsDesktop';
 import { cn } from '@/lib/utils';
@@ -29,7 +29,7 @@ export function LessonStartScreen({
         footer={
           <div className={cn('mx-auto w-full', footerClassName)}>
             <Button
-              className="w-full"
+              width="full"
               disabled={isSubmitting}
               aria-busy={isSubmitting || undefined}
               onClick={onStart}
@@ -48,26 +48,41 @@ export function LessonStartScreen({
         >
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="type-label text-muted-foreground">Lesson</p>
+              <Heading as="div" size="xxsmall" tone="subtle">
+                Lesson
+              </Heading>
               {lesson.cefr_level ? (
-                <span className="inline-flex rounded-full border border-primary/40 bg-primary/10 px-2 py-1 type-caption font-semibold text-foreground">
-                  {lesson.cefr_level}
+                <span className="inline-flex rounded-full border border-selected/40 bg-brand-subtle px-2 py-1">
+                  <Text
+                    as="span"
+                    size="medium"
+                    weight="semibold"
+                    tone="default"
+                  >
+                    {lesson.cefr_level}
+                  </Text>
                 </span>
               ) : null}
             </div>
-            <h1 className="mt-1 type-title-lg font-semibold text-foreground">
-              {lesson.title}
-            </h1>
+            <div className="mt-1">
+              <Heading as="h1" size="xlarge">
+                {lesson.title}
+              </Heading>
+            </div>
             {lesson.estimated_minutes ? (
-              <p className="mt-3 inline-flex items-center gap-1 type-caption text-muted-foreground">
+              <p className="mt-3 inline-flex items-center gap-1">
                 <Clock aria-hidden className="icon-sm" />
-                <span>~{lesson.estimated_minutes} min</span>
+                <Text as="span" size="medium" tone="subtle">
+                  ~{lesson.estimated_minutes} min
+                </Text>
               </p>
             ) : null}
             {lesson.goal && (
-              <p className="mt-3 type-caption leading-6 text-muted-foreground sm:type-body">
-                {lesson.goal}
-              </p>
+              <div className="mt-3">
+                <Text as="p" size="medium" smSize="large" tone="subtle">
+                  {lesson.goal}
+                </Text>
+              </div>
             )}
           </div>
         </div>

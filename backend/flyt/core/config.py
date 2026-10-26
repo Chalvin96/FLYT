@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     )
     TEST_DATABASE_URL: str | None = None
     DISABLE_DB_POOLING: bool = False
-    ENV: Literal["development", "test", "e2e", "production"] = "development"
+    ENV: Literal["development", "test", "e2e", "production"] = "production"
     ENABLE_E2E_TEST_AUTH: bool = False
     FRONTEND_ORIGINS: list[str] = ["http://localhost:5173"]
     SECRET_KEY: str = ""
@@ -51,14 +51,8 @@ class Settings(BaseSettings):
     READING_INGEST_TIMEOUT_SECONDS: int = 10
 
     TAGGER_SVC_URL: str | None = None
-    TAGGER_SVC_TIMEOUT_SECONDS: float = 2.5
+    TAGGER_SVC_TIMEOUT_SECONDS: float = 5.0
     TAGGER_MAX_CONCURRENCY: int = 4
-    STT_SVC_URL: str | None = None
-    STT_SVC_TIMEOUT_SECONDS: float = 30.0
-    STT_MAX_AUDIO_BYTES: int = 10 * 1024 * 1024
-    STT_PROXY_MAX_CONCURRENCY: int = 4
-    STT_PROXY_MAX_REQUESTS_PER_USER: int = 6
-    STT_PROXY_RATE_WINDOW_SECONDS: float = 60.0
 
     PROVIDER_CREDENTIAL_ENCRYPTION_KEYS: list[str] = []
     CHATGPT_LINK_ENABLED: bool = True
@@ -115,9 +109,6 @@ class Settings(BaseSettings):
 
     METRICS_ENABLED: bool = True
     METRICS_TOKEN: str | None = None
-    SENTRY_DSN: str | None = None
-    SENTRY_TRACES_SAMPLE_RATE: float = 0.0
-    RELEASE: str | None = None
 
     @field_validator("SECRET_KEY", "ADMIN_SESSION_SECRET")
     @classmethod
@@ -176,13 +167,6 @@ class Settings(BaseSettings):
     @field_validator("METRICS_TOKEN")
     @classmethod
     def validate_metrics_token(cls, value: str | None) -> str | None:
-        if not value or not value.strip():
-            return None
-        return value.strip()
-
-    @field_validator("SENTRY_DSN")
-    @classmethod
-    def validate_sentry_dsn(cls, value: str | None) -> str | None:
         if not value or not value.strip():
             return None
         return value.strip()
@@ -282,6 +266,13 @@ class Settings(BaseSettings):
             )
             raise ValueError(msg)
         return value
+
+    @model_validator(mode="after")
+    def validate_e2e_test_auth(self) -> "Settings":
+        if self.ENABLE_E2E_TEST_AUTH and self.ENV != "e2e":
+            msg = "ENABLE_E2E_TEST_AUTH requires ENV=e2e"
+            raise ValueError(msg)
+        return self
 
     @model_validator(mode="after")
     def validate_production_security(self) -> "Settings":

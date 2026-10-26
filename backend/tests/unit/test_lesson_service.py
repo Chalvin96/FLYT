@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -15,7 +14,6 @@ from sqlalchemy import func
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flyt.apps.flashcards.models import LESSON_REVIEW_AUDIO_KEY
 from flyt.apps.flashcards.models import CardPool
 from flyt.apps.flashcards.models import CardState
 from flyt.apps.flashcards.models import CardType
@@ -30,6 +28,7 @@ from flyt.apps.lessons.exceptions import ExerciseResponseInvalidError
 from flyt.apps.lessons.exceptions import LessonNotCompleteError
 from flyt.apps.lessons.exceptions import LessonNotStartedError
 from flyt.apps.lessons.models import Lesson
+from flyt.content.exceptions import LessonPacketError
 from flyt.apps.lessons.models import LessonRelease
 from flyt.apps.lessons.models import UserLessonProgress
 from flyt.apps.lessons.content_service import LessonContentService
@@ -44,11 +43,14 @@ from flyt.clients.provider import ProviderFailure
 from flyt.clients.provider import ProviderFailureClass
 from flyt.core.config import settings
 from scripts.import_lessons import load_lesson_import_or_raise
+from flyt.libs.utils.date import now
 from tests.factories import CardPoolFactory
 from tests.factories import FlashCardFactory
+from tests.factories import LessonFactory
 from tests.factories import StatsReviewLogFactory
 from tests.factories import UserCardFactory
 from tests.factories import UserFactory
+from tests.factories import UserLessonProgressFactory
 from tests.factories import UserSettingsFactory
 
 from tests.helpers.lesson_import_builder import build_import_dir
@@ -97,7 +99,7 @@ async def import_two_pool_lesson(db: AsyncSession, tmp_path: Path) -> Lesson:
         {
             "id": "practice-obj-2",
             "objective_id": "obj-2",
-            "exercise_ids": ["ex-speak"],
+            "exercise_ids": ["ex-build"],
         }
     )
     packet_path.write_text(json.dumps(packet))
@@ -130,17 +132,19 @@ async def test_lesson_content_import_given_practice_groups_expect_pools_and_vari
     assert [pool.key for pool in pools] == ["practice-obj-1"]
 
     cards = (await db.scalars(select(FlashCard).order_by(FlashCard.id))).all()
-    assert [card.type for card in cards] == [CardType.CHOOSE, CardType.SPEAK]
+    assert [card.type for card in cards] == [CardType.CHOOSE, CardType.BUILD]
     payloads = [card.payload_json for card in cards]
     assert payloads[0]["id"] == "ex-choose"
-    assert payloads[1]["id"] == "ex-speak"
+    assert payloads[1]["id"] == "ex-build"
     assert all(card.pool_id == pools[0].id for card in cards)
     assert all(card.uuid is not None for card in cards)
 
 
+@pytest.mark.parametrize("autoflush", [False, True])
 async def test_lesson_content_import_given_group_move_expect_review_state_preserved(
-    db: AsyncSession, tmp_path: Path
+    db: AsyncSession, tmp_path: Path, autoflush: bool
 ) -> None:
+    db.autoflush = autoflush
     first_root = tmp_path / "one"
     await import_lesson_import_dir(
         db,
@@ -159,6 +163,7 @@ async def test_lesson_content_import_given_group_move_expect_review_state_preser
         user=user,
         pool=old_pool,
         last_shown_card=old_card,
+        active_card=old_card,
         fsrs_stability=8.5,
         fsrs_difficulty=6.2,
         fsrs_step=2,
@@ -185,7 +190,8 @@ async def test_lesson_content_import_given_group_move_expect_review_state_preser
     loaded = load_lesson_import_or_raise(second_root)
     service = LessonContentService(db)
     await service.import_lesson_content(loaded, source=str(second_root))
-    await db.flush()
+    await db.commit()
+    db.expunge_all()
 
     new_pool = await db.scalar(select(CardPool))
     new_card = await db.scalar(select(FlashCard))
@@ -203,73 +209,317 @@ async def test_lesson_content_import_given_group_move_expect_review_state_preser
     assert updated_user_card.id == user_card.id
     assert updated_user_card.pool_id == new_pool.id
     assert updated_user_card.last_shown_card_id == new_card.id
+    assert updated_user_card.active_card_id == new_card.id
     assert updated_user_card.fsrs_stability == EXPECTED_RESTORED_STABILITY
     assert updated_user_card.fsrs_difficulty == EXPECTED_RESTORED_DIFFICULTY
     assert updated_user_card.fsrs_step == EXPECTED_RESTORED_STEP
     assert updated_user_card.last_review_at == reviewed_at
+    assert updated_user_card.introduced_at == datetime(2026, 7, 1, 12, 0, 0)
     assert updated_user_card.due_at == due_at
     assert updated_user_card.state == CardState.LEARNING
     assert preserved_log.id == review_log.id
     assert preserved_log.user_card_id == updated_user_card.id
 
 
-async def test_lesson_content_import_given_exercise_audio_expect_review_snapshot(
+@pytest.mark.parametrize("source_is_latest", [True, False])
+@pytest.mark.parametrize("autoflush", [False, True])
+@pytest.mark.parametrize("destination_is_renamed", [False, True])
+async def test_lesson_content_import_given_reloaded_duplicate_user_cards_expect_merge(
+    db: AsyncSession,
+    tmp_path: Path,
+    source_is_latest: bool,
+    autoflush: bool,
+    destination_is_renamed: bool,
+) -> None:
+    db.autoflush = autoflush
+    await import_two_pool_lesson(db, tmp_path / "one")
+    pools = (await db.scalars(select(CardPool))).all()
+    pools_by_key = {pool.key: pool for pool in pools}
+    source_pool = pools_by_key["practice-obj-1"]
+    destination_pool = pools_by_key["practice-obj-2"]
+    user = await UserFactory.create()
+    moved_variant = await db.scalar(
+        select(FlashCard).where(FlashCard.pool_id == source_pool.id)
+    )
+    assert moved_variant is not None
+    source_card = await UserCardFactory.create(
+        user=user,
+        pool=source_pool,
+        last_review_at=datetime(2026, 8, 2 if source_is_latest else 1),
+        last_shown_card=moved_variant if not source_is_latest else None,
+        active_card=moved_variant if not source_is_latest else None,
+    )
+    destination_card = await UserCardFactory.create(
+        user=user,
+        pool=destination_pool,
+        last_review_at=datetime(2026, 8, 1 if source_is_latest else 2),
+        last_shown_card=moved_variant if source_is_latest else None,
+        active_card=moved_variant if source_is_latest else None,
+    )
+    source_log = await StatsReviewLogFactory.create(user_card=source_card)
+    destination_log = await StatsReviewLogFactory.create(user_card=destination_card)
+    survivor_id = source_card.id if source_is_latest else destination_card.id
+    user_id = user.id
+    destination_key = "practice-renamed" if destination_is_renamed else "practice-obj-2"
+    db.expunge_all()
+
+    second_root = build_import_dir(tmp_path / "two", lesson_ids=["lesson-a"])
+    packet_path = second_root / "dist" / "lessons" / "lesson-a.json"
+    packet = json.loads(packet_path.read_text())
+    packet["objectives"].append({"id": "obj-2", "statement": "Use it again."})
+    packet["practice_groups"] = [
+        {
+            "id": destination_key,
+            "objective_id": "obj-2",
+            "exercise_ids": ["ex-choose", "ex-build"],
+        }
+    ]
+    packet_path.write_text(json.dumps(packet))
+    loaded = load_lesson_import_or_raise(second_root)
+
+    await LessonContentService(db).import_lesson_content(
+        loaded, source=str(second_root)
+    )
+    await db.commit()
+    db.expunge_all()
+
+    remaining_user_cards = (
+        await db.scalars(select(UserCard).where(UserCard.user_id == user_id))
+    ).all()
+    new_pool = await db.scalar(select(CardPool).where(CardPool.key == destination_key))
+    assert new_pool is not None
+    assert len(remaining_user_cards) == 1
+    assert remaining_user_cards[0].id == survivor_id
+    assert remaining_user_cards[0].pool_id == new_pool.id
+    assert remaining_user_cards[0].last_shown_card_id == moved_variant.id
+    assert remaining_user_cards[0].active_card_id == moved_variant.id
+    assert remaining_user_cards[0].last_review_at == datetime(2026, 8, 2)
+    persisted_logs = (
+        await db.scalars(
+            select(StatsReviewLog)
+            .where(StatsReviewLog.user_id == user_id)
+            .order_by(StatsReviewLog.id)
+        )
+    ).all()
+    assert [log.id for log in persisted_logs] == [source_log.id, destination_log.id]
+    assert all(log.user_card_id == survivor_id for log in persisted_logs)
+
+
+async def test_lesson_content_import_given_group_split_expect_obsolete_review_state_removed(
     db: AsyncSession, tmp_path: Path
 ) -> None:
-    exercise = exercise_for("speak")
-    exercise["audio_id"] = "audio-model"
+    db.autoflush = False
+    await import_lesson_import_dir(db, tmp_path / "one", lesson_ids=["lesson-a"])
+    source_pool = await db.scalar(select(CardPool))
+    assert source_pool is not None
+    user_card = await UserCardFactory.create(pool=source_pool)
+    await StatsReviewLogFactory.create(user_card=user_card)
+
+    second_root = build_import_dir(tmp_path / "two", lesson_ids=["lesson-a"])
+    packet_path = second_root / "dist" / "lessons" / "lesson-a.json"
+    packet = json.loads(packet_path.read_text())
+    packet["objectives"].append({"id": "obj-2", "statement": "Use it again."})
+    packet["practice_groups"] = [
+        {
+            "id": "practice-first",
+            "objective_id": "obj-1",
+            "exercise_ids": ["ex-choose"],
+        },
+        {
+            "id": "practice-second",
+            "objective_id": "obj-2",
+            "exercise_ids": ["ex-build"],
+        },
+    ]
+    packet_path.write_text(json.dumps(packet))
+    loaded = load_lesson_import_or_raise(second_root)
+
+    await LessonContentService(db).import_lesson_content(
+        loaded, source=str(second_root)
+    )
+    await db.commit()
+    db.expunge_all()
+
+    pools = (await db.scalars(select(CardPool).order_by(CardPool.key))).all()
+    assert [pool.key for pool in pools] == ["practice-first", "practice-second"]
+    assert (
+        await db.scalar(select(func.count(FlashCard.id)))
+    ) == EXPECTED_REPLACED_FLASHCARD_COUNT
+    assert (await db.scalar(select(func.count(UserCard.id)))) == 0
+    assert (await db.scalar(select(func.count(StatsReviewLog.id)))) == 0
+
+
+async def test_lesson_content_import_given_review_exercises_expect_only_review_cards_addable(
+    db: AsyncSession, tmp_path: Path
+) -> None:
+    review_exercise = exercise_for("build")
+    review_exercise["id"] = "review_build"
 
     await import_lesson_import_dir(
         db,
         tmp_path,
         lesson_ids=["lesson-a"],
-        exercises=[exercise],
-        with_audio=True,
+        exercises=[exercise_for("choose"), review_exercise],
     )
 
-    card = await db.scalar(select(FlashCard))
-    assert card is not None
-    assert card.payload_json[LESSON_REVIEW_AUDIO_KEY]["id"] == "audio-model"
-    assert card.payload_json[LESSON_REVIEW_AUDIO_KEY]["url"].endswith(
-        "/00000000-0000-4000-8000-000000000001.wav"
-    )
+    cards = {
+        card.payload_json["id"]: card
+        for card in (await db.scalars(select(FlashCard))).all()
+    }
+    assert cards["review_build"].is_addable is True
+    assert cards["ex-choose"].is_addable is False
 
 
-async def test_activate_lesson_import_given_legacy_audio_snapshot_expect_repair(
+async def test_lesson_content_import_given_no_review_exercises_expect_regular_cards_addable(
     db: AsyncSession, tmp_path: Path
 ) -> None:
-    exercise = exercise_for("speak")
-    exercise["audio_id"] = "audio-model"
+    await import_lesson_import_dir(
+        db,
+        tmp_path,
+        lesson_ids=["lesson-a"],
+        exercises=[exercise_for("choose"), exercise_for("build")],
+    )
 
+    cards = (await db.scalars(select(FlashCard))).all()
+    assert all(card.is_addable for card in cards)
+
+
+async def test_lesson_content_import_given_lesson_gains_review_exercise_expect_legacy_card_becomes_not_addable(
+    db: AsyncSession, tmp_path: Path
+) -> None:
     await import_lesson_import_dir(
         db,
         tmp_path / "one",
         lesson_ids=["lesson-a"],
-        exercises=[exercise],
-        with_audio=True,
+        exercises=[exercise_for("choose")],
+    )
+    legacy_card = await db.scalar(select(FlashCard))
+    assert legacy_card is not None and legacy_card.is_addable is True
+
+    review_exercise = exercise_for("build")
+    review_exercise["id"] = "review_build"
+    await import_lesson_import_dir(
+        db,
+        tmp_path / "two",
+        lesson_ids=["lesson-a"],
+        exercises=[exercise_for("choose"), review_exercise],
+    )
+
+    cards = {
+        card.payload_json["id"]: card
+        for card in (await db.scalars(select(FlashCard))).all()
+    }
+    assert cards["ex-choose"].id == legacy_card.id
+    assert cards["ex-choose"].is_addable is False
+    assert cards["review_build"].is_addable is True
+
+
+async def test_lesson_content_import_given_card_flips_non_addable_expect_active_reference_cleared(
+    db: AsyncSession, tmp_path: Path
+) -> None:
+    await import_lesson_import_dir(
+        db,
+        tmp_path / "one",
+        lesson_ids=["lesson-a"],
+        exercises=[exercise_for("choose")],
+    )
+    legacy_card = await db.scalar(select(FlashCard))
+    legacy_pool = await db.scalar(select(CardPool))
+    assert legacy_card is not None and legacy_card.is_addable is True
+    assert legacy_pool is not None
+    user = await UserFactory.create()
+    user_card = await UserCardFactory.create(
+        user=user,
+        pool=legacy_pool,
+        active_card=legacy_card,
+        last_shown_card=legacy_card,
+    )
+
+    review_exercise = exercise_for("build")
+    review_exercise["id"] = "review_build"
+    await import_lesson_import_dir(
+        db,
+        tmp_path / "two",
+        lesson_ids=["lesson-a"],
+        exercises=[exercise_for("choose"), review_exercise],
+    )
+
+    await db.refresh(user_card)
+    assert user_card.active_card_id is None
+    assert user_card.last_shown_card_id == legacy_card.id
+
+
+async def test_lesson_content_import_given_card_stays_addable_expect_active_reference_kept(
+    db: AsyncSession, tmp_path: Path
+) -> None:
+    await import_lesson_import_dir(
+        db,
+        tmp_path / "one",
+        lesson_ids=["lesson-a"],
+        exercises=[exercise_for("choose")],
     )
     card = await db.scalar(select(FlashCard))
-    assert card is not None
-    card.payload_json = {
-        key: value
-        for key, value in card.payload_json.items()
-        if key != LESSON_REVIEW_AUDIO_KEY
-    }
-    card_id = card.id
-    await db.flush()
+    pool = await db.scalar(select(CardPool))
+    assert card is not None and pool is not None
+    user = await UserFactory.create()
+    user_card = await UserCardFactory.create(
+        user=user,
+        pool=pool,
+        active_card=card,
+    )
 
     await import_lesson_import_dir(
         db,
         tmp_path / "two",
         lesson_ids=["lesson-a"],
-        exercises=[exercise],
-        with_audio=True,
+        exercises=[exercise_for("choose")],
     )
 
-    repaired = await db.scalar(select(FlashCard))
-    assert repaired is not None
-    assert repaired.id == card_id
-    assert repaired.payload_json[LESSON_REVIEW_AUDIO_KEY]["id"] == "audio-model"
+    await db.refresh(user_card)
+    assert user_card.active_card_id == card.id
+
+
+async def test_lesson_import_load_given_group_without_addable_variant_expect_rejected(
+    tmp_path: Path,
+) -> None:
+    root = build_import_dir(tmp_path, lesson_ids=["lesson-a"])
+    packet_path = root / "dist" / "lessons" / "lesson-a.json"
+    packet = json.loads(packet_path.read_text())
+    packet["objectives"].append({"id": "obj-2", "statement": "Use it again."})
+    review_exercise = exercise_for("build")
+    review_exercise["id"] = "review_build"
+    packet["exercises"].append(review_exercise)
+    packet["content"].append({"kind": "exercise", "id": "review_build"})
+    packet["practice_groups"][0]["exercise_ids"] = ["review_build"]
+    packet["practice_groups"].append(
+        {
+            "id": "practice-obj-2",
+            "objective_id": "obj-2",
+            "exercise_ids": ["ex-choose", "ex-build"],
+        }
+    )
+    packet_path.write_text(json.dumps(packet))
+
+    with pytest.raises(LessonPacketError) as exc_info:
+        load_lesson_import_or_raise(root)
+
+    assert "lesson-a" in str(exc_info.value)
+    assert "practice-obj-2" in str(exc_info.value)
+
+
+async def test_lesson_content_import_given_identical_packet_reimport_expect_addability_rederived(
+    db: AsyncSession, tmp_path: Path
+) -> None:
+    await import_lesson_import_dir(db, tmp_path / "one", lesson_ids=["lesson-a"])
+    stale_card = await db.scalar(select(FlashCard))
+    assert stale_card is not None and stale_card.is_addable is True
+    stale_card.is_addable = False
+    await db.flush()
+
+    await import_lesson_import_dir(db, tmp_path / "two", lesson_ids=["lesson-a"])
+
+    card = await db.scalar(select(FlashCard))
+    assert card is not None and card.is_addable is True
 
 
 async def test_lesson_content_import_given_omitted_lesson_expect_deletion(
@@ -300,6 +550,7 @@ async def test_lesson_content_import_given_omitted_lesson_expect_deletion(
         )
     )
     await db.flush()
+    db.expunge_all()
 
     await import_lesson_import_dir(db, tmp_path / "two", lesson_ids=["lesson-b"])
     await db.flush()
@@ -316,6 +567,43 @@ async def test_lesson_content_import_given_omitted_lesson_expect_deletion(
     assert (await db.scalar(select(func.count(UserCard.id)))) == 0
     assert (await db.scalar(select(func.count(StatsReviewLog.id)))) == 0
     assert (await db.scalar(select(func.count(UserLessonProgress.id)))) == 0
+
+
+async def test_delete_lesson_given_unloaded_progress_expect_database_cascade(
+    db: AsyncSession,
+) -> None:
+    user = await UserFactory.create()
+    lesson = await LessonFactory.create()
+    await UserLessonProgressFactory.create(user_id=user.id, lesson_id=lesson.id)
+    lesson_id = lesson.id
+    db.expunge_all()
+
+    unloaded_lesson = await db.get(Lesson, lesson_id)
+    assert unloaded_lesson is not None
+    await db.delete(unloaded_lesson)
+    await db.flush()
+
+    progress = await db.scalar(
+        select(UserLessonProgress).where(UserLessonProgress.lesson_id == lesson_id)
+    )
+    assert progress is None
+
+
+async def test_delete_lesson_by_source_id_given_unloaded_rows_expect_progress_removed(
+    db: AsyncSession, tmp_path: Path
+) -> None:
+    await import_lesson_import_dir(db, tmp_path, lesson_ids=["lesson-a", "lesson-b"])
+    lesson = await db.scalar(select(Lesson).where(Lesson.source_id == "lesson-a"))
+    assert lesson is not None
+    user = await UserFactory.create()
+    await UserLessonProgressFactory.create(user_id=user.id, lesson_id=lesson.id)
+    db.expunge_all()
+
+    await LessonContentService(db).delete_lesson_by_source_id("lesson-a")
+
+    lessons = (await db.scalars(select(Lesson))).all()
+    assert [(row.source_id, row.release_order) for row in lessons] == [("lesson-b", 1)]
+    assert await db.scalar(select(func.count(UserLessonProgress.id))) == 0
 
 
 async def test_lesson_content_import_given_reordered_catalog_expect_catalog_order(
@@ -386,7 +674,7 @@ async def test_lesson_enrollment_given_daily_limit_reached_expect_lesson_cards_s
         user=user,
         pool=unrelated_pool,
         state=CardState.NEW,
-        introduced_at=datetime.now(UTC).replace(tzinfo=None),
+        introduced_at=now(),
     )
 
     await LessonService(db).start_lesson(user.id, lesson.id)
@@ -479,6 +767,7 @@ async def test_complete_exercise_given_concurrent_ids_expect_both_preserved(
             title="Concurrency",
             cefr_level="A1",
             goal="Practice.",
+            estimated_minutes=2,
             packet_json={
                 "exercises": [{"id": "ex-a"}, {"id": "ex-b"}],
             },
@@ -588,7 +877,7 @@ async def test_complete_lesson_given_missing_exercises_expect_not_complete(
         await service.complete_lesson(user.id, lesson.id)
 
     await service.complete_exercise(user.id, lesson.id, "ex-choose")
-    await service.complete_exercise(user.id, lesson.id, "ex-speak")
+    await service.complete_exercise(user.id, lesson.id, "ex-build")
     await service.complete_lesson(user.id, lesson.id)
 
     progress = await db.scalar(select(UserLessonProgress))
@@ -720,8 +1009,8 @@ async def test_evaluate_write_exercise_given_valid_response_expect_verdicts(
     assert judgement.criteria[0].met is True
     assert judgement.criteria[0].evidence == "skriver"
     assert "Judge the paragraph." in provider.requests[0].instructions
-    assert "Jeg skriver en kort tekst nå." in provider.requests[0].prompt
-    assert "- c1: Bruker presens." in provider.requests[0].prompt
+    assert provider.requests[0].prompt == "Jeg skriver en kort tekst nå."
+    assert "- c1: Bruker presens." in provider.requests[0].instructions
 
 
 async def test_evaluate_write_exercise_given_unknown_exercise_expect_no_provider_call(

@@ -5,12 +5,29 @@ import { openLogin, readSessionToken } from './auth';
 // chrome.cookies.get is overloaded; spyOn resolves to the callback form, whose
 // return type is void. This alias selects the promise form the code calls.
 const cookies = chrome.cookies as {
-  get(details: chrome.cookies.CookieDetails): Promise<chrome.cookies.Cookie | null>;
+  get(
+    details: chrome.cookies.CookieDetails,
+  ): Promise<chrome.cookies.Cookie | null>;
 };
 
 afterEach(() => vi.restoreAllMocks());
 
 describe('readSessionToken', () => {
+  it('test_read_session_token_given_revoked_api_permission_expect_no_cookie_read', async () => {
+    vi.spyOn(chrome.permissions, 'contains').mockImplementation(
+      async () => false,
+    );
+    const get = vi.spyOn(cookies, 'get');
+
+    await expect(readSessionToken()).resolves.toBeNull();
+
+    expect(chrome.permissions.contains).toHaveBeenCalledWith({
+      origins: ['http://localhost:8000/*'],
+    });
+    expect(get).not.toHaveBeenCalled();
+    expect(chrome.permissions.request).not.toHaveBeenCalled();
+  });
+
   it('test_read_session_token_given_cookie_present_expect_value', async () => {
     const get = vi
       .spyOn(cookies, 'get')

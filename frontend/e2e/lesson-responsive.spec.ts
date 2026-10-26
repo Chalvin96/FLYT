@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 const lessonSummaries = [
   {
@@ -33,10 +33,8 @@ async function frameMetrics(page: Page) {
   }));
 }
 
-async function closeChatbotIfOpen(page: Page): Promise<void> {
+async function expectChatbotRailCollapsed(page: Page): Promise<void> {
   const toggle = page.getByRole('button', { name: 'Ask Flyt' });
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  await toggle.click();
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 }
 
@@ -68,9 +66,9 @@ test('test_lesson_page_given_viewport_expect_shell_width_to_follow_breakpoint', 
   for (const viewportWidth of [390, 1023, 1024, 1440]) {
     await page.setViewportSize({ width: viewportWidth, height: 900 });
     await page.goto('/lesson');
-    await expect(page.getByTestId('lesson-page')).toBeVisible();
+    await expect(page.getByTestId('lesson-browse-content')).toBeVisible();
     if (viewportWidth >= 1024) {
-      await closeChatbotIfOpen(page);
+      await expectChatbotRailCollapsed(page);
     }
 
     const metrics = await frameMetrics(page);
@@ -121,7 +119,7 @@ test('test_lesson_page_given_desktop_loading_expect_page_width_to_expand', async
   try {
     await page.goto('/lesson');
     await expect(page.getByRole('status')).toBeVisible();
-    await closeChatbotIfOpen(page);
+    await expectChatbotRailCollapsed(page);
 
     const metrics = await frameMetrics(page);
     expect(metrics.frameWidth).toBeGreaterThan(900);

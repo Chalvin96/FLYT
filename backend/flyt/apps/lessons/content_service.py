@@ -10,7 +10,6 @@ from sqlalchemy import select
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flyt.apps.flashcards.models import LESSON_REVIEW_AUDIO_KEY
 from flyt.apps.flashcards.models import CardPool
 from flyt.apps.flashcards.models import CardType
 from flyt.apps.flashcards.models import FlashCard
@@ -22,6 +21,9 @@ from flyt.apps.lessons.models import LessonRelease
 from flyt.apps.lessons.models import UserLessonProgress
 from flyt.apps.lessons.types import LessonImportBatch
 from flyt.apps.lessons.types import LessonImportItem
+from flyt.apps.lessons.utils import estimate_lesson_minutes
+from flyt.content.eligibility import has_review_exercises
+from flyt.content.eligibility import is_exercise_addable
 from flyt.content.schemas import K_LESSON_PACKET_SCHEMA_VERSION
 from flyt.content.schemas import LessonPacket
 
@@ -111,12 +113,9 @@ class LessonContentService:
             packet_json = item.packet.model_dump(mode="json")
             packet_changed = lesson.packet_json != packet_json
             self._update_lesson(lesson, item)
-            if packet_changed or await self._lesson_needs_audio_sync(
-                lesson, item.packet
-            ):
-                await self._sync_practice_groups(lesson, item.packet)
-                if packet_changed:
-                    await self._preserve_progress(lesson, item.packet)
+            await self._sync_practice_groups(lesson, item.packet)
+            if packet_changed:
+                await self._preserve_progress(lesson, item.packet)
 
         omitted_lessons = [
             lesson
@@ -207,41 +206,19 @@ class LessonContentService:
         lesson.cefr_level = packet.cefr_level
         lesson.goal = packet.goal
         lesson.packet_json = packet.model_dump(mode="json")
-
-    async def _lesson_needs_audio_sync(
-        self, lesson: Lesson, packet: LessonPacket
-    ) -> bool:
-        audio_by_id = {
-            asset.id: asset.model_dump(mode="json") for asset in packet.media.audio
-        }
-        expected_audio_by_exercise = {
-            exercise.id: audio_by_id[exercise.audio_id]
-            for exercise in packet.exercises
-            if exercise.audio_id is not None
-        }
-        if not expected_audio_by_exercise:
-            return False
-
-        state = await self._load_practice_state(lesson.id)
-        for exercise_id, expected_audio in expected_audio_by_exercise.items():
-            card = state.cards_by_uuid.get(
-                _exercise_uuid(lesson.source_id, exercise_id)
-            )
-            if (
-                card is None
-                or card.payload_json.get(LESSON_REVIEW_AUDIO_KEY) != expected_audio
-            ):
-                return True
-        return False
+        lesson.estimated_minutes = estimate_lesson_minutes(lesson.packet_json)
 
     async def _sync_practice_groups(self, lesson: Lesson, packet: LessonPacket) -> None:
         state = await self._load_practice_state(lesson.id)
         await self._upsert_practice_pools(lesson, packet, state)
         await self.db.flush()
-        desired_card_uuids, moved_pool_ids = self._upsert_practice_cards(
-            lesson, packet, state
-        )
+        (
+            desired_card_uuids,
+            moved_pool_ids,
+            newly_non_addable_card_ids,
+        ) = self._upsert_practice_cards(lesson, packet, state)
         await self.db.flush()
+        await self._clear_stale_active_card_references(newly_non_addable_card_ids)
         await self._remove_obsolete_practice_rows(
             packet, state, desired_card_uuids, moved_pool_ids
         )
@@ -292,13 +269,12 @@ class LessonContentService:
         lesson: Lesson,
         packet: LessonPacket,
         state: PracticeState,
-    ) -> tuple[set[uuid.UUID], dict[int, set[int]]]:
+    ) -> tuple[set[uuid.UUID], dict[int, set[int]], set[int]]:
         exercises_by_id = {exercise.id: exercise for exercise in packet.exercises}
-        audio_by_id = {
-            asset.id: asset.model_dump(mode="json") for asset in packet.media.audio
-        }
+        lesson_has_review_exercises = has_review_exercises(packet)
         desired_card_uuids: set[uuid.UUID] = set()
         moved_pool_ids: dict[int, set[int]] = {}
+        newly_non_addable_card_ids: set[int] = set()
 
         for group in packet.practice_groups:
             pool = state.pools_by_key[group.id]
@@ -306,10 +282,9 @@ class LessonContentService:
                 exercise = exercises_by_id[exercise_id]
                 card_uuid = _exercise_uuid(lesson.source_id, exercise.id)
                 payload_json = exercise.model_dump(mode="json")
-                if exercise.audio_id is not None:
-                    payload_json[LESSON_REVIEW_AUDIO_KEY] = audio_by_id[
-                        exercise.audio_id
-                    ]
+                is_addable = is_exercise_addable(
+                    exercise, lesson_has_review_exercises=lesson_has_review_exercises
+                )
                 desired_card_uuids.add(card_uuid)
                 card = state.cards_by_uuid.get(card_uuid)
                 if card is None:
@@ -317,7 +292,7 @@ class LessonContentService:
                         FlashCard(
                             type=CardType(exercise.operation),
                             pool_id=pool.id,
-                            is_addable=True,
+                            is_addable=is_addable,
                             schema_version=K_LESSON_PACKET_SCHEMA_VERSION,
                             uuid=card_uuid,
                             payload_json=payload_json,
@@ -328,10 +303,31 @@ class LessonContentService:
                     moved_pool_ids.setdefault(card.pool_id, set()).add(pool.id)
                 card.type = CardType(exercise.operation)
                 card.pool_id = pool.id
+                if card.is_addable and not is_addable:
+                    newly_non_addable_card_ids.add(card.id)
+                card.is_addable = is_addable
                 card.schema_version = K_LESSON_PACKET_SCHEMA_VERSION
                 card.payload_json = payload_json
 
-        return desired_card_uuids, moved_pool_ids
+        return desired_card_uuids, moved_pool_ids, newly_non_addable_card_ids
+
+    async def _clear_stale_active_card_references(self, card_ids: set[int]) -> None:
+        """Drop active-variant references to cards that just became non-addable.
+
+        Serving queries already exclude pools without an addable variant, but a
+        UserCard whose ``active_card_id`` still points at a card that flipped
+        non-addable stays directly submittable through the review command. Clear
+        the reference for cards that flipped in *this* import only.
+        ``last_shown_card_id`` is deliberately left alone: it is historical
+        display state that only steers variant rotation and cannot be submitted.
+        """
+        if not card_ids:
+            return
+        await self.db.execute(
+            update(UserCard)
+            .where(UserCard.active_card_id.in_(card_ids))
+            .values(active_card_id=None)
+        )
 
     async def _remove_obsolete_practice_rows(
         self,
@@ -420,6 +416,8 @@ class LessonContentService:
                     if destination_card.active_card_id is None:
                         destination_card.active_card_id = source_card.active_card_id
                     await self.db.delete(source_card)
+
+            await self.db.flush()
 
     @staticmethod
     def _latest_user_card(first: UserCard, second: UserCard) -> UserCard:

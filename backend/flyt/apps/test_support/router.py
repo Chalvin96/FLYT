@@ -81,6 +81,6 @@ async def test_login(
 
     await db.commit()
     await db.refresh(user)
-    token = AuthService().create_access_token(data={"sub": str(user.uuid)})
+    token = AuthService().create_access_token(user=user)
     set_access_cookie(response, token)
     return user

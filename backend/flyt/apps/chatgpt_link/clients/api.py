@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from typing import Any
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 import httpx
 from pydantic import SecretStr
@@ -91,7 +91,7 @@ class ChatGPTResponsesApi(ProviderApi):
     @asynccontextmanager
     async def stream_proof(
         self, credential: ChatGPTCredential, model: str
-    ) -> AsyncIterator[httpx.Response]:
+    ) -> AsyncGenerator[httpx.Response, None]:
         async with self.http_client(
             settings.CHATGPT_MODEL_TIMEOUT_SECONDS,
             headers=self._proof_headers(credential),

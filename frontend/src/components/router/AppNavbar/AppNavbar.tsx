@@ -1,3 +1,4 @@
+import { Text } from '@flyt/ui';
 import { CircleUserRound, Search } from 'lucide-react';
 import { Link, useRouterState } from '@tanstack/react-router';
 
@@ -24,8 +25,8 @@ export function AppAccountAvatarLink({ className }: { className?: string }) {
       className={cn(
         'inline-flex size-10 items-center justify-center rounded-full border transition-colors',
         active
-          ? 'border-primary-30 bg-primary-20 text-primary-90'
-          : 'border-border bg-card text-muted-foreground hover:bg-secondary-10 hover:text-foreground',
+          ? 'border-brand-subtle bg-selected-hovered text-selected'
+          : 'border-default bg-raised text-subtle hover:bg-neutral-subtle hover:text-default',
         className,
       )}
       to="/account"
@@ -57,14 +58,16 @@ export function AppDesktopNavbar({
               key={item.to}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'radius-field inline-flex items-center px-3 py-2 type-caption font-semibold transition-colors',
+                'radius-field inline-flex items-center px-3 py-2 transition-colors',
                 active
-                  ? 'bg-primary-20 text-primary-90'
-                  : 'text-muted-foreground hover:bg-primary-10 hover:text-foreground',
+                  ? 'bg-selected-hovered text-selected'
+                  : 'text-subtle hover:bg-brand-subtle hover:text-default',
               )}
               to={item.to}
             >
-              {item.label}
+              <Text as="span" size="medium" weight="semibold">
+                {item.label}
+              </Text>
             </Link>
           );
         })}
@@ -84,7 +87,7 @@ export function AppMobileNavbar({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'safe-bottom shadow-top sticky bottom-0 z-20 mt-auto shrink-0 border-t border-border bg-black-90 backdrop-blur-sm lg:hidden',
+        'safe-bottom shadow-top sticky bottom-0 z-20 mt-auto shrink-0 border-t border-default bg-overlay backdrop-blur-sm lg:hidden',
         className,
       )}
     >
@@ -99,22 +102,24 @@ export function AppMobileNavbar({ className }: { className?: string }) {
                 <Link
                   aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'flex w-full flex-col items-center gap-1 px-1 py-1.5 type-label-xs transition-colors',
-                    active
-                      ? 'text-white-90'
-                      : 'text-white-60 hover:text-white-90',
+                    'flex w-full flex-col items-center gap-1 px-1 py-1.5 transition-colors',
+                    active ? 'text-default' : 'text-subtle hover:text-default',
                   )}
                   to={item.to}
                 >
                   <span
                     className={cn(
                       'flex size-9 items-center justify-center rounded-full transition-colors',
-                      active ? 'bg-primary-20 text-primary-90' : 'text-current',
+                      active
+                        ? 'border-2 border-selected bg-selected text-selected'
+                        : 'text-current',
                     )}
                   >
                     <Icon className="icon-sm" strokeWidth={1.9} />
                   </span>
-                  <span>{item.label}</span>
+                  <Text as="span" size="small" weight="semibold">
+                    {item.label}
+                  </Text>
                 </Link>
               </li>
             );
@@ -123,12 +128,14 @@ export function AppMobileNavbar({ className }: { className?: string }) {
             <button
               type="button"
               onClick={() => lookup.openSearch()}
-              className="flex w-full flex-col items-center gap-1 px-1 py-1.5 type-label-xs text-white-60 transition-colors hover:text-white-90"
+              className="flex w-full flex-col items-center gap-1 px-1 py-1.5 text-subtle transition-colors hover:text-default"
             >
               <span className="flex size-9 items-center justify-center rounded-full text-current">
                 <Search className="icon-sm" strokeWidth={1.9} />
               </span>
-              <span>Dictionary</span>
+              <Text as="span" size="small" weight="semibold">
+                Dictionary
+              </Text>
             </button>
           </li>
         </ul>

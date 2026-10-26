@@ -1,23 +1,19 @@
 import { act } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestShadowSurface } from '../test/shadowSurface';
+import { resetOverlay } from './overlay';
 import { mountImportToast } from './mountToast';
 
-// The real host attaches a CLOSED shadow root, which no test can read into.
-// Swap in an open equivalent so assertions can see what was rendered.
-vi.mock('./shadowHost', () => ({
-  createShadowHost: () => {
-    const container = document.createElement('div');
-    const reactHost = document.createElement('div');
-    container.append(reactHost);
-    return { container, reactHost };
-  },
+vi.mock('@flyt/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@flyt/ui')>()),
+  createShadowSurface: () => createTestShadowSurface(),
 }));
 
 const IMPORTS_URL = 'http://localhost:5173/reading/imports';
 
-afterEach(() => {
-  document.body.innerHTML = '';
+beforeEach(() => {
+  resetOverlay();
 });
 
 describe('mountImportToast', () => {
@@ -52,25 +48,26 @@ describe('mountImportToast', () => {
       vi.advanceTimersByTime(5000);
 
       expect(document.body.textContent).toContain('Page saved');
-      toast.dismiss();
-      expect(document.body.children).toHaveLength(0);
+      act(() => toast.dismiss());
+      expect(document.body.textContent).not.toContain('Page saved');
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('test_mount_toast_given_dismiss_expect_container_removed', () => {
+  it('test_mount_toast_given_dismiss_expect_toast_gone', () => {
     const toast = mountImportToast(IMPORTS_URL);
     act(() => toast.setStatus({ kind: 'importing' }));
 
-    toast.dismiss();
+    act(() => toast.dismiss());
 
-    expect(document.body.children).toHaveLength(0);
+    expect(document.body.textContent).not.toContain('Saving this page…');
   });
 
-  it('test_mount_toast_given_close_button_click_expect_container_removed', () => {
+  it('test_mount_toast_given_close_button_click_expect_toast_gone', () => {
     const toast = mountImportToast(IMPORTS_URL);
     act(() => toast.setStatus({ kind: 'error', message: 'Nope.' }));
+    expect(document.body.textContent).toContain('Nope.');
 
     act(() =>
       (
@@ -78,16 +75,30 @@ describe('mountImportToast', () => {
       ).click(),
     );
 
-    expect(document.body.children).toHaveLength(0);
+    expect(document.body.textContent).not.toContain('Nope.');
   });
 
   it('test_mount_toast_given_status_after_dismiss_expect_no_remount', () => {
     const toast = mountImportToast(IMPORTS_URL);
-    toast.dismiss();
+    act(() => toast.setStatus({ kind: 'importing' }));
+    act(() => toast.dismiss());
 
     act(() => toast.setStatus({ kind: 'success' }));
-    toast.dismiss();
 
-    expect(document.body.children).toHaveLength(0);
+    expect(document.body.textContent).not.toContain('Page saved');
+  });
+
+  it('test_mount_toast_given_a_newer_import_expect_the_old_handle_inert', () => {
+    // A late dismiss timer from an earlier import must not remove a toast the
+    // newer mount owns.
+    const stale = mountImportToast(IMPORTS_URL);
+    act(() => stale.setStatus({ kind: 'success' }));
+
+    const current = mountImportToast(IMPORTS_URL);
+    act(() => current.setStatus({ kind: 'importing' }));
+
+    act(() => stale.dismiss());
+
+    expect(document.body.textContent).toContain('Saving this page…');
   });
 });

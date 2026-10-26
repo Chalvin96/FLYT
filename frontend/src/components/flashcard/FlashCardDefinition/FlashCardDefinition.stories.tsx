@@ -5,7 +5,7 @@ import type { DefinitionPayload, UserCard } from '@/types/api';
 import { FlashCardDefinition } from './FlashCardDefinition';
 
 const meta = {
-  title: 'Flashcard/FlashCardDefinition',
+  title: 'Features/Flashcard/FlashCardDefinition',
   component: FlashCardDefinition,
   tags: ['autodocs'],
   decorators: [
@@ -23,7 +23,7 @@ const meta = {
     ),
   ],
   parameters: { layout: 'fullscreen' },
-  args: { className: 'flex-1' },
+  args: { allowRetry: false, className: 'flex-1' },
 } satisfies Meta<typeof FlashCardDefinition>;
 
 export default meta;
@@ -49,6 +49,7 @@ function makeDefinitionCard(
     fsrs_stability: null,
     fsrs_difficulty: null,
     fsrs_step: null,
+    review_version: 0,
     last_review_at: null,
     due_at: '2026-02-20T10:00:00Z',
     state: 'review',
@@ -286,13 +287,6 @@ export const Default: Story = {
   },
 };
 
-export const NoAlternatives: Story = {
-  args: {
-    card: nounCard,
-    onFinished: () => undefined,
-  },
-};
-
 export const NoExamples: Story = {
   args: {
     card: {
@@ -329,15 +323,6 @@ export const NoTranslation: Story = {
         },
       ],
     }),
-    onFinished: () => undefined,
-  },
-};
-
-export const WithNounInflection: Story = {
-  name: 'With Noun Inflection Table',
-  args: {
-    card: nounCard,
-    wordForms: nounWordForms,
     onFinished: () => undefined,
   },
 };

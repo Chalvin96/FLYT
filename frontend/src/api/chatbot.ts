@@ -1,6 +1,30 @@
 import { client } from './client';
 
-export type ChatbotModel = 'flyt' | 'chatgpt' | 'deepseek' | 'glm';
+export const CHATBOT_MODEL_IDS = {
+  FLYT: 'flyt',
+  CHATGPT: 'chatgpt',
+  DEEPSEEK: 'deepseek',
+  GLM: 'glm',
+} as const;
+
+export type ChatbotModel =
+  (typeof CHATBOT_MODEL_IDS)[keyof typeof CHATBOT_MODEL_IDS];
+
+export const CHATBOT_MODEL_ACTIONS = {
+  LINK_ACCOUNT: 'link_account',
+  RELINK_ACCOUNT: 'relink_account',
+  ADD_OPENROUTER_KEY: 'add_openrouter_key',
+} as const;
+
+export const CHATBOT_MODEL_REASONS = {
+  BROKEN: 'broken',
+  NOT_CONFIGURED: 'not_configured',
+  NOT_LINKED: 'not_linked',
+  OPENROUTER_KEY_REQUIRED: 'openrouter_key_required',
+  RELINK_ACCOUNT: 'relink_account',
+  UNAVAILABLE: 'unavailable',
+} as const;
+
 export type ChatbotContextKind = 'general' | 'lesson' | 'reading' | 'selection';
 
 export interface ChatbotContext {

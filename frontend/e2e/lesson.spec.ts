@@ -1,5 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
-
+import { expect, test, type Page } from './fixtures';
 import { loginAs } from './helpers/auth';
 
 async function continueCurrentLesson(page: Page): Promise<void> {
@@ -19,7 +18,13 @@ test('new user can start the first lesson from the lesson hub', async ({
   page,
 }) => {
   await loginAs(page, 'new-user@example.com');
+  const lessonsResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/lessons' &&
+      response.request().method() === 'GET',
+  );
   await page.goto('/lesson');
+  expect((await lessonsResponse).ok()).toBe(true);
 
   await expect(
     page.getByRole('link', { name: 'Start this lesson' }),
@@ -36,7 +41,13 @@ test('new user can start the first lesson from the lesson hub', async ({
 
 test('learner can resume an in-progress lesson', async ({ page }) => {
   await loginAs(page, 'learner@example.com');
+  const lessonsResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/lessons' &&
+      response.request().method() === 'GET',
+  );
   await page.goto('/lesson');
+  expect((await lessonsResponse).ok()).toBe(true);
 
   await expect(page.locator('main')).toBeVisible();
   await page

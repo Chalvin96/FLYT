@@ -3,25 +3,7 @@ import type * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
-/**
- * DropZone
- *
- * The single dnd-kit droppable target used across Operation-family
- * exercises (Categorize buckets, RecallFill inline blanks).
- *
- * It owns the `useDroppable` call (callers only pass the `id`) and is
- * presentational + state-driven like TokenChip: it renders whatever visual
- * state the parent passes in (or the hook computes) without managing its
- * own complex internal state.
- *
- * Styling reuses existing design tokens: a dashed outline at rest
- * (`border-border bg-card`), a highlighted fill on drag-over
- * (`border-primary-60 bg-primary-5`). An optional `isOver` prop overrides
- * the hook-computed highlight — useful for tap-to-place "armed" states.
- *
- * It also forwards arbitrary div props (onClick, role, aria-*) so callers
- * can layer tap-to-place interactions without extra wrapper elements.
- */
+import { verdictDropTargetClass } from '../answerVerdict';
 
 export interface DropZoneProps extends Omit<
   React.ComponentProps<'div'>,
@@ -44,11 +26,7 @@ export interface DropZoneProps extends Omit<
    * consumer-supplied aria-label from ...props if not set.
    */
   label?: string;
-  /**
-   * Visual tone. `target` tints the zone with the shared target utility so
-   * empty placement slots read as "a tile goes here". Defaults to
-   * `default` (card surface).
-   */
+  /** `target` marks an empty placement slot. */
   tone?: 'default' | 'target';
 }
 
@@ -86,11 +64,11 @@ export function DropZone({
       role={interactive ? 'button' : props.role}
       tabIndex={interactive ? 0 : props.tabIndex}
       className={cn(
-        'radius-field flex min-h-[3rem] min-w-0 flex-wrap items-start gap-2 border border-dashed border-border bg-card p-3 transition-colors',
+        'radius-field flex min-h-[3rem] min-w-0 flex-wrap items-start gap-2 border border-dashed border-default bg-raised p-3 transition-colors',
         interactive && 'cursor-pointer',
-        tone === 'target' && !highlighted && 'tint-target',
-        highlighted && 'border-primary-60 bg-primary-5',
         className,
+        tone === 'target' && !highlighted && 'bg-neutral-subtle',
+        highlighted && verdictDropTargetClass,
       )}
       onKeyDown={handleKeyDown}
       {...props}

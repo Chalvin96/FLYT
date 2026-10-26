@@ -13,17 +13,17 @@ export function getLessonStateMeta(state: LessonSummaryRead['state']) {
     case K_LESSON_STATE.COMPLETED:
       return {
         icon: CheckCircle2,
-        toneClassName: 'bg-secondary-20 text-secondary-90',
+        toneClassName: 'bg-neutral-pressed text-default',
       };
     case K_LESSON_STATE.IN_PROGRESS:
       return {
         icon: PlayCircle,
-        toneClassName: 'bg-primary-20 text-primary-90',
+        toneClassName: 'bg-selected-hovered text-selected',
       };
     case K_LESSON_STATE.NOT_STARTED:
       return {
         icon: Circle,
-        toneClassName: 'bg-black-10 text-black-50',
+        toneClassName: 'bg-disabled text-disabled',
       };
   }
 

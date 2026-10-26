@@ -1,8 +1,9 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ExerciseModeProvider } from '../ExerciseModeProvider';
+import * as exerciseAttempt from '@/hooks/flashcard/useExerciseAttempt/useExerciseAttempt';
+
 import { FlashCardBuild } from './FlashCardBuild';
 
 function buildExercise(overrides?: {
@@ -28,11 +29,14 @@ function buildExercise(overrides?: {
 }
 
 describe('FlashCardBuild', () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it('shuffles movable bank tokens when exported in answer order', () => {
     const mockRandom = vi.spyOn(Math, 'random').mockReturnValue(0.5);
 
     render(
       <FlashCardBuild
+        allowRetry
         exercise={{
           kind: 'exercise',
           objective_id: 'obj-1',
@@ -63,7 +67,7 @@ describe('FlashCardBuild', () => {
   });
 
   it('preplaces fixed tokens and prevents duplicate insertion', async () => {
-    render(<FlashCardBuild exercise={buildExercise()} />);
+    render(<FlashCardBuild allowRetry exercise={buildExercise()} />);
 
     expect(screen.getByText('Jeg')).toBeInTheDocument();
     expect(screen.getByText('i dag')).toBeInTheDocument();
@@ -83,7 +87,7 @@ describe('FlashCardBuild', () => {
   });
 
   it('returns a placed token to the bank when it is removed', async () => {
-    render(<FlashCardBuild exercise={buildExercise()} />);
+    render(<FlashCardBuild allowRetry exercise={buildExercise()} />);
 
     await userEvent.click(screen.getByRole('button', { name: /add spiser/i }));
     expect(
@@ -99,7 +103,7 @@ describe('FlashCardBuild', () => {
   });
 
   it('keeps the bank and answer token counts conserved while building', async () => {
-    render(<FlashCardBuild exercise={buildExercise()} />);
+    render(<FlashCardBuild allowRetry exercise={buildExercise()} />);
 
     await userEvent.click(screen.getByRole('button', { name: /add spiser/i }));
     await userEvent.click(screen.getByRole('button', { name: /add fisk/i }));
@@ -115,11 +119,15 @@ describe('FlashCardBuild', () => {
 
   // --- Retry flow tests ---
 
-  it('first-try solve → Easy (4)', async () => {
+  it('test_build_given_first_try_solve_expect_correct_outcome', async () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
     render(
-      <FlashCardBuild exercise={buildExercise()} onFinished={onFinished} />,
+      <FlashCardBuild
+        allowRetry
+        exercise={buildExercise()}
+        onFinished={onFinished}
+      />,
     );
 
     // Correct order: spiser, fisk.
@@ -127,19 +135,19 @@ describe('FlashCardBuild', () => {
     await user.click(screen.getByRole('button', { name: /add fisk/i }));
     await user.click(screen.getByRole('button', { name: /check/i }));
 
-    expect(screen.getByText(/^correct$/i)).toBeInTheDocument();
+    expect(screen.getByTestId('operation-banner')).toHaveTextContent(
+      /^correct$/i,
+    );
 
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: true,
-      rating: 4,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
   });
 
   it('wrong check → alert present, no per-item colors, board editable', async () => {
     const user = userEvent.setup();
-    render(<FlashCardBuild exercise={buildExercise()} />);
+    render(<FlashCardBuild allowRetry exercise={buildExercise()} />);
 
     // Wrong order: fisk first, then spiser.
     await user.click(screen.getByRole('button', { name: /add fisk/i }));
@@ -174,7 +182,7 @@ describe('FlashCardBuild', () => {
 
   it('dirty gate: Check disabled after wrong check, re-enabled after board change', async () => {
     const user = userEvent.setup();
-    render(<FlashCardBuild exercise={buildExercise()} />);
+    render(<FlashCardBuild allowRetry exercise={buildExercise()} />);
 
     // Wrong order.
     await user.click(screen.getByRole('button', { name: /add fisk/i }));
@@ -192,11 +200,15 @@ describe('FlashCardBuild', () => {
     expect(screen.getByRole('button', { name: /^check/i })).not.toBeDisabled();
   });
 
-  it('solve after a wrong → Hard (2)', async () => {
+  it('test_build_given_retry_after_wrong_check_expect_correct_outcome', async () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
     render(
-      <FlashCardBuild exercise={buildExercise()} onFinished={onFinished} />,
+      <FlashCardBuild
+        allowRetry
+        exercise={buildExercise()}
+        onFinished={onFinished}
+      />,
     );
 
     // Wrong first.
@@ -211,19 +223,19 @@ describe('FlashCardBuild', () => {
     await user.click(screen.getByRole('button', { name: /add fisk/i }));
 
     await user.click(screen.getByRole('button', { name: /check/i }));
-    expect(screen.getByText(/^correct$/i)).toBeInTheDocument();
+    expect(screen.getByTestId('operation-banner')).toHaveTextContent(
+      /^correct$/i,
+    );
 
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: true,
-      rating: 2,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
   });
 
   it('reveal shows the correct arrangement and revealed banner', async () => {
     const user = userEvent.setup();
-    render(<FlashCardBuild exercise={buildExercise()} />);
+    render(<FlashCardBuild allowRetry exercise={buildExercise()} />);
 
     // Wrong order.
     await user.click(screen.getByRole('button', { name: /add fisk/i }));
@@ -247,11 +259,15 @@ describe('FlashCardBuild', () => {
     );
   });
 
-  it('reveal with 0 correct → Again (1)', async () => {
+  it('test_build_given_reveal_of_wrong_board_expect_incorrect_outcome', async () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
     render(
-      <FlashCardBuild exercise={buildExercise()} onFinished={onFinished} />,
+      <FlashCardBuild
+        allowRetry
+        exercise={buildExercise()}
+        onFinished={onFinished}
+      />,
     );
 
     // Completely wrong: fisk, spiser → 0/2 correct.
@@ -261,19 +277,32 @@ describe('FlashCardBuild', () => {
     await user.click(screen.getByRole('button', { name: /reveal answer/i }));
     await user.click(screen.getByRole('button', { name: /continue/i }));
 
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: false,
-      rating: 1,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: false }),
+    );
   });
 
-  it('reveal with 0.5 correct → Hard (2)', async () => {
+  it('test_build_given_reveal_of_partly_correct_board_expect_incorrect_outcome', async () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
+    const useAttempt = exerciseAttempt.useExerciseAttempt;
+    const reportReveal = vi.fn();
+    vi.spyOn(exerciseAttempt, 'useExerciseAttempt').mockImplementation(
+      (config) => {
+        const attempt = useAttempt(config);
+        return {
+          ...attempt,
+          reveal: (fraction: number) => {
+            reportReveal(fraction);
+            attempt.reveal(fraction);
+          },
+        };
+      },
+    );
     // Use a 4-movable-token exercise so 2/4 = 0.5.
     render(
       <FlashCardBuild
+        allowRetry
         exercise={{
           kind: 'exercise',
           objective_id: 'obj-1',
@@ -307,16 +336,15 @@ describe('FlashCardBuild', () => {
     await user.click(screen.getByRole('button', { name: /reveal answer/i }));
     await user.click(screen.getByRole('button', { name: /continue/i }));
 
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: false,
-      rating: 2,
-    });
+    expect(reportReveal).toHaveBeenCalledWith(0.5);
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: false }),
+    );
   });
 
   it('disables chips after terminal phase (solved)', async () => {
     const user = userEvent.setup();
-    render(<FlashCardBuild exercise={buildExercise()} />);
+    render(<FlashCardBuild allowRetry exercise={buildExercise()} />);
 
     await user.click(screen.getByRole('button', { name: /add spiser/i }));
     await user.click(screen.getByRole('button', { name: /add fisk/i }));
@@ -330,14 +358,16 @@ describe('FlashCardBuild', () => {
   });
 });
 
-describe('FlashCardBuild — surface-driven retry vs commit (SRS invariant)', () => {
-  it('allowRetry={false} (review): one-shot, wrong check yields binary rating 1, no Reveal', async () => {
+describe('FlashCardBuild retry and commit behavior', () => {
+  it('test_build_given_wrong_check_in_review_expect_completion_without_reveal', async () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
     render(
-      <ExerciseModeProvider allowRetry={false}>
-        <FlashCardBuild exercise={buildExercise()} onFinished={onFinished} />
-      </ExerciseModeProvider>,
+      <FlashCardBuild
+        allowRetry={false}
+        exercise={buildExercise()}
+        onFinished={onFinished}
+      />,
     );
 
     // Wrong order.
@@ -357,23 +387,22 @@ describe('FlashCardBuild — surface-driven retry vs commit (SRS invariant)', ()
       screen.getByRole('button', { name: /continue/i }),
     ).toBeInTheDocument();
 
-    // Continue reports a binary wrong result (rating 1 via ratingFromResult).
     await user.click(screen.getByRole('button', { name: /continue/i }));
     expect(onFinished).toHaveBeenCalledTimes(1);
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: false,
-      rating: 1,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: false }),
+    );
   });
 
-  it('allowRetry={false} (review): correct check yields binary rating 3', async () => {
+  it('test_build_given_right_check_in_review_expect_correct_outcome', async () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
     render(
-      <ExerciseModeProvider allowRetry={false}>
-        <FlashCardBuild exercise={buildExercise()} onFinished={onFinished} />
-      </ExerciseModeProvider>,
+      <FlashCardBuild
+        allowRetry={false}
+        exercise={buildExercise()}
+        onFinished={onFinished}
+      />,
     );
 
     await user.click(screen.getByRole('button', { name: /add spiser/i }));
@@ -381,20 +410,14 @@ describe('FlashCardBuild — surface-driven retry vs commit (SRS invariant)', ()
     await user.click(screen.getByRole('button', { name: /check/i }));
 
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: true,
-      rating: 4,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
   });
 
   it('allowRetry={true} (lesson): wrong check shows Reveal and allows retry', async () => {
     const user = userEvent.setup();
-    render(
-      <ExerciseModeProvider allowRetry>
-        <FlashCardBuild exercise={buildExercise()} />
-      </ExerciseModeProvider>,
-    );
+    render(<FlashCardBuild allowRetry exercise={buildExercise()} />);
 
     // Wrong order.
     await user.click(screen.getByRole('button', { name: /add fisk/i }));

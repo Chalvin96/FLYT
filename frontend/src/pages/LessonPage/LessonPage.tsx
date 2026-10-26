@@ -1,6 +1,6 @@
+import { Card, Heading } from '@flyt/ui';
 import { ChevronDown } from 'lucide-react';
 
-import { AppCard } from '@/components/common/AppCard/AppCard';
 import type { LessonSummaryRead } from '@/types/api';
 
 import { K_LESSON_HERO_MODE, K_LESSON_STATE } from './constants';
@@ -30,13 +30,13 @@ const EMPTY_LESSONS: LessonSummaryRead[] = [];
 
 function LessonGroupList({ lessons }: { lessons: LessonSummaryRead[] }) {
   return (
-    <AppCard className="overflow-hidden p-0">
-      <div className="w-full divide-y divide-border/70">
+    <Card clipContent elevation="flat" padding="none">
+      <div className="w-full divide-y divide-[var(--border-default)]/70">
         {lessons.map((lesson) => (
           <LessonListItem key={lesson.id} lesson={lesson} />
         ))}
       </div>
-    </AppCard>
+    </Card>
   );
 }
 
@@ -56,12 +56,9 @@ function LessonGroupSection({
   return (
     <section aria-labelledby={headingId} className="space-y-2">
       <div className="px-1">
-        <h2
-          className="type-section font-semibold text-foreground"
-          id={headingId}
-        >
+        <Heading as="h2" id={headingId} size="medium" tone="default">
           {title}
-        </h2>
+        </Heading>
       </div>
       <LessonGroupList lessons={lessons} />
     </section>
@@ -75,20 +72,20 @@ function CompletedLessonGroup({ lessons }: { lessons: LessonSummaryRead[] }) {
 
   return (
     <details
-      className="group overflow-hidden radius-section border border-border bg-card shadow-raised"
+      className="group overflow-hidden radius-section border border-default bg-raised shadow-raised"
       data-testid="completed-lessons"
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [&::-webkit-details-marker]:hidden">
-        <h2 className="type-section font-semibold text-foreground">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focused)] focus-visible:ring-inset [&::-webkit-details-marker]:hidden">
+        <Heading as="h2" size="medium" tone="default">
           Completed · {lessons.length}
-        </h2>
+        </Heading>
         <ChevronDown
           aria-hidden
-          className="icon-md text-muted-foreground transition-transform group-open:rotate-180"
+          className="icon-md text-subtle transition-transform group-open:rotate-180"
         />
       </summary>
-      <div className="border-t border-border">
-        <div className="divide-y divide-border/70">
+      <div className="border-t border-default">
+        <div className="divide-y divide-[var(--border-default)]/70">
           {lessons.map((lesson) => (
             <LessonListItem key={lesson.id} lesson={lesson} />
           ))}

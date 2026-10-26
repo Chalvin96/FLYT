@@ -1,10 +1,9 @@
+import { Button, Heading, IconWell, Skeleton, Text } from '@flyt/ui';
 import { Bolt, CircleCheckBig, Inbox, Library, List } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 
-import { Button } from '@/components/common/Button/Button';
-import { IconWell } from '@/components/common/IconWell/IconWell';
-import { Skeleton } from '@/components/ui/skeleton';
+import { buildRadioGroupKeyDownHandler } from '@/lib/radioGroupKeyboard';
 import { getReviewCardCounts } from '@/lib/reviewCounts';
 import { pluralize } from '@/lib/utils';
 import type { DeckSummaryItem, UserCard } from '@/types/api';
@@ -18,13 +17,9 @@ import { SessionLengthTile } from './SessionLengthTile';
 export { QUICK_REVIEW_CARD_COUNT } from '@/types/review';
 export type { SessionLength } from '@/types/review';
 
-/** Async statuses the page surfaces, grouped so callers pass one view state. */
 export interface ReviewPageStatus {
-  /** Due-card query still loading — renders the skeleton shell. */
   isLoading: boolean;
-  /** Deck browse query still loading — renders the deck section skeleton. */
   isDecksLoading: boolean;
-  /** "Add more new" promotion mutation in flight. */
   isAddMoreNewPending: boolean;
 }
 
@@ -33,16 +28,10 @@ export interface ReviewPageProps {
   initialSelection?: SessionLength;
   status?: ReviewPageStatus;
   onStart?: (mode: SessionLength) => void;
-  /** True once the learner has practised before — drives a "caught up" empty
-   * state instead of the brand-new onboarding one. */
   hasPracticed?: boolean;
-  /** Decks available for subscription. Renders the "Word packs" browse
-   * section below the practice selector / empty states. */
   decks?: DeckSummaryItem[];
-  /** Deck id with a subscribe mutation currently in-flight, or null. */
   subscribingDeckId?: number | null;
   onSubscribeDeck?: (deckId: number) => void;
-  /** Called to promote new words into the active due queue. */
   onAddMoreNew?: () => void;
 }
 
@@ -98,19 +87,17 @@ export function ReviewPage({
     return (
       <>
         <div className="mx-auto flex w-full max-w-xs flex-col items-center justify-start pt-8 pb-4 text-center">
-          <Skeleton className="h-9 w-56" />
+          <Skeleton length="long" size="lg" variant="heading" />
           <div className="mt-8 grid w-full grid-cols-2 gap-3">
-            <Skeleton className="radius-section h-44" />
-            <Skeleton className="radius-section h-44" />
+            <Skeleton shape="section" variant="block" size="xl" />
+            <Skeleton shape="section" variant="block" size="xl" />
           </div>
-          <Skeleton className="mt-6 h-11 w-full rounded-full" />
+          <div className="mt-6">
+            <Skeleton shape="pill" variant="control" />
+          </div>
         </div>
         <div className="mx-auto mt-4 w-full max-w-xs">
-          <Button
-            asChild
-            variant="outline"
-            className="h-10 w-full rounded-full"
-          >
+          <Button asChild variant="outline" shape="pill" width="full">
             <Link to="/review/cards">
               <Library className="icon-sm" strokeWidth={1.9} />
               My cards
@@ -123,7 +110,6 @@ export function ReviewPage({
   }
 
   if (dueCount === 0 && hasPracticed) {
-    // Caught up: cleared today's queue. Stay positive, offer ways forward.
     return (
       <>
         <div className="mx-auto flex w-full max-w-xs flex-col items-center justify-start gap-6 pt-12 pb-4 text-center">
@@ -131,18 +117,18 @@ export function ReviewPage({
             <IconWell
               size="lg"
               shape="circle"
-              tone="secondary"
+              tone="neutral"
               icon={CircleCheckBig}
-              iconProps={{ strokeWidth: 1.9 }}
+              iconStrokeWidth={1.9}
             />
             <div className="space-y-2">
-              <h1 className="font-display type-title text-foreground">
+              <Heading as="h1" size="large" tone="default">
                 You&apos;re all caught up
-              </h1>
-              <p className="type-body text-muted-foreground">
+              </Heading>
+              <Text size="large" tone="subtle">
                 No cards are due right now. Take the win, then keep the rhythm
                 going if you&apos;d like.
-              </p>
+              </Text>
             </div>
           </div>
 
@@ -150,26 +136,6 @@ export function ReviewPage({
             onAddMoreNew={onAddMoreNew}
             isAddMoreNewPending={isAddMoreNewPending}
           />
-
-          <div className="w-full text-left">
-            <div className="mb-2 px-1 type-caption text-muted-foreground">
-              Switch it up
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <Button asChild variant="outline" className="h-10 rounded-full">
-                <Link to="/lesson">Lesson</Link>
-              </Button>
-              <Button asChild variant="ghost" className="h-10 rounded-full">
-                <Link to="/reading">Story</Link>
-              </Button>
-              <Button asChild variant="ghost" className="h-10 rounded-full">
-                <Link to="/review/cards">
-                  <Library className="icon-sm" strokeWidth={1.9} />
-                  Cards
-                </Link>
-              </Button>
-            </div>
-          </div>
         </div>
         {decksSection}
       </>
@@ -180,28 +146,20 @@ export function ReviewPage({
     return (
       <>
         <div className="mx-auto flex w-full max-w-xs flex-col items-center justify-start pt-8 gap-4 pb-4 text-center">
-          <IconWell
-            tone="primary"
-            icon={Inbox}
-            iconProps={{ strokeWidth: 1.9 }}
-          />
-          <h1 className="font-display type-title text-foreground">
+          <IconWell tone="brand" icon={Inbox} iconStrokeWidth={1.9} />
+          <Heading as="h1" size="large" tone="default">
             Nothing to review yet
-          </h1>
-          <p className="type-body text-muted-foreground">
+          </Heading>
+          <Text size="large" tone="subtle">
             Complete a lesson to start building your review queue. Words and
             grammar you learn show up here for spaced-repetition practice.
-          </p>
-          <Button asChild className="h-11 w-full rounded-full">
+          </Text>
+          <Button asChild shape="pill" width="full">
             <Link to="/lesson">Browse lessons</Link>
           </Button>
         </div>
         <div className="mx-auto mt-4 w-full max-w-xs">
-          <Button
-            asChild
-            variant="outline"
-            className="h-10 w-full rounded-full"
-          >
+          <Button asChild variant="outline" shape="pill" width="full">
             <Link to="/review/cards">
               <Library className="icon-sm" strokeWidth={1.9} />
               My cards
@@ -216,24 +174,27 @@ export function ReviewPage({
   return (
     <>
       <div className="mx-auto flex w-full max-w-xs flex-col items-center justify-start pt-8 pb-4 text-center">
-        <h1 className="font-display type-title text-foreground">
+        <Heading as="h1" size="large" tone="default">
           How would you like to practice?
-        </h1>
+        </Heading>
 
-        <div className="mt-8 grid w-full grid-cols-2 gap-3">
+        <div
+          aria-label="Session length"
+          className="mt-8 grid w-full grid-cols-2 gap-3"
+          onKeyDown={buildRadioGroupKeyDownHandler((index) => {
+            const value = index === 0 ? 'quick' : 'full';
+            setSelectionState({ source: initialSelection, value });
+          })}
+          role="radiogroup"
+        >
           <SessionLengthTile
             title="Quick"
             cardsLabel={pluralize(quickCardCount, 'card')}
             durationLabel={`≈${quickEstimatedMinutes} min`}
             isDisabled={false}
             isSelected={selection === 'quick'}
-            icon={
-              <IconWell
-                tone="primary"
-                icon={Bolt}
-                iconProps={{ strokeWidth: 2.1 }}
-              />
-            }
+            tabStop={selection !== 'full'}
+            icon={<IconWell tone="brand" icon={Bolt} iconStrokeWidth={2.1} />}
             onClick={() =>
               setSelectionState({ source: initialSelection, value: 'quick' })
             }
@@ -245,42 +206,41 @@ export function ReviewPage({
             durationLabel={`≈${fullEstimatedMinutes} min`}
             isDisabled={false}
             isSelected={selection === 'full'}
-            icon={
-              <IconWell
-                tone="secondary"
-                icon={List}
-                iconProps={{ strokeWidth: 2.1 }}
-              />
-            }
+            tabStop={selection === 'full'}
+            icon={<IconWell tone="neutral" icon={List} iconStrokeWidth={2.1} />}
             onClick={() =>
               setSelectionState({ source: initialSelection, value: 'full' })
             }
           />
         </div>
 
-        <p className="mt-4 type-caption text-muted-foreground">
-          {counts.new} new · {counts.learning} learning · {counts.review} review
-        </p>
+        <div className="mt-4">
+          <Text as="p" size="medium" tone="subtle">
+            {counts.new} new · {counts.learning} learning · {counts.review}{' '}
+            review
+          </Text>
+        </div>
 
-        <Button
-          type="button"
-          className="mt-6 h-11 w-full rounded-full"
-          disabled={dueCount === 0}
-          onClick={() => onStart?.(selection)}
-        >
-          Start practice
-        </Button>
+        <div className="mt-6">
+          <Button
+            type="button"
+            shape="pill"
+            width="full"
+            disabled={dueCount === 0}
+            onClick={() => onStart?.(selection)}
+          >
+            Start practice
+          </Button>
+        </div>
 
-        <Button
-          asChild
-          variant="ghost"
-          className="mt-2 h-9 w-full rounded-full text-muted-foreground"
-        >
-          <Link to="/review/cards">
-            <Library className="icon-sm" strokeWidth={1.9} />
-            My cards
-          </Link>
-        </Button>
+        <div className="mt-2">
+          <Button asChild variant="ghost" shape="pill" size="sm" width="full">
+            <Link to="/review/cards">
+              <Library className="icon-sm" strokeWidth={1.9} />
+              My cards
+            </Link>
+          </Button>
+        </div>
       </div>
       {decksSection}
     </>

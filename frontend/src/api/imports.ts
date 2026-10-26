@@ -2,6 +2,7 @@ import type {
   ImportItem,
   ImportListResponse,
   ImportStatusFilter,
+  ImportTitleUpdate,
   PasteImportCreate,
 } from '@/types/api';
 
@@ -35,6 +36,13 @@ export async function createPasteImport(
 
 export async function retryImport(id: string): Promise<void> {
   await client.post(`/imports/${id}/retry`);
+}
+
+export async function renameImport({
+  id,
+  title,
+}: ImportTitleUpdate & { id: string }): Promise<ImportItem> {
+  return (await client.patch<ImportItem>(`/imports/${id}`, { title })).data;
 }
 
 export async function deleteImport(id: string): Promise<void> {

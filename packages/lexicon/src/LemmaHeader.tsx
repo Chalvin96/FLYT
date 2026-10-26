@@ -1,12 +1,38 @@
-import { Badge } from '@flyt/ui';
+import { Badge, Text, textVariants } from '@flyt/ui';
+import type { ClosedProps } from '@flyt/ui';
+import { cn, sentenceCaseLabel } from '@flyt/ui/lib/utils';
 import type { ReactNode, Ref } from 'react';
 import { Fragment } from 'react';
 
-import { formatLookupLabel, formatPos, posLabel } from './grammar';
-import type { LemmaPos } from './types';
+import { buildHeadwordForms, formatPos } from './grammar';
 import { PronunciationRow } from './PronunciationRow';
+import type { LemmaPos } from './types';
 
-export interface LemmaHeaderProps {
+export type LemmaHeadingTypography =
+  'default' | 'compact' | 'flashcard' | 'extension';
+
+const LEMMA_HEADER_PRESENTATION: Record<'default' | 'flashcard', string> = {
+  default: 'space-y-1.5',
+  flashcard:
+    '-mx-4 shrink-0 border-b border-default bg-neutral-subtle px-4 pb-4 pt-3 sm:-mx-5 sm:px-5 @2xl:-mx-8 @2xl:px-8 @2xl:pb-5 @2xl:pt-4',
+};
+
+const LEMMA_HEADING_BASE = `min-w-0 max-w-full break-words ${textVariants({ tone: 'default' })}`;
+
+const LEMMA_HEADING_ROW_PRESENTATION: Record<'default' | 'flashcard', string> =
+  {
+    default: 'flex min-w-0 flex-wrap items-start gap-3',
+    flashcard: '@2xl:flex @2xl:flex-wrap @2xl:items-baseline @2xl:gap-x-5',
+  };
+
+const LEMMA_HEADING_TYPOGRAPHY: Record<LemmaHeadingTypography, string> = {
+  default: textVariants({ size: '4xl-none' }),
+  compact: textVariants({ size: '3xl' }),
+  flashcard: textVariants({ size: '4xl', weight: 'semibold' }),
+  extension: textVariants({ size: '2xl-none', font: 'serif', weight: 'bold' }),
+};
+
+export interface LemmaHeaderProps extends ClosedProps<'header'> {
   word: string;
   pos: LemmaPos;
   primaryDisplayForm?: string | null;
@@ -16,7 +42,7 @@ export interface LemmaHeaderProps {
   intonation?: string | null;
   audioUrl?: string | null;
   headingAs?: 'h2' | 'h3';
-  headingClassName?: string;
+  headingTypography?: LemmaHeadingTypography;
   /** Presentation used by the answer face's layered header band. */
   presentation?: 'default' | 'flashcard';
   grammarMetadata?: string | null;
@@ -24,14 +50,7 @@ export interface LemmaHeaderProps {
 }
 
 function EyebrowChip({ children }: { children: ReactNode }) {
-  return (
-    <Badge
-      variant="outline"
-      className="h-5.5 rounded-full border-secondary-20 bg-white-100 px-2.5 type-label-sm font-bold tracking-label-tight text-secondary-70"
-    >
-      {children}
-    </Badge>
-  );
+  return <Badge eyebrow>{children}</Badge>;
 }
 
 export function LemmaHeader({
@@ -44,17 +63,22 @@ export function LemmaHeader({
   intonation,
   audioUrl,
   headingAs: Tag = 'h3',
-  headingClassName = 'font-display text-4xl leading-none text-secondary-90',
+  headingTypography,
   presentation = 'default',
   grammarMetadata,
   headingRef,
+  ...headerProps
 }: LemmaHeaderProps) {
-  const displayWord = primaryDisplayForm || formatLookupLabel(word);
+  const forms = primaryDisplayForm
+    ? { canonical: primaryDisplayForm, display: primaryDisplayForm }
+    : buildHeadwordForms(word);
   const otherForms = alternativeForms?.filter(Boolean) ?? [];
   const isFlashcard = presentation === 'flashcard';
-  const posText = posLabel(pos);
+  const posText = sentenceCaseLabel(formatPos(pos));
   const showEyebrow =
     isFlashcard && (pos !== 'unknown' || Boolean(grammarMetadata));
+  const resolvedHeadingTypography =
+    headingTypography ?? (isFlashcard ? 'flashcard' : 'default');
 
   const pronunciation = (
     <PronunciationRow
@@ -62,69 +86,64 @@ export function LemmaHeader({
       ipaApproximate={ipaApproximate}
       intonation={intonation}
       audioUrl={audioUrl}
-      className={isFlashcard ? 'mt-2.5 @2xl:mt-0' : ''}
-      audioClassName={isFlashcard ? '-m-2' : ''}
-      audioPosition={isFlashcard ? 'trailing' : 'leading'}
-      audioAppearance={isFlashcard ? 'quiet' : 'default'}
+      presentation={isFlashcard ? 'flashcard' : 'default'}
     />
   );
 
   return (
     <header
       data-testid={isFlashcard ? 'flashcard-answer-header' : undefined}
-      className={
-        isFlashcard
-          ? '-mx-4 shrink-0 border-b border-secondary-20 bg-secondary-10 px-4 pb-4 pt-3 sm:-mx-5 sm:px-5 @2xl:-mx-8 @2xl:px-8 @2xl:pb-5 @2xl:pt-4'
-          : 'space-y-1.5'
-      }
+      {...headerProps}
+      className={LEMMA_HEADER_PRESENTATION[presentation]}
+      style={undefined}
     >
       {showEyebrow ? (
         <div
           className="mb-2 flex flex-wrap items-center gap-2"
           data-testid="flashcard-answer-eyebrow"
         >
-          {pos !== 'unknown' ? (
-            <EyebrowChip>{formatPos(pos)}</EyebrowChip>
-          ) : null}
+          {pos !== 'unknown' ? <EyebrowChip>{posText}</EyebrowChip> : null}
           {grammarMetadata ? (
-            <EyebrowChip>{grammarMetadata}</EyebrowChip>
+            <EyebrowChip>{sentenceCaseLabel(grammarMetadata)}</EyebrowChip>
           ) : null}
         </div>
       ) : null}
-      <div
-        className={
-          isFlashcard
-            ? '@2xl:flex @2xl:flex-wrap @2xl:items-baseline @2xl:gap-x-5'
-            : 'flex min-w-0 flex-wrap items-start gap-3'
-        }
-      >
+      <div className={LEMMA_HEADING_ROW_PRESENTATION[presentation]}>
         <Tag
           ref={headingRef}
-          className={`${headingClassName} min-w-0 max-w-full break-words ${isFlashcard ? '' : 'flex-1'}`}
-          aria-label={displayWord}
+          className={cn(
+            LEMMA_HEADING_BASE,
+            LEMMA_HEADING_TYPOGRAPHY[resolvedHeadingTypography],
+            !isFlashcard && 'flex-1',
+          )}
+          aria-label={forms.canonical}
           tabIndex={isFlashcard ? -1 : undefined}
         >
-          {displayWord}
+          {forms.display}
         </Tag>
         {isFlashcard ? (
-          pronunciation
+          <span className="mt-2.5 flex min-w-0 @2xl:mt-0">{pronunciation}</span>
         ) : (
-          <span className="type-label-sm radius-sm border border-secondary-30 bg-secondary-0 px-2 py-0.5 text-secondary-70">
-            {posText}
-          </span>
+          <EyebrowChip>{posText}</EyebrowChip>
         )}
       </div>
       {isFlashcard ? null : pronunciation}
       {!isFlashcard && otherForms.length > 0 && (
-        <p className="type-caption text-secondary-70">
-          <span className="font-semibold">Other forms</span>{' '}
+        <Text as="p" size="medium" tone="subtle">
+          <Text as="span" weight="semibold">
+            Other forms
+          </Text>{' '}
           {otherForms.map((form, index) => (
             <Fragment key={form}>
-              {index > 0 && <span className="text-secondary-40"> · </span>}
+              {index > 0 && (
+                <Text as="span" tone="subtle">
+                  {' · '}
+                </Text>
+              )}
               <span>{form}</span>
             </Fragment>
           ))}
-        </p>
+        </Text>
       )}
     </header>
   );

@@ -1,11 +1,9 @@
+import { Button, Text } from '@flyt/ui';
 import { Info } from 'lucide-react';
-
-import { Button } from '@/components/common/Button/Button';
 
 import type { ChatGPTLinkFailure } from './ChatGPTLinkCard';
 
-const NOTICE_CONTAINER_CLASS =
-  'radius-field flex gap-3 border p-3 type-caption text-foreground';
+const NOTICE_CONTAINER_CLASS = 'radius-field flex gap-3 border p-3';
 
 interface StaticNotice {
   key: 'broken' | 'lapsed' | 'terminalIneligible';
@@ -31,8 +29,8 @@ function getStaticNotices({
       message:
         'The connection stopped working because another application signed in to the same ChatGPT account refreshed the credential.',
       alertRole: true,
-      className: 'border-destructive/30 bg-destructive/10',
-      iconClassName: 'text-destructive',
+      className: 'border-danger-subtle bg-danger/10',
+      iconClassName: 'text-danger',
     });
   }
   if (isLapsed) {
@@ -40,8 +38,8 @@ function getStaticNotices({
       key: 'lapsed',
       message: 'This code has expired. Get a new code to continue.',
       alertRole: false,
-      className: 'border-border bg-secondary-10',
-      iconClassName: 'text-muted-foreground',
+      className: 'border-default bg-neutral-subtle',
+      iconClassName: 'text-subtle',
     });
   }
   if (terminalIneligible) {
@@ -50,8 +48,8 @@ function getStaticNotices({
       message:
         'Your ChatGPT plan does not include the usage Flyt needs. A Plus or Pro plan is required. Nothing was connected or charged.',
       alertRole: true,
-      className: 'border-warning/40 bg-warning/10',
-      iconClassName: 'text-warning-80',
+      className: 'border-warning-subtle bg-warning-subtle',
+      iconClassName: 'text-icon-warning',
     });
   }
   return notices;
@@ -109,7 +107,9 @@ function NoticeRow({
       role={alertRole ? 'alert' : undefined}
     >
       <NoticeIcon iconClassName={iconClassName} />
-      <p>{message}</p>
+      <Text as="p" size="medium" tone="default">
+        {message}
+      </Text>
     </div>
   );
 }
@@ -117,23 +117,26 @@ function NoticeRow({
 function FailureNotice({ failure }: { failure: ChatGPTLinkFailure }) {
   return (
     <div
-      className="radius-field flex flex-col gap-2 border border-warning/40 bg-warning/10 p-3 type-caption text-foreground"
+      className="radius-field flex flex-col gap-2 border border-warning-subtle bg-warning-subtle p-3"
       role="alert"
     >
       <div className="flex gap-3">
-        <NoticeIcon iconClassName="text-warning-80" />
-        <p>{failure.message}</p>
+        <NoticeIcon iconClassName="text-icon-warning" />
+        <Text as="p" size="medium" tone="default">
+          {failure.message}
+        </Text>
       </div>
       {failure.cta ? (
-        <Button
-          className="self-start"
-          onClick={failure.cta.onClick}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
-          {failure.cta.label}
-        </Button>
+        <span className="self-start">
+          <Button
+            onClick={failure.cta.onClick}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            {failure.cta.label}
+          </Button>
+        </span>
       ) : null}
     </div>
   );

@@ -1,3 +1,5 @@
+import { Heading } from '@flyt/ui';
+
 import { cn } from '@/lib/utils';
 import type { LessonSummaryRead } from '@/types/api';
 
@@ -22,11 +24,11 @@ function getStateText(state: LessonSummaryRead['state']) {
 function getStateToneClassName(state: LessonSummaryRead['state']) {
   switch (state) {
     case K_LESSON_STATE.COMPLETED:
-      return 'bg-secondary-20 text-secondary-90';
+      return 'bg-neutral-pressed text-default';
     case K_LESSON_STATE.IN_PROGRESS:
-      return 'bg-primary-20 text-primary-90';
+      return 'bg-selected-hovered text-selected';
     case K_LESSON_STATE.NOT_STARTED:
-      return 'bg-black-10 text-black-50';
+      return 'bg-disabled text-disabled';
   }
 }
 
@@ -34,13 +36,14 @@ export function LessonStateLabel({ state, className }: LessonStateLabelProps) {
   return (
     <span
       className={cn(
-        'inline-flex rounded-full type-label-sm',
-        'px-2 py-0.5',
+        'inline-flex rounded-full px-2 py-0.5',
         getStateToneClassName(state),
         className,
       )}
     >
-      {getStateText(state)}
+      <Heading as="span" size="xxsmall">
+        {getStateText(state)}
+      </Heading>
     </span>
   );
 }

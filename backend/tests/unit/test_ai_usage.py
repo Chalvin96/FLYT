@@ -1,4 +1,6 @@
 from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 
 from flyt.apps.ai_usage.types import AiUsageStatus
 from flyt.apps.ai_usage.week import calculate_utc_week_start
@@ -26,6 +28,14 @@ def test_utc_week_start_given_monday_expect_same_day() -> None:
         calculate_utc_week_start(datetime(2026, 8, 31, 0, 0))
         == datetime(2026, 8, 31).date()
     )
+
+
+def test_utc_week_start_given_local_monday_still_utc_sunday_expect_previous_monday() -> (
+    None
+):
+    local_monday = datetime(2026, 8, 31, 0, 30, tzinfo=timezone(timedelta(hours=2)))
+
+    assert calculate_utc_week_start(local_monday) == datetime(2026, 8, 24).date()
 
 
 def test_remaining_percent_given_fraction_expect_rounds_down() -> None:

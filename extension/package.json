@@ -7,35 +7,45 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:firefox": "FLYT_BROWSER=firefox vite build",
+    "lint": "eslint .",
+    "lint:firefox": "web-ext lint -s dist/firefox",
     "type-check": "tsc --noEmit && tsc --noEmit -p e2e/tsconfig.json",
     "test": "vitest run",
-    "test:e2e": "bash ../scripts/run_extension_e2e.sh"
+    "test:e2e": "bash ../scripts/run_extension_e2e.sh",
+    "icons:generate": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
     "@flyt/lexicon": "workspace:*",
     "@flyt/ui": "workspace:*",
     "@mozilla/readability": "^0.6.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "lucide-react": "^1.60.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@crxjs/vite-plugin": "^2.7.1",
-    "@playwright/test": "^1.63.0",
+    "@crxjs/vite-plugin": "^3.0.0",
+    "@playwright/test": "^1.64.1",
+    "@storybook/react": "^10.6.3",
     "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
-    "@testing-library/user-event": "^14.6.7",
-    "@types/chrome": "^0.2.9",
-    "@types/node": "^26.4.1",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
-    "@vitejs/plugin-react": "^6.1.1",
-    "autoprefixer": "^10.5.5",
-    "jsdom": "^30.0.1",
-    "postcss": "^8.5.28",
+    "@testing-library/user-event": "^14.6.8",
+    "@types/chrome": "^0.3.6",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "autoprefixer": "^10.6.1",
+    "jsdom": "^30.1.3",
+    "postcss": "^8.5.31",
+    "publish-browser-extension": "6.2.0",
+    "sharp": "0.35.5",
+    "storybook": "^10.6.3",
     "tailwindcss": "^4.3.3",
     "typescript": "~7.0.2",
-    "vite": "^8.2.2",
-    "vitest": "^5.0.0"
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5",
+    "web-ext": "10.8.0"
   }
 }

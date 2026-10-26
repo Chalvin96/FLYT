@@ -8,11 +8,6 @@ import { FlashCardRecallFill } from './FlashCardRecallFill';
 
 type RecallFillExercise = Extract<Exercise, { operation: 'recall_fill' }>;
 
-/**
- * Build a minimal recall_fill exercise for tests. recall_fill is a
- * "choose the correct form" drill: each blank shows a minimal pair of forms
- * and one tap fills the slot in the sentence.
- */
 function makeExercise(
   overrides: Partial<{
     segments: RecallFillExercise['payload']['segments'];
@@ -43,7 +38,6 @@ function makeExercise(
   };
 }
 
-/** Find the inline blank slot for a given blank_id. */
 function getSlot(blankId: string): HTMLElement {
   const slot = screen
     .getAllByTestId('blank-fill')
@@ -52,7 +46,6 @@ function getSlot(blankId: string): HTMLElement {
   return slot;
 }
 
-/** A form option button by its visible text. */
 function option(text: string): HTMLElement {
   return screen.getByRole('radio', { name: text });
 }
@@ -65,6 +58,7 @@ describe('FlashCardRecallFill', () => {
 
     render(
       <FlashCardRecallFill
+        allowRetry={false}
         exercise={makeExercise({
           segments: [
             { kind: 'span', spans: [{ kind: 'text', value: ' og ' }] },
@@ -96,18 +90,22 @@ describe('FlashCardRecallFill', () => {
   });
 
   it('renders the sentence spans and an empty slot per blank', () => {
-    render(<FlashCardRecallFill exercise={makeExercise()} />);
+    render(
+      <FlashCardRecallFill allowRetry={false} exercise={makeExercise()} />,
+    );
 
     expect(screen.getByText(/Jeg/)).toBeInTheDocument();
     expect(screen.getByText(/en bok hver kveld/)).toBeInTheDocument();
 
     const slot = getSlot('verb');
-    expect(slot).toHaveAttribute('data-state', 'empty');
+    expect(slot).toHaveAttribute('data-state', 'idle');
     expect(slot).not.toHaveTextContent('...');
   });
 
   it('renders the forms as a "choose the correct form" radiogroup', () => {
-    render(<FlashCardRecallFill exercise={makeExercise()} />);
+    render(
+      <FlashCardRecallFill allowRetry={false} exercise={makeExercise()} />,
+    );
 
     expect(
       screen.getByRole('radiogroup', { name: /choose the correct form/i }),
@@ -115,31 +113,56 @@ describe('FlashCardRecallFill', () => {
     expect(option('leser')).toBeInTheDocument();
     expect(option('lese')).toBeInTheDocument();
     expect(option('leste')).toBeInTheDocument();
-    // No legacy <select>.
     expect(screen.queryByRole('combobox')).toBeNull();
   });
 
+  it('test_recall_fill_given_arrow_key_expect_selection_moves_with_focus', async () => {
+    const user = userEvent.setup();
+    render(
+      <FlashCardRecallFill allowRetry={false} exercise={makeExercise()} />,
+    );
+
+    await user.click(option('leser'));
+    await user.keyboard('{ArrowRight}');
+
+    const moved = option('lese');
+    expect(moved).toHaveFocus();
+    expect(moved).toHaveAttribute('aria-checked', 'true');
+    expect(option('leser')).toHaveAttribute('aria-checked', 'false');
+
+    const tabbable = screen
+      .getAllByRole('radio')
+      .filter((radio) => radio.getAttribute('tabindex') === '0');
+    expect(tabbable).toHaveLength(1);
+  });
+
   it('disables Check until every blank is filled', () => {
-    render(<FlashCardRecallFill exercise={makeExercise()} />);
+    render(
+      <FlashCardRecallFill allowRetry={false} exercise={makeExercise()} />,
+    );
     expect(screen.getByRole('button', { name: /check/i })).toBeDisabled();
   });
 
   it('fills the slot live with one tap on a form', async () => {
     const user = userEvent.setup();
-    render(<FlashCardRecallFill exercise={makeExercise()} />);
+    render(
+      <FlashCardRecallFill allowRetry={false} exercise={makeExercise()} />,
+    );
 
     await user.click(option('leser'));
 
     const slot = getSlot('verb');
     expect(slot).toHaveTextContent('leser');
-    expect(slot).toHaveAttribute('data-state', 'filled');
+    expect(slot).toHaveAttribute('data-state', 'selected');
     expect(option('leser')).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByRole('button', { name: /check/i })).not.toBeDisabled();
   });
 
   it('swaps the form when a different option is tapped', async () => {
     const user = userEvent.setup();
-    render(<FlashCardRecallFill exercise={makeExercise()} />);
+    render(
+      <FlashCardRecallFill allowRetry={false} exercise={makeExercise()} />,
+    );
 
     await user.click(option('leser'));
     await user.click(option('lese'));
@@ -153,10 +176,13 @@ describe('FlashCardRecallFill', () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
     render(
-      <FlashCardRecallFill exercise={makeExercise()} onFinished={onFinished} />,
+      <FlashCardRecallFill
+        allowRetry={false}
+        exercise={makeExercise()}
+        onFinished={onFinished}
+      />,
     );
 
-    // answer_index = 0 → "leser" is correct.
     await user.click(option('leser'));
     await user.click(screen.getByRole('button', { name: /check/i }));
 
@@ -164,49 +190,54 @@ describe('FlashCardRecallFill', () => {
     expect(getSlot('verb')).toHaveAttribute('data-state', 'correct');
 
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: true,
-      rating: 4,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
   });
 
   it('marks a wrong form as "Not quite" and reports correct:false', async () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
     render(
-      <FlashCardRecallFill exercise={makeExercise()} onFinished={onFinished} />,
+      <FlashCardRecallFill
+        allowRetry={false}
+        exercise={makeExercise()}
+        onFinished={onFinished}
+      />,
     );
 
-    // "lese" (index 1) is wrong.
     await user.click(option('lese'));
     await user.click(screen.getByRole('button', { name: /check/i }));
 
     expect(screen.getByText(/not quite/i)).toBeInTheDocument();
-    expect(getSlot('verb')).toHaveAttribute('data-state', 'wrong');
+    expect(getSlot('verb')).toHaveAttribute('data-state', 'incorrect');
 
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: false,
-      rating: 1,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: false }),
+    );
   });
 
   it('disables the form options after Check', async () => {
     const user = userEvent.setup();
-    render(<FlashCardRecallFill exercise={makeExercise()} />);
+    render(
+      <FlashCardRecallFill allowRetry={false} exercise={makeExercise()} />,
+    );
 
     await user.click(option('leser'));
     await user.click(screen.getByRole('button', { name: /check/i }));
 
-    expect(option('leser')).toBeDisabled();
+    expect(
+      screen.getByRole('radio', { name: /leser.*correct/ }),
+    ).toBeDisabled();
     expect(option('lese')).toBeDisabled();
   });
 
   it('supports keyboard selection of a form', async () => {
     const user = userEvent.setup();
-    render(<FlashCardRecallFill exercise={makeExercise()} />);
+    render(
+      <FlashCardRecallFill allowRetry={false} exercise={makeExercise()} />,
+    );
 
     await user.tab();
     expect(option('leser')).toHaveFocus();
@@ -220,6 +251,7 @@ describe('FlashCardRecallFill', () => {
     const user = userEvent.setup();
     render(
       <FlashCardRecallFill
+        allowRetry={false}
         exercise={makeExercise({
           segments: [
             { kind: 'span', spans: [{ kind: 'text', value: 'Han ' }] },

@@ -61,7 +61,14 @@ K_MIN_SECRET_LENGTH = 6
 K_NOQA = re.compile(
     r"(?:#|//).*?(?:noqa|ume-ignore)(?::\s*([^\s]+(?:\s*,\s*[^\s]+)*))?", re.IGNORECASE
 )
+K_TEST_MODULE = re.compile(r"\.(?:test|spec)\.(?:js|jsx|ts|tsx)$")
+K_CLASS_MEMBER_READ = re.compile(r"\.\s*(?:className|classList)\b")
+K_CLASS_DESTRUCTURE = re.compile(
+    r"\b(?:const|let|var)\s*\{[^}]*\b(?:className|classList)\b[^}]*\}\s*="
+)
+K_CLASS_ASSERTION_EXEMPT_PACKAGES = ("packages/ui",)
 K_DATABASE_ROOTS = {"db", "database", "session", "unit_of_work", "uow"}
+
 K_SERVICE_MODULE_NAMES = {"services.py", "service.py"}
 K_UNSUPPRESSIBLE_RULES = frozenset({"UME-FAPI005"})
 
@@ -145,6 +152,10 @@ class Checker:
         related_lines: Iterable[int] = (),
     ) -> None:
         candidates = [line, *related_lines]
+        if rule not in K_UNSUPPRESSIBLE_RULES and any(
+            _is_suppressed(lines, candidate, rule) for candidate in candidates
+        ):
+            return
         if self.changed_lines is not None:
             changed = self.changed_lines.get(path, set())
             changed_candidates = [
@@ -704,34 +715,52 @@ def _check_python(  # noqa: C901, PLR0912, PLR0915
             )
 
 
-def _strip_js_comments(lines: list[str]) -> list[str]:
-    result: list[str] = []
-    in_block = False
+K_JS_STRING = re.compile(
+    r"""'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`"""
+)
+
+
+def _blank_js_comments_and_strings(lines: list[str]) -> list[str]:
+    blanked: list[str] = []
+    in_block_comment = False
     for line in lines:
-        output = line
-        if in_block:
-            end = output.find("*/")
-            if end < 0:
-                result.append("")
+        characters = list(line)
+        index = 0
+        while index < len(characters):
+            if in_block_comment:
+                if line.startswith("*/", index):
+                    characters[index] = " "
+                    characters[index + 1] = " "
+                    in_block_comment = False
+                    index += 2
+                    continue
+                characters[index] = " "
+                index += 1
                 continue
-            output = output[end + 2 :]
-            in_block = False
-        while "/*" in output:
-            start = output.find("/*")
-            end = output.find("*/", start + 2)
-            if end < 0:
-                output = output[:start]
-                in_block = True
+            if line.startswith("//", index):
+                characters[index:] = [" "] * (len(characters) - index)
                 break
-            output = output[:start] + output[end + 2 :]
-        output = re.sub(r"//.*$", "", output)
-        result.append(output)
-    return result
+            if line.startswith("/*", index):
+                characters[index] = " "
+                characters[index + 1] = " "
+                in_block_comment = True
+                index += 2
+                continue
+            string = K_JS_STRING.match(line, index)
+            if string is not None:
+                characters[index : string.end()] = [" "] * (string.end() - index)
+                index = string.end()
+                continue
+            index += 1
+        blanked.append("".join(characters))
+    return blanked
 
 
 def _check_javascript(checker: Checker, path: str, text: str) -> None:
     original_lines = text.splitlines()
-    lines = _strip_js_comments(original_lines)
+    lines = _blank_js_comments_and_strings(original_lines)
+    if _is_class_read_scope(path):
+        _check_class_reads(checker, path, lines, original_lines)
     for number, line in enumerate(lines, 1):
         # UME-TS001: explicit `any` hides an untyped boundary.
         if re.search(
@@ -1047,6 +1076,48 @@ def main() -> int:  # ume-ignore: UME-PY003
     else:
         print("No mechanical findings.")
     return 1 if checker.findings else 0
+
+
+def _is_class_read_scope(path: str) -> bool:
+    """Whether UME-DS004 reaches a path: a test outside the exempt packages."""
+    if any(
+        path == package or path.startswith(f"{package}/")
+        for package in K_CLASS_ASSERTION_EXEMPT_PACKAGES
+    ):
+        return False
+    return bool(K_TEST_MODULE.search(path))
+
+
+def _check_class_reads(
+    checker: Checker, path: str, lines: list[str], original_lines: list[str]
+) -> None:
+    """UME-DS004: the class attribute is not what a test outside @flyt/ui asserts.
+
+    Lint cannot see a class read that never reaches an `expect` chain, so a
+    destructured `className` or a helper returning one keeps the assertion out
+    of the ban's reach. Inside the design-system package a `cva` recipe's output
+    genuinely is the unit under test, so the package path is the exemption.
+    """
+    text = "\n".join(lines)
+    for number, line in enumerate(lines, 1):
+        if K_CLASS_MEMBER_READ.search(line):
+            checker.emit(
+                path,
+                number,
+                "UME-DS004",
+                "class attribute is read; assert what the learner perceives "
+                "(`data-state`, the role, `aria-*`, the accessible name)",
+                original_lines,
+            )
+    for match in K_CLASS_DESTRUCTURE.finditer(text):
+        checker.emit(
+            path,
+            text.count("\n", 0, match.start()) + 1,
+            "UME-DS004",
+            "class attribute is destructured out of an element; assert what the "
+            "learner perceives instead",
+            original_lines,
+        )
 
 
 if __name__ == "__main__":

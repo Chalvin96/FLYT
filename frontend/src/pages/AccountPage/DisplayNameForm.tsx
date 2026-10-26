@@ -1,17 +1,11 @@
+import { Button, Heading, Input, Text } from '@flyt/ui';
 import { PencilLine, Save } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
-import { Button } from '@/components/common/Button/Button';
-import { Input } from '@/components/ui/input';
 import type { useMe, useUpdateMe } from '@/hooks/auth/queries';
 
 type MeData = NonNullable<ReturnType<typeof useMe>['data']>;
 
-/**
- * Display-name editing: read-only input that flips into an editable save
- * flow. Optimistic local validation plus the mutation's own error state
- * surface under the field.
- */
 export function DisplayNameForm({
   user,
   updateMe,
@@ -60,34 +54,29 @@ export function DisplayNameForm({
 
   return (
     <form
-      className="radius-field border border-border bg-white-100 p-3"
+      className="radius-field border border-default bg-overlay p-3"
       key={user?.display_name}
       onSubmit={handleSaveName}
     >
-      <label
-        className="type-label-xs text-muted-foreground"
-        htmlFor="display-name"
-      >
-        Display name
+      <label className="text-subtle" htmlFor="display-name">
+        <Heading as="span" size="xxsmall">
+          Display name
+        </Heading>
       </label>
       <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-stretch">
         <Input
-          className={
-            isEditingName
-              ? 'h-11'
-              : 'h-11 cursor-default border-secondary-20 bg-secondary-0 shadow-none focus-visible:ring-0'
-          }
+          presentation={isEditingName ? 'default' : 'quiet'}
+          size="lg"
           id="display-name"
           maxLength={255}
           name="display_name"
           onChange={(event) => setDraftName(event.target.value)}
-          readOnly={!isEditingName}
           ref={displayNameInputRef}
           value={isEditingName ? draftName : (user?.display_name ?? '')}
         />
         {isEditingName ? (
           <Button
-            className="h-11 sm:w-auto"
+            width="full-on-mobile"
             disabled={!user || updateMe.isPending}
             type="submit"
             variant="secondary"
@@ -97,7 +86,7 @@ export function DisplayNameForm({
           </Button>
         ) : (
           <Button
-            className="h-11 sm:w-auto"
+            width="full-on-mobile"
             disabled={!user}
             onClick={handleEditName}
             type="button"
@@ -109,9 +98,11 @@ export function DisplayNameForm({
         )}
       </div>
       {formError || updateMe.isError ? (
-        <p className="type-caption mt-2 text-destructive-70">
-          {formError ?? 'Could not update your name. Try again.'}
-        </p>
+        <div className="mt-2 text-danger">
+          <Text as="p" size="medium">
+            {formError ?? 'Could not update your name. Try again.'}
+          </Text>
+        </div>
       ) : null}
     </form>
   );

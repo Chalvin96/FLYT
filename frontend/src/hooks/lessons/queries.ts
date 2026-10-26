@@ -7,6 +7,8 @@ import {
   listLessons,
   startLesson,
 } from '@/api/lessons';
+import { dashboardKeys } from '@/hooks/dashboard/queries';
+import { reviewKeys } from '@/hooks/review/queries';
 import { showApiError } from '@/lib/errors';
 import type { LessonProgressRead } from '@/types/api';
 
@@ -71,6 +73,8 @@ export function useCompleteLesson() {
     mutationFn: (lessonId: number) => completeLesson(lessonId),
     onSuccess: (_data, lessonId) => {
       void queryClient.invalidateQueries({ queryKey: lessonKeys.all });
+      void queryClient.invalidateQueries({ queryKey: reviewKeys.dueCards.all });
+      void queryClient.invalidateQueries({ queryKey: dashboardKeys.stats });
       void queryClient.invalidateQueries({
         queryKey: lessonKeys.detail(lessonId),
       });

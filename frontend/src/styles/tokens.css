@@ -1,0 +1,35 @@
+@import './theme-light.css';
+
+@theme inline {
+  --color-progress-primary-complete: var(--progress-primary-complete);
+  --color-progress-primary-current: var(--progress-primary-current);
+  --color-progress-locked: var(--progress-locked);
+  --color-progress-secondary-complete: var(--progress-secondary-complete);
+  --color-progress-secondary-current: var(--progress-secondary-current);
+
+  --animate-float: float 3.5s ease-in-out infinite;
+}
+
+:root {
+  --shell-device-width: 26.875rem;
+  --container-max: 80rem;
+
+  --shell-nav-height: 5.5rem;
+
+  --exercise-width: 100%;
+  --exercise-width-desktop: 46rem;
+  --loading-width: 24rem;
+  --session-content-width: 78rem;
+  --session-control-width: 18rem;
+  --dashboard-sidebar-width: 22rem;
+  --arrange-template-min-height: 6.25rem;
+
+  --grid-cell-size: 44px;
+
+  --shadow-mat:
+    inset 0 1px 0 var(--shadow-color-mat-1),
+    inset 0 0 0 1px var(--shadow-color-mat-2),
+    0 24px 42px -30px var(--shadow-color-mat-3);
+  --shadow-lift: 0 18px 32px -12px var(--shadow-color-lift);
+  --shadow-commit: 0 8px 18px -8px var(--shadow-color-commit);
+}

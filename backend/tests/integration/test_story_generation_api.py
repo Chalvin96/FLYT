@@ -106,6 +106,7 @@ async def test_surface_given_authenticated_expect_providers_and_anchors(
     user = await UserFactory.create_async()
     await seed_frequency_lemmas(db, user.id, 5)
     await authenticate(client, user)
+    db.expunge_all()
 
     resp = await client.get("/story-generation")
 
@@ -134,6 +135,7 @@ async def test_create_generation_given_no_topic_expect_accepted(
     await LemmaFactory.create(frequency_rank=10)
     await db.flush()
     await authenticate(client, user)
+    db.expunge_all()
 
     resp = await client.post(
         "/story-generation/generations",
@@ -432,6 +434,7 @@ async def test_current_given_ready_generation_expect_pages(
         text="Det var en gang en katt.",
         pages=_page_payload(pages),
     )
+    db.expunge_all()
 
     resp = await client.get("/story-generation/generations/current")
 
@@ -458,6 +461,7 @@ async def test_current_given_failed_generation_expect_failure_code(
         failure_code="STORY_GENERATION_FAILED",
         failure_message="Provider timed out",
     )
+    db.expunge_all()
 
     resp = await client.get("/story-generation/generations/current")
 
@@ -482,6 +486,7 @@ async def test_current_given_refused_generation_expect_refused_status(
         failure_code="STORY_GENERATION_ALLOWANCE_EXHAUSTED",
         failure_message="This story could not be started right now.",
     )
+    db.expunge_all()
 
     resp = await client.get("/story-generation/generations/current")
 
@@ -572,8 +577,6 @@ async def test_generating_given_no_import_expect_quota_unchanged(
     client: AsyncClient, db: AsyncSession
 ) -> None:
     """R-005: a generated story never counts as an import."""
-    from flyt.apps.reading.models import ImportQuota
-
     user = await UserFactory.create_async()
     await seed_frequency_lemmas(db, user.id, 3, known=True)
     await LemmaFactory.create(frequency_rank=10)
@@ -586,10 +589,8 @@ async def test_generating_given_no_import_expect_quota_unchanged(
     )
     assert resp.status_code == HTTPStatus.ACCEPTED
 
-    quota = await db.scalar(
-        select(ImportQuota.used).where(ImportQuota.user_id == user.id)
-    )
-    assert quota is None
+    imports = await client.get("/imports")
+    assert imports.json()["quota"]["used"] == 0
 
 
 async def test_current_given_no_generation_expect_null(
@@ -613,6 +614,7 @@ async def test_current_given_processing_generation_expect_processing(
     await authenticate(client, user)
 
     await add_generation(db, user.id, topic="katter")
+    db.expunge_all()
 
     resp = await client.get("/story-generation/generations/current")
 
@@ -693,6 +695,7 @@ async def test_current_given_ready_generation_with_known_and_unknown_lemmas_expe
         text="Katt hund.",
         pages=_page_payload(pages),
     )
+    db.expunge_all()
 
     resp = await client.get("/story-generation/generations/current")
 

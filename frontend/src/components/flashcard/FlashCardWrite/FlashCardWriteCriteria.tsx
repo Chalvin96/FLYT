@@ -1,11 +1,26 @@
+import { Text } from '@flyt/ui';
 import { Check, X } from 'lucide-react';
 import type { Ref } from 'react';
 
 import { cn } from '@/lib/utils';
 import type { WriteExercise, WriteJudgement } from '@/types/lesson-contracts';
 
+import {
+  criterionStatusText,
+  verdictCriterionClass,
+  verdictCriterionMarkerClass,
+  type StatusVerdict,
+} from '../answerVerdict';
+
 type Criterion = WriteExercise['payload']['criteria'][number];
-type Verdict = WriteJudgement['criteria'][number];
+type CriterionJudgement = WriteJudgement['criteria'][number];
+
+function buildCriterionVerdict(
+  judgement: CriterionJudgement | undefined,
+): StatusVerdict {
+  if (!judgement) return 'idle';
+  return judgement.met ? 'correct' : 'incorrect';
+}
 
 function normalizeForComparison(value: string): string {
   return value
@@ -28,41 +43,47 @@ function hasAdditionalEvidence(
 
 function criteriaSummary(
   judged: boolean,
-  metCount: number,
-  total: number,
+  metRequiredCriteriaCount: number,
+  requiredCriteriaCount: number,
+  totalCriteria: number,
 ): string {
   if (!judged) return 'What gets checked';
-  if (metCount === total) return 'All criteria met';
-  return `${metCount} of ${total} criteria met`;
+  if (metRequiredCriteriaCount === requiredCriteriaCount) {
+    return requiredCriteriaCount === totalCriteria
+      ? 'All criteria met'
+      : 'Task requirements met';
+  }
+  return requiredCriteriaCount === totalCriteria
+    ? `${metRequiredCriteriaCount} of ${requiredCriteriaCount} criteria met`
+    : `${metRequiredCriteriaCount} of ${requiredCriteriaCount} required criteria met`;
 }
 
 function CriterionMarker({
   index,
-  verdict,
+  judgement,
 }: {
   index: number;
-  verdict: Verdict | undefined;
+  judgement: CriterionJudgement | undefined;
 }) {
+  const verdict = buildCriterionVerdict(judgement);
   return (
     <span
       aria-hidden="true"
       className={cn(
-        'type-label-xs mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border',
-        verdict
-          ? verdict.met
-            ? 'border-accent-20 bg-accent-0 text-accent-90'
-            : 'border-destructive-20 bg-destructive-0 text-destructive-80'
-          : 'border-border bg-card text-muted-foreground',
+        'mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border',
+        verdictCriterionMarkerClass[verdict],
       )}
     >
-      {verdict ? (
-        verdict.met ? (
+      {judgement ? (
+        judgement.met ? (
           <Check className="size-3" />
         ) : (
           <X className="size-3" />
         )
       ) : (
-        index + 1
+        <Text as="span" role="eyebrow">
+          {index + 1}
+        </Text>
       )}
     </span>
   );
@@ -72,47 +93,47 @@ function CriterionCard({
   criterion,
   index,
   response,
-  verdict,
+  judgement,
 }: {
   criterion: Criterion;
   index: number;
   response: string;
-  verdict: Verdict | undefined;
+  judgement: CriterionJudgement | undefined;
 }) {
-  const evidence = verdict?.evidence?.trim();
+  const evidence = judgement?.evidence?.trim();
   const showEvidence =
-    Boolean(verdict && evidence) &&
-    hasAdditionalEvidence(evidence ?? '', response, verdict?.met ?? false);
+    Boolean(judgement && evidence) &&
+    hasAdditionalEvidence(evidence ?? '', response, judgement?.met ?? false);
+  const verdict = buildCriterionVerdict(judgement);
 
   return (
     <li className="min-w-0">
       <div
         className={cn(
           'radius-field flex h-full items-start gap-2 border p-3',
-          verdict?.met
-            ? 'border-accent-20 bg-accent-0'
-            : verdict
-              ? 'border-destructive-20 bg-destructive-0'
-              : 'border-border bg-card/60',
+          verdictCriterionClass[verdict],
         )}
       >
-        <CriterionMarker index={index} verdict={verdict} />
+        <CriterionMarker index={index} judgement={judgement} />
         <div className="min-w-0 flex-1">
-          <p className="type-caption text-muted-foreground">
+          <Text size="medium" tone="subtle">
             {criterion.instruction}
-            {verdict ? (
+            {judgement ? (
               <span className="sr-only">
-                {verdict.met ? ' — met' : ' — not met'}
+                {' — '}
+                {criterionStatusText[verdict]}
               </span>
             ) : null}
-          </p>
+          </Text>
           {showEvidence ? (
-            <p
-              className="type-caption-sm mt-1 line-clamp-2 border-l-2 border-border pl-2 text-muted-foreground italic"
+            <div
+              className="mt-1 line-clamp-2 border-l-2 border-default pl-2 italic"
               lang="no"
             >
-              &ldquo;{evidence}&rdquo;
-            </p>
+              <Text size="small" tone="subtle">
+                &ldquo;{evidence}&rdquo;
+              </Text>
+            </div>
           ) : null}
         </div>
       </div>
@@ -124,21 +145,28 @@ export function CriteriaStrip({
   criteria,
   verdictById,
   judged,
-  metCount,
+  metRequiredCriteriaCount,
+  requiredCriteriaCount,
   response,
   ref,
 }: {
   criteria: Criterion[];
-  verdictById: Map<string, Verdict>;
+  verdictById: Map<string, CriterionJudgement>;
   judged: boolean;
-  metCount: number;
+  metRequiredCriteriaCount: number;
+  requiredCriteriaCount: number;
   response: string;
   ref?: Ref<HTMLDivElement>;
 }) {
   return (
     <div className="flex flex-col gap-2" data-testid="write-criteria" ref={ref}>
       <p className="sr-only" data-testid="write-criteria-summary" role="status">
-        {criteriaSummary(judged, metCount, criteria.length)}
+        {criteriaSummary(
+          judged,
+          metRequiredCriteriaCount,
+          requiredCriteriaCount,
+          criteria.length,
+        )}
       </p>
       <ul className="grid gap-2 sm:grid-cols-2" role="list">
         {criteria.map((criterion, index) => (
@@ -147,7 +175,7 @@ export function CriteriaStrip({
             index={index}
             key={criterion.id}
             response={response}
-            verdict={judged ? verdictById.get(criterion.id) : undefined}
+            judgement={judged ? verdictById.get(criterion.id) : undefined}
           />
         ))}
       </ul>

@@ -4,16 +4,23 @@ import type { StoryParagraph } from './storyParagraphs';
 import { WordSpan } from './WordSpan';
 
 const WORD_TOKEN_PATTERN = /\p{L}/u;
+const CLOSING_PUNCTUATION = /^[.,!?;:%)\]»”’]+/u;
 
 interface StoryParagraphViewProps {
   paragraph: StoryParagraph;
   paragraphIndex: number;
-  onOpenLemma: (lemmaUuid: string | null, text: string) => void;
+  currentWordKey?: string;
+  onOpenLemma: (
+    lemmaUuid: string | null,
+    text: string,
+    wordKey: string,
+  ) => void;
 }
 
 function StoryParagraphViewComponent({
   paragraph,
   paragraphIndex,
+  currentWordKey,
   onOpenLemma,
 }: StoryParagraphViewProps) {
   return (
@@ -21,17 +28,35 @@ function StoryParagraphViewComponent({
       {paragraph.map((part, partIndex) => {
         const partKey = `${part.isToken ? 'token' : 'text'}-${paragraphIndex}-${partIndex}-${part.text}-${part.lemmaUuid ?? ''}`;
         if (!part.isToken || !WORD_TOKEN_PATTERN.test(part.text)) {
-          return <span key={partKey}>{part.text}</span>;
+          const preceding = paragraph[partIndex - 1];
+          const text =
+            preceding?.isToken && WORD_TOKEN_PATTERN.test(preceding.text)
+              ? part.text.replace(CLOSING_PUNCTUATION, '')
+              : part.text;
+          return <span key={partKey}>{text}</span>;
         }
 
+        const following = paragraph[partIndex + 1];
+        const punctuation =
+          following &&
+          (!following.isToken || !WORD_TOKEN_PATTERN.test(following.text))
+            ? (following.text.match(CLOSING_PUNCTUATION)?.[0] ?? '')
+            : '';
         return (
           <WordSpan
             key={partKey}
-            text={part.text}
+            text={part.text + punctuation}
             state={part.state}
             hasLemma={part.lemmaUuid !== null}
             isInteractive
-            onClick={() => onOpenLemma(part.lemmaUuid, part.text)}
+            current={currentWordKey === `${paragraphIndex}-${partIndex}`}
+            onClick={() =>
+              onOpenLemma(
+                part.lemmaUuid,
+                part.text,
+                `${paragraphIndex}-${partIndex}`,
+              )
+            }
           />
         );
       })}

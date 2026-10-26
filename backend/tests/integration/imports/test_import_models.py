@@ -21,6 +21,8 @@ from tests.factories import ImportMetaFactory
 from tests.factories import StoryFactory
 from tests.factories import UserFactory
 from tests.factories import UserStoryFactory
+from tests.helpers.sql_log import capture_sql
+from tests.helpers.sql_log import statements_reading
 
 pytestmark = pytest.mark.anyio
 
@@ -199,3 +201,32 @@ async def test_import_meta_given_story_deleted_expect_cascade_removal(
         select(func.count()).select_from(ImportMeta).where(ImportMeta.id == meta.id)
     )
     assert remaining.scalar_one() == 0
+
+
+async def test_story_given_fresh_session_delete_expect_user_stories_cascaded_without_select(
+    db: AsyncSession,
+) -> None:
+    story = await StoryFactory.create()
+    first_user = await UserFactory.create()
+    second_user = await UserFactory.create()
+    await UserStoryFactory.create(user_id=first_user.id, story_id=story.id)
+    await UserStoryFactory.create(user_id=second_user.id, story_id=story.id)
+    await db.flush()
+
+    async with AsyncSession(
+        bind=db.bind, join_transaction_mode="create_savepoint"
+    ) as fresh_session:
+        loaded_story = await fresh_session.get(Story, story.id)
+        assert loaded_story is not None
+
+        with capture_sql(fresh_session) as executed:
+            await fresh_session.delete(loaded_story)
+            await fresh_session.flush()
+
+        assert statements_reading(executed, "user_stories") == []
+        remaining = await fresh_session.scalar(
+            select(func.count())
+            .select_from(UserStory)
+            .where(UserStory.story_id == story.id)
+        )
+        assert remaining == 0

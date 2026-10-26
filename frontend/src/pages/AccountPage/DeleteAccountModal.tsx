@@ -1,10 +1,8 @@
+import { Button, Heading, Input, Modal, Text } from '@flyt/ui';
 import { useId, useState } from 'react';
 import { isAxiosError } from 'axios';
 
-import { Button } from '@/components/common/Button/Button';
 import { ErrorMessage } from '@/components/common/ErrorMessage/ErrorMessage';
-import { Modal } from '@/components/common/Modal/Modal';
-import { Input } from '@/components/ui/input';
 import { useDeleteAccount, useDeletionPreview } from '@/hooks/account/queries';
 import { type DeletionPreviewRead } from '@/types/api';
 
@@ -51,7 +49,7 @@ function LossPanel({
       >
         {[55, 70, 48, 62].map((width) => (
           <span
-            className="h-3 animate-pulse rounded-full bg-secondary-10"
+            className="h-3 animate-pulse rounded-full bg-neutral-subtle"
             key={width}
             style={{ width: `${width}%` }}
           />
@@ -64,10 +62,14 @@ function LossPanel({
     <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1.5">
       {LOSS_LABELS.map(([key, label]) => (
         <div className="contents" key={key}>
-          <dd className="type-section font-bold text-foreground">
-            {preview ? COUNT_FORMATTER.format(preview[key]) : '—'}
+          <dd>
+            <Heading as="div" size="medium" tone="default">
+              {preview ? COUNT_FORMATTER.format(preview[key]) : '—'}
+            </Heading>
           </dd>
-          <dt className="type-caption text-muted-foreground">{label}</dt>
+          <Text as="dt" size="medium" tone="subtle">
+            {label}
+          </Text>
         </div>
       ))}
     </dl>
@@ -120,7 +122,7 @@ export function DeleteAccountModal({
             disabled={!isArmed || isDeleting || !preview.data}
             onClick={confirm}
             type="button"
-            variant="destructive"
+            variant="danger"
           >
             {isDeleting ? 'Deleting...' : 'Delete account'}
           </Button>
@@ -132,7 +134,7 @@ export function DeleteAccountModal({
     >
       <div className="space-y-4">
         <div
-          className={`radius-field border border-border bg-white-100 p-3.5 ${
+          className={`radius-field border border-default bg-overlay p-3.5 ${
             isDeleting ? 'opacity-50' : ''
           }`}
         >
@@ -153,28 +155,26 @@ export function DeleteAccountModal({
         )}
 
         <div>
-          <label
-            className="type-label-xs text-muted-foreground"
-            htmlFor={inputId}
-          >
-            Type <strong className="text-foreground">{email}</strong> to confirm
+          <label className="text-subtle" htmlFor={inputId}>
+            <Heading as="span" size="xxsmall">
+              Type <strong className="text-default">{email}</strong> to confirm
+            </Heading>
           </label>
           <Input
             aria-describedby={hintId}
             autoComplete="off"
-            className="mt-1.5 h-11"
+            size="lg"
             disabled={isDeleting}
             id={inputId}
             onChange={(event) => setTyped(event.target.value)}
             placeholder={email}
             value={typed}
           />
-          <p
-            className="mt-1.5 type-caption-sm text-muted-foreground"
-            id={hintId}
-          >
-            Delete account stays unavailable until this matches.
-          </p>
+          <div className="mt-1.5">
+            <Text as="p" size="small" tone="subtle" id={hintId}>
+              Delete account stays unavailable until this matches.
+            </Text>
+          </div>
         </div>
 
         {deletion.isError &&

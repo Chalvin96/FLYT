@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
@@ -276,20 +276,132 @@ describe('LessonPage', () => {
     const a2Option = screen.getByRole('radio', { name: /Norwegian A2/i });
     a1Option.focus();
 
-    await user.keyboard('{ArrowDown}');
+    await user.keyboard('{ArrowDown>}');
+    await new Promise((r) => setTimeout(r, 0));
 
+    await user.keyboard('{/ArrowDown}');
     expect(a2Option).toHaveFocus();
     expect(a2Option).toHaveAttribute('aria-checked', 'true');
     expect(a1Option).toHaveAttribute('tabindex', '-1');
   });
 
-  it('test_lesson_page_given_hero_and_catalog_expect_medium_gap_before_selector', () => {
-    render(<LessonPage lessons={lessons} />);
+  it('test_lesson_page_given_open_level_selector_expect_single_roving_tab_stop', async () => {
+    const user = userEvent.setup();
 
-    expect(screen.getByTestId('lesson-browse-content')).toHaveClass(
-      'mt-4',
-      'sm:mt-5',
+    render(<LessonPage lessons={mixedLevelLessons} />);
+    await user.click(
+      screen.getByRole('button', { name: /choose active course/i }),
     );
+
+    const group = screen.getByRole('radiogroup', {
+      name: 'Choose CEFR level',
+    });
+    const a1Option = screen.getByRole('radio', { name: /Norwegian A1/i });
+    a1Option.focus();
+
+    expect(group).toHaveAttribute('tabindex', '0');
+    expect(group).toHaveAttribute('aria-orientation', 'vertical');
+    expect(
+      screen
+        .getAllByRole('radio')
+        .filter((radio) => radio.getAttribute('tabindex') === '0'),
+    ).toEqual([a1Option]);
+  });
+
+  it('test_lesson_page_given_open_level_selector_expect_end_key_focuses_last_level', async () => {
+    const user = userEvent.setup();
+
+    render(<LessonPage lessons={mixedLevelLessons} />);
+    await user.click(
+      screen.getByRole('button', { name: /choose active course/i }),
+    );
+
+    screen.getByRole('radio', { name: /Norwegian A1/i }).focus();
+    await user.keyboard('{End>}');
+    await new Promise((r) => setTimeout(r, 0));
+    await user.keyboard('{/End}');
+
+    expect(screen.getByRole('radio', { name: /Norwegian B1/i })).toHaveFocus();
+  });
+
+  it('test_lesson_page_given_open_level_selector_expect_home_key_focuses_first_level', async () => {
+    const user = userEvent.setup();
+
+    render(<LessonPage lessons={mixedLevelLessons} />);
+    await user.click(
+      screen.getByRole('button', { name: /choose active course/i }),
+    );
+
+    screen.getByRole('radio', { name: /Norwegian B1/i }).focus();
+    await user.keyboard('{Home>}');
+    await new Promise((r) => setTimeout(r, 0));
+    await user.keyboard('{/Home}');
+
+    const a1Option = screen.getByRole('radio', { name: /Norwegian A1/i });
+    expect(a1Option).toHaveFocus();
+    expect(a1Option).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('test_lesson_page_given_open_level_selector_expect_escape_closes', async () => {
+    const user = userEvent.setup();
+
+    render(<LessonPage lessons={mixedLevelLessons} />);
+    await user.click(
+      screen.getByRole('button', { name: /choose active course/i }),
+    );
+    expect(
+      screen.getByRole('radio', { name: /Norwegian A2/i }),
+    ).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('radio', { name: /Norwegian A2/i }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it('test_lesson_page_given_open_level_selector_expect_space_commits_and_closes', async () => {
+    const user = userEvent.setup();
+
+    render(<LessonPage lessons={mixedLevelLessons} />);
+    await user.click(
+      screen.getByRole('button', { name: /choose active course/i }),
+    );
+
+    screen.getByRole('radio', { name: /Norwegian A2/i }).focus();
+    await user.keyboard(' ');
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('radiogroup', { name: 'Choose CEFR level' }),
+      ).not.toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole('heading', { name: 'A2 first lesson', level: 2 }),
+    ).toBeInTheDocument();
+  });
+
+  it('test_lesson_page_given_open_level_selector_expect_enter_commits_and_closes', async () => {
+    const user = userEvent.setup();
+
+    render(<LessonPage lessons={mixedLevelLessons} />);
+    await user.click(
+      screen.getByRole('button', { name: /choose active course/i }),
+    );
+
+    screen.getByRole('radio', { name: /Norwegian A2/i }).focus();
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('radiogroup', { name: 'Choose CEFR level' }),
+      ).not.toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole('heading', { name: 'A2 first lesson', level: 2 }),
+    ).toBeInTheDocument();
   });
 
   it('test_lesson_page_given_empty_release_expect_renders_empty_state', () => {

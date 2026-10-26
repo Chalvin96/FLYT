@@ -62,6 +62,14 @@ def test_find_violations_given_dynamic_vitest_title_expect_violation() -> None:
     assert [violation.name for violation in violations] == ["nonliteral Vitest title"]
 
 
+def test_find_violations_given_regex_test_method_call_expect_empty(  # ume-ignore: UME-PY003
+) -> None:
+    checker = _checker()
+    source = "const FILE = /x/;\nif (FILE.test(name)) skip();\n"
+
+    assert checker.find_violations("frontend/src/parser.test.ts", source, {1, 2}) == []
+
+
 def test_is_test_path_given_backend_scope_and_frontend_file_expect_false() -> None:
     checker = _checker()
 

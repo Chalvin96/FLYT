@@ -130,7 +130,7 @@ const delay = <T,>(value: T, ms = 1600): Promise<T> =>
   new Promise((resolve) => setTimeout(() => resolve(value), ms));
 
 const meta = {
-  title: 'Flashcard/FlashCardWrite',
+  title: 'Features/Flashcard/FlashCardWrite',
   component: FlashCardWrite,
   tags: ['autodocs'],
   decorators: [
@@ -144,7 +144,7 @@ const meta = {
     ),
   ],
   parameters: { layout: 'fullscreen' },
-  args: { exercise, className: 'flex-1', desktopExpanded: true },
+  args: { allowRetry: true, exercise, layout: 'fill', desktopExpanded: true },
   argTypes: { onFinished: { action: 'onFinished' } },
 } satisfies Meta<typeof FlashCardWrite>;
 export default meta;

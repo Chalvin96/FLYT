@@ -49,4 +49,4 @@ class ChatGPTLink(BaseModel, DateTimeMixin):
     model_key: Mapped[str | None] = mapped_column(String, nullable=True)
     last_refresh_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
-    user = relationship("User", foreign_keys=[user_id], lazy="selectin")
+    user = relationship("User", foreign_keys=[user_id], lazy="raise")

@@ -1,0 +1,9 @@
+body:has([data-visual-host]) {
+  background: white;
+}
+
+#stage {
+  box-sizing: border-box;
+  width: 480px;
+  padding: 10px;
+}

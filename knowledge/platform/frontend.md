@@ -1,22 +1,33 @@
 # Frontend boundaries
 
-Keep request serialization in `src/api/<capability>.ts`, server-state keys and caching in `src/hooks/<capability>/queries.ts`, screen state in pages/routes, and local interaction hooks beside their operation. Shared package entrypoints remain deliberate public boundaries; app-local pure re-export barrels are unnecessary.
+Use the URL for shareable state and query hooks for server state. Keep local interaction
+state near the component that owns it.
 
-Infinite queries include filters in keys but pass page numbers through `pageParam`; merge pages before grouping and keep loaded data visible on later-page errors. Mutations preserve navigation-before-cache-clear ordering and invalidate only affected reads.
+Use React context only for state shared across routes or components far apart in the
+tree, or for a compound component's private channel. Use props or children when they can
+carry the value. Mount the provider at the lowest level that matches the state lifetime.
 
-The active review session treats its issued-card snapshot as session-owned state:
-window focus and reconnect do not refetch it. Re-entering review refetches before
-building a queue so resolved cache data cannot reopen as a completed session.
-Initial issuance failures remain visible with an explicit retry action, and leaving
-the session invalidates the due-card summary for the next start.
+A required context starts with a null default, and its hook throws when no provider is
+present. Behavior that varies by caller, such as exercise retry mode, comes from a
+parent prop or an operation registry entry.
 
-The story reader owns no page state: the route's `page` search value is the
-single source, validated at the route boundary and corrected there when the
-API resolves a different page. Reader background fetching stays bounded to the
-pages adjacent to the settled one.
+API timestamps carry the UTC `Z` suffix. The shared date parser also accepts
+offset-free values as UTC. Display times and calendar boundaries in UTC.
 
-During navigation, settled story content remains visible while the requested
-page loads. Abandoned route loads are canceled, and only the latest location
-may correct its URL to the API-resolved page after caching that response.
+Include selection filters in infinite-query keys and pass page cursors through
+pageParam. Merge pages before grouping, and keep loaded results visible if a later page
+fails.
 
-TanStack route files and generated route trees are framework entrypoints. Tests use MSW at the network boundary, and responsive/accessibility behavior belongs at browser/page boundaries. React Doctor is a ratchet; lower legitimate counts rather than hiding findings.
+Each review start creates a new navigation identity, so starting again on the same
+session URL resets the local queue. Leaving a session invalidates due-card queries
+without refetching the finished issued snapshot.
+
+The lesson session owns completion persistence. It saves when completion begins and
+offers an explicit retry after failure; callers do not add a second persistence effect.
+Unit-test HTTP requests use Axios's fetch adapter so MSW's Node interceptor can see them.
+Check responsive and accessibility behavior at page or browser boundaries.
+Account deletion navigates away before clearing the query cache; preserve that order.
+
+React Doctor is pinned to version 0.9.18 and its sanctioned scan arguments. The baseline
+sets per-rule warning limits; a version mismatch fails because counts from different
+analyzers are not comparable. When a rule improves, lower its baseline.

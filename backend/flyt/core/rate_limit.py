@@ -1,12 +1,3 @@
-"""Shared per-user moving-window admission over Redis.
-
-The write-judge endpoint and the speech proxy use the same admission
-contract: a bounded rolling window per authenticated user, ``None`` while
-admitted, and a whole-second ``Retry-After`` hint once exhausted. Storage
-errors fail open so a Redis outage never takes a learner-facing endpoint
-down.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -23,6 +14,10 @@ from limits.aio.strategies import (
 logger = logging.getLogger(__name__)
 
 REDIS_TIMEOUT_SECONDS = 1.0
+K_IMPORT_MAX_REQUESTS_PER_USER = 30
+K_GENERATION_MAX_REQUESTS_PER_USER = 10
+K_LEXICON_MAX_REQUESTS_PER_IP = 300
+K_RATE_WINDOW_SECONDS = 60
 
 
 def ensure_async_redis_scheme(redis_url: str) -> str:

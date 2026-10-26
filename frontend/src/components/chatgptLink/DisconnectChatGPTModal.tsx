@@ -1,5 +1,4 @@
-import { Button } from '@/components/common/Button/Button';
-import { Modal } from '@/components/common/Modal/Modal';
+import { Button, Modal, Text } from '@flyt/ui';
 
 interface DisconnectChatGPTModalProps {
   isOpen: boolean;
@@ -28,7 +27,7 @@ export function DisconnectChatGPTModal({
               if ((await onDisconnect()) !== false) onClose();
             }}
             type="button"
-            variant="destructive"
+            variant="danger"
           >
             {isDisconnecting ? 'Disconnecting…' : 'Disconnect'}
           </Button>
@@ -38,9 +37,9 @@ export function DisconnectChatGPTModal({
       onClose={onClose}
       title="Disconnect ChatGPT?"
     >
-      <p className="type-caption text-muted-foreground">
+      <Text size="medium" tone="subtle">
         Deleting your Flyt account also asks OpenAI to revoke this connection.
-      </p>
+      </Text>
     </Modal>
   );
 }

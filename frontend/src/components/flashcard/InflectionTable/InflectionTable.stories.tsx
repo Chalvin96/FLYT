@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { InflectionTable } from './InflectionTable';
 
 const meta = {
-  title: 'Flashcard/InflectionTable',
+  title: 'Features/Flashcard/InflectionTable',
   component: InflectionTable,
   parameters: {
     layout: 'centered',

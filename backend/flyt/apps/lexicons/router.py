@@ -13,6 +13,7 @@ from flyt.apps.lexicons.constants import K_LEXICON_BROWSE_NOT_FOUND_MESSAGE
 from flyt.apps.lexicons.constants import K_LEXICON_BROWSE_QUERY_MIN_LENGTH
 from flyt.apps.lexicons.constants import K_LEXICON_SEARCH_QUERY_MIN_LENGTH
 from flyt.apps.lexicons.constants import K_LEXICON_SUGGEST_QUERY_MIN_LENGTH
+from flyt.apps.lexicons.deps import admit_lexicon_request
 from flyt.apps.lexicons.deps import get_lexicon_service
 from flyt.apps.lexicons.exceptions import LexiconNotFoundError
 from flyt.apps.lexicons.models import Lemma
@@ -38,6 +39,7 @@ from flyt.apps.users.deps import get_optional_user
 from flyt.apps.users.deps import get_user_lemma_service
 from flyt.apps.users.models import User
 from flyt.apps.users.services import UserLemmaService
+from flyt.core.http import build_error_responses
 from flyt.core.db import get_async_db
 from flyt.core.exceptions import ValidationError
 from flyt.core.http import EmptyResponse
@@ -49,7 +51,7 @@ router = APIRouter(prefix="/lexicons", tags=["lexicons"])
 me_router = APIRouter(prefix="/me", tags=["lexicons"])
 
 
-@me_router.get("/lemmas")
+@me_router.get("/lemmas", responses=build_error_responses(401))
 async def list_my_lemmas(
     current_user: Annotated[User, Depends(get_current_user)],
     lexicon_service: Annotated[LexiconService, Depends(get_lexicon_service)],
@@ -78,7 +80,12 @@ async def list_my_lemmas(
     )
 
 
-@router.get("/search", response_model=list[LemmaRead])
+@router.get(
+    "/search",
+    response_model=list[LemmaRead],
+    dependencies=[Depends(admit_lexicon_request)],
+    responses=build_error_responses(429),
+)
 async def search(
     query: Annotated[
         str,
@@ -111,7 +118,11 @@ async def search(
         ) from e
 
 
-@router.get("/resolve")
+@router.get(
+    "/resolve",
+    dependencies=[Depends(admit_lexicon_request)],
+    responses=build_error_responses(429),
+)
 async def resolve(
     word: Annotated[
         str,
@@ -186,7 +197,11 @@ async def resolve(
         ) from e
 
 
-@router.get("/suggestions")
+@router.get(
+    "/suggestions",
+    dependencies=[Depends(admit_lexicon_request)],
+    responses=build_error_responses(429),
+)
 async def suggestions(
     query: Annotated[
         str,
@@ -227,7 +242,11 @@ async def suggestions(
         ) from e
 
 
-@router.get("/browse")
+@router.get(
+    "/browse",
+    dependencies=[Depends(admit_lexicon_request)],
+    responses=build_error_responses(404, 429),
+)
 async def browse(
     q: Annotated[
         str,
@@ -285,7 +304,11 @@ async def browse(
         ) from e
 
 
-@router.get("/lemmas/{lemma_uuid}/definitions")
+@router.get(
+    "/lemmas/{lemma_uuid}/definitions",
+    dependencies=[Depends(admit_lexicon_request)],
+    responses=build_error_responses(404, 429),
+)
 async def get_lemma_definitions(
     lemma_uuid: UUID,
     current_user: Annotated[User | None, Depends(get_optional_user)],
@@ -358,7 +381,7 @@ async def get_lemma_definitions(
 
 
 @router.post(
-    "/lemmas/{lemma_uuid}/mark-known",
+    "/lemmas/{lemma_uuid}/mark-known", responses=build_error_responses(401, 403, 404)
 )
 async def mark_known(
     lemma_uuid: UUID,

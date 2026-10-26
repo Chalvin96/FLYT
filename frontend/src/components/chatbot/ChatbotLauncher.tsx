@@ -1,9 +1,7 @@
 import { useRef } from 'react';
 import type { RefObject } from 'react';
 
-import { useIsDesktop } from '@/hooks/ui/useIsDesktop';
-
-import { useChatbot } from './ChatbotProvider';
+import { useChatbotOpenState } from './useChatbotOpenState';
 
 export interface ChatbotLauncherState {
   chatbotOpen: boolean;
@@ -13,17 +11,11 @@ export interface ChatbotLauncherState {
 
 export function useChatbotLauncher(): ChatbotLauncherState {
   const chatbotTriggerRef = useRef<HTMLButtonElement>(null);
-  const isDesktop = useIsDesktop();
-  const { close, open, openState } = useChatbot();
-  const chatbotOpen = isDesktop ? openState !== 'closed' : openState === 'open';
+  const { isOpen, toggle } = useChatbotOpenState();
 
-  const toggleChatbot = () => {
-    if (chatbotOpen) {
-      close();
-    } else {
-      open();
-    }
+  return {
+    chatbotOpen: isOpen,
+    chatbotTriggerRef,
+    toggleChatbot: toggle,
   };
-
-  return { chatbotOpen, chatbotTriggerRef, toggleChatbot };
 }

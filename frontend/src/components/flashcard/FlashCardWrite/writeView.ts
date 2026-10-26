@@ -8,6 +8,7 @@ export type WritePhase = 'composing' | 'pending' | 'result' | 'unavailable';
 export const K_MIN_RESPONSE_WORDS_FOR_SUBMISSION = 1;
 export const K_WRITE_MAX_RESPONSE_CHARS = 500;
 export const K_CHAR_COUNTER_VISIBLE_FROM = 400;
+export const K_OBSERVATION_CRITERION_SUFFIX = '-observation';
 
 export function countCharacters(value: string): number {
   return Array.from(value).length;
@@ -49,12 +50,12 @@ export function formatCountLabel(
 
 export function actionHintFor(
   judged: boolean,
-  metCount: number,
-  totalCriteria: number,
+  metRequiredCriteriaCount: number,
+  requiredCriteriaCount: number,
   phase: WritePhase,
 ): string | null {
   if (judged) {
-    return metCount === totalCriteria
+    return metRequiredCriteriaCount === requiredCriteriaCount
       ? 'Continue when you are ready'
       : 'Revise your response or continue';
   }
@@ -122,6 +123,39 @@ export function buildWriteCriteriaVerdictsById(
   );
 }
 
-export function countMetCriteria(judgement: WriteJudgement | null): number {
-  return (judgement?.criteria ?? []).filter((v) => v.met).length;
+export function isObservationCriterionId(criterionId: string): boolean {
+  return criterionId.endsWith(K_OBSERVATION_CRITERION_SUFFIX);
+}
+
+export type WriteOutcomeSummary = {
+  metRequiredCriteriaCount: number;
+  requiredCriteriaCount: number;
+  isEveryRequiredCriterionMet: boolean;
+};
+
+export function summarizeWriteOutcome(
+  criteria: readonly { id: string }[],
+  judgement: WriteJudgement | null,
+): WriteOutcomeSummary {
+  const metByCriterionId = new Map(
+    (judgement?.criteria ?? []).map((verdict) => [
+      verdict.criterion_id,
+      verdict.met,
+    ]),
+  );
+  let metRequiredCriteriaCount = 0;
+  let requiredCriteriaCount = 0;
+  for (const criterion of criteria) {
+    if (isObservationCriterionId(criterion.id)) continue;
+    requiredCriteriaCount += 1;
+    if (metByCriterionId.get(criterion.id) === true) {
+      metRequiredCriteriaCount += 1;
+    }
+  }
+  return {
+    metRequiredCriteriaCount,
+    requiredCriteriaCount,
+    isEveryRequiredCriterionMet:
+      metRequiredCriteriaCount === requiredCriteriaCount,
+  };
 }

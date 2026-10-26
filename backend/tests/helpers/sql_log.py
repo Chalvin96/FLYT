@@ -5,7 +5,7 @@ parameter scope) against the live test database instead of mirroring
 implementation internals with mocks.
 """
 
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any
 
@@ -14,7 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @contextmanager
-def capture_sql(session: AsyncSession) -> Iterator[list[tuple[str, Any]]]:
+def capture_sql(
+    session: AsyncSession,
+) -> Generator[list[tuple[str, Any]], None, None]:
     """Record (statement, parameters) for every SQL execution while open."""
     executed: list[tuple[str, Any]] = []
 

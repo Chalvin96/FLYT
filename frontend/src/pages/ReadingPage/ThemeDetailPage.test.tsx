@@ -1,23 +1,12 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+import { readingKeys } from '@/hooks/reading/queries';
+
 import { ThemeDetailPage } from './ThemeDetailPage';
-
-let intersectionCallback:
-  ((entries: Array<{ isIntersecting: boolean }>) => void) | null = null;
-
-class MockIntersectionObserver {
-  observe = vi.fn();
-  disconnect = vi.fn();
-  unobserve = vi.fn();
-
-  constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void) {
-    intersectionCallback = callback;
-  }
-}
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -53,7 +42,6 @@ const baseStories = [
     title: 'Morning Coffee',
     cefrLevel: 'A1',
     createdAt: '2026-04-11T10:00:00Z',
-    preview: 'Ida opens the window and starts the day with coffee.',
     wordCount: 245,
     groupKey: 'daily_life',
     groupTitle: 'Daily Life',
@@ -65,7 +53,6 @@ const baseStories = [
     title: 'On the Tram',
     cefrLevel: 'A2',
     createdAt: '2026-04-10T10:00:00Z',
-    preview: 'A short commute turns into a tiny language lesson.',
     wordCount: 198,
     groupKey: 'daily_life',
     groupTitle: 'Daily Life',
@@ -77,7 +64,6 @@ const baseStories = [
     title: 'After Work',
     cefrLevel: 'B1',
     createdAt: '2026-04-09T10:00:00Z',
-    preview: 'Two friends meet after work and compare their plans.',
     wordCount: 312,
     groupKey: 'daily_life',
     groupTitle: 'Daily Life',
@@ -86,30 +72,80 @@ const baseStories = [
   },
 ] as const;
 
-function renderPage() {
+function ThemeFiltersHarness({ initialLevels }: { initialLevels: string[] }) {
+  const [selectedLevels, setSelectedLevels] = useState(initialLevels);
+  return (
+    <ThemeDetailPage
+      themeKey="daily_life"
+      selectedLevels={selectedLevels}
+      onSelectedLevelsChange={setSelectedLevels}
+    />
+  );
+}
+
+function renderPage(initialLevels: string[] = []) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
     },
   });
 
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
-      <ThemeDetailPage themeKey="daily_life" />
+      <ThemeFiltersHarness initialLevels={initialLevels} />
     </QueryClientProvider>,
+  );
+  return { ...view, queryClient };
+}
+
+function mockCursorPages(totalCount = 21) {
+  const allStories = Array.from({ length: totalCount }, (_, index) => ({
+    ...baseStories[0],
+    uuid: `story-${index + 1}`,
+    title: index === 20 ? 'Rainy Saturday' : `Morning Coffee ${index + 1}`,
+    cefrLevel: index < 21 ? 'A1' : 'A2',
+    isRead: index >= 21,
+  }));
+  getReadingStories.mockImplementation(
+    async (
+      _groupKey: string,
+      options?: {
+        cursor?: string | null;
+        levels?: string[];
+        showReadStories?: boolean;
+      },
+    ) => {
+      const filteredStories = allStories.filter(
+        (story) =>
+          (options?.showReadStories || !story.isRead) &&
+          (!options?.levels?.length ||
+            options.levels.includes(story.cefrLevel)),
+      );
+      const offset = Number(options?.cursor ?? 0);
+      return {
+        group: {
+          id: 1,
+          key: 'daily_life',
+          order: 1,
+          storyCount: totalCount,
+          title: 'Daily Life',
+        },
+        stories: filteredStories.slice(offset, offset + 20),
+        nextCursor:
+          offset + 20 < filteredStories.length ? String(offset + 20) : null,
+        totalCount,
+        levelCounts: {
+          A1: Math.min(21, totalCount),
+          A2: Math.max(0, totalCount - 21),
+        },
+      };
+    },
   );
 }
 
 describe('ThemeDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    intersectionCallback = null;
-    Object.defineProperty(globalThis, 'IntersectionObserver', {
-      configurable: true,
-      writable: true,
-      value: MockIntersectionObserver,
-    });
-
     getReadingStories.mockImplementation(
       async (
         _groupKey: string,
@@ -142,7 +178,7 @@ describe('ThemeDetailPage', () => {
     );
   });
 
-  it('renders compact cards and can hide read stories', async () => {
+  it('test_theme_grid_given_stories_expect_links_metadata_and_filters', async () => {
     const user = userEvent.setup();
 
     renderPage();
@@ -151,24 +187,33 @@ describe('ThemeDetailPage', () => {
       await screen.findByRole('heading', { name: 'Daily Life' }),
     ).toBeInTheDocument();
     expect(screen.getByText('Showing 3 of 3 stories')).toBeInTheDocument();
-    expect(screen.getByText('Morning Coffee')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Morning Coffee' }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/245 words/)).toBeInTheDocument();
-    expect(screen.getByText('On the Tram')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /Morning Coffee/ }),
+    ).toHaveAttribute('href', '/reading/story/story-1');
+    expect(screen.getByRole('link', { name: /On the Tram/ })).toHaveAttribute(
+      'href',
+      '/reading/story/story-2',
+    );
+    expect(screen.getByText('In progress')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Open filters' }));
+    await user.click(screen.getByRole('button', { name: /Filters \(/ }));
     const firstDialog = screen.getByRole('dialog');
     await user.click(within(firstDialog).getByLabelText('Hide read stories'));
     await user.click(
       within(firstDialog).getByRole('button', { name: 'Apply' }),
     );
 
-    expect(screen.getByText('Showing 2 of 3 stories')).toBeInTheDocument();
+    expect(screen.getByText('Showing 2 matching stories')).toBeInTheDocument();
     expect(screen.queryByText('On the Tram')).not.toBeInTheDocument();
 
     const secondDialog = screen.queryByRole('dialog');
 
     if (!secondDialog) {
-      await user.click(screen.getByRole('button', { name: 'Open filters' }));
+      await user.click(screen.getByRole('button', { name: /Filters \(/ }));
     }
 
     const activeDialog = screen.getByRole('dialog');
@@ -177,21 +222,89 @@ describe('ThemeDetailPage', () => {
       within(activeDialog).getByRole('button', { name: 'Apply' }),
     );
 
-    expect(screen.getByText('Showing 1 of 3 stories')).toBeInTheDocument();
+    expect(screen.getByText('Showing 1 matching story')).toBeInTheDocument();
     expect(screen.getByText('Morning Coffee')).toBeInTheDocument();
     expect(screen.queryByText('After Work')).not.toBeInTheDocument();
   });
 
-  it('opens the mobile filter sheet from the fab and closes on apply', async () => {
+  it('test_theme_filters_given_selected_a2_level_expect_filtered_query_and_checked_option', async () => {
+    renderPage(['A2']);
+    expect(await screen.findByText('On the Tram')).toBeInTheDocument();
+    expect(screen.queryByText('Morning Coffee')).not.toBeInTheDocument();
+    expect(screen.queryByText('After Work')).not.toBeInTheDocument();
+    expect(getReadingStories).toHaveBeenCalledWith(
+      'daily_life',
+      expect.objectContaining({ levels: ['A2'] }),
+    );
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Filters (1)' }));
+    expect(
+      within(screen.getByRole('dialog')).getByLabelText(/Beginner 2 \(A2\)/),
+    ).toBeChecked();
+  });
+
+  it.each([
+    ['C1', 'Advanced 1 (C1)'],
+    ['C2', 'Advanced 2 (C2)'],
+  ])(
+    'test_theme_filters_given_advanced_url_level_expect_checked_filter_and_clearable_selection',
+    async (level, label) => {
+      const user = userEvent.setup();
+      getReadingStories.mockResolvedValue({
+        group: {
+          id: 1,
+          key: 'daily_life',
+          order: 1,
+          storyCount: 1,
+          title: 'Daily Life',
+        },
+        stories: [{ ...baseStories[0], cefrLevel: level }],
+        nextCursor: null,
+        totalCount: 1,
+        levelCounts: { [level]: 1 },
+      });
+      renderPage([level]);
+      await user.click(
+        await screen.findByRole('button', { name: 'Filters (1)' }),
+      );
+      const dialog = screen.getByRole('dialog');
+      expect(
+        within(dialog).getByRole('checkbox', {
+          name: `${label} 1`,
+        }),
+      ).toBeChecked();
+      expect(getReadingStories).toHaveBeenCalledWith(
+        'daily_life',
+        expect.objectContaining({ levels: [level] }),
+      );
+      await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Remove all level filters' }),
+      );
+      await waitFor(() => {
+        expect(getReadingStories).toHaveBeenLastCalledWith(
+          'daily_life',
+          expect.objectContaining({ levels: [] }),
+        );
+      });
+      expect(screen.getByText('Morning Coffee')).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /Filters/ }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it('test_mobile_filters_given_apply_expect_sheet_closed', async () => {
     const user = userEvent.setup();
 
     renderPage();
 
     expect(
-      await screen.findByRole('button', { name: 'Open filters' }),
+      await screen.findByRole('button', { name: /Filters \(/ }),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Open filters' }));
+    await user.click(screen.getByRole('button', { name: /Filters \(/ }));
 
     expect(
       await screen.findByRole('button', { name: 'Apply' }),
@@ -206,7 +319,7 @@ describe('ThemeDetailPage', () => {
     });
   });
 
-  it('discards mobile filter changes when the sheet closes without applying', async () => {
+  it('test_mobile_filters_given_dismiss_expect_draft_discarded', async () => {
     const user = userEvent.setup();
 
     renderPage();
@@ -217,7 +330,7 @@ describe('ThemeDetailPage', () => {
     expect(screen.getByText('Showing 3 of 3 stories')).toBeInTheDocument();
     expect(screen.getByText('On the Tram')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Open filters' }));
+    await user.click(screen.getByRole('button', { name: /Filters \(/ }));
 
     const dialog = screen.getByRole('dialog');
     await user.click(within(dialog).getByLabelText('Hide read stories'));
@@ -231,94 +344,184 @@ describe('ThemeDetailPage', () => {
     expect(screen.getByText('On the Tram')).toBeInTheDocument();
   });
 
-  it('loads more stories when the scroll sentinel becomes visible', async () => {
-    getReadingStories.mockImplementation(
-      async (
-        _groupKey: string,
-        options?: { cursor?: string | null; showReadStories?: boolean },
-      ) => {
-        if (options?.cursor === 'cursor-2') {
-          return {
-            group: {
-              id: 1,
-              key: 'daily_life',
-              order: 1,
-              storyCount: 4,
-              title: 'Daily Life',
-            },
-            stories: [
-              {
-                uuid: 'story-3',
-                title: 'After Work',
-                cefrLevel: 'B1',
-                createdAt: '2026-04-09T10:00:00Z',
-                preview: 'Two friends meet after work and compare their plans.',
-                wordCount: 312,
-                groupKey: 'daily_life',
-                groupTitle: 'Daily Life',
-                isRead: false,
-                readAt: null,
-              },
-              {
-                uuid: 'story-4',
-                title: 'Rainy Saturday',
-                cefrLevel: 'A2',
-                createdAt: '2026-04-08T10:00:00Z',
-                preview: 'A cozy indoor day with books, music, and soup.',
-                wordCount: 216,
-                groupKey: 'daily_life',
-                groupTitle: 'Daily Life',
-                isRead: false,
-                readAt: null,
-              },
-            ],
-            nextCursor: null,
-            totalCount: 4,
-            levelCounts: { A1: 1, A2: 2, B1: 1 },
-          };
-        }
-
-        return {
-          group: {
-            id: 1,
-            key: 'daily_life',
-            order: 1,
-            storyCount: 4,
-            title: 'Daily Life',
-          },
-          stories: [
-            {
-              uuid: 'story-1',
-              title: 'Morning Coffee',
-              cefrLevel: 'A1',
-              createdAt: '2026-04-11T10:00:00Z',
-              preview: 'Ida opens the window and starts the day with coffee.',
-              wordCount: 245,
-              groupKey: 'daily_life',
-              groupTitle: 'Daily Life',
-              isRead: false,
-              readAt: null,
-            },
-          ],
-          nextCursor: 'cursor-2',
-          totalCount: 4,
-          levelCounts: { A1: 1, A2: 2, B1: 1 },
-        };
-      },
-    );
-
+  it('test_theme_pagination_given_more_clicked_expect_next_cursor_loaded', async () => {
+    mockCursorPages();
     renderPage();
 
     expect(
-      await screen.findByText('Showing 1 of 4 stories'),
+      (await screen.findAllByText('Showing 20 of 21 stories'))[0],
     ).toBeInTheDocument();
-
-    await act(async () => {
-      intersectionCallback?.([{ isIntersecting: true }]);
-    });
+    expect(getReadingStories).toHaveBeenCalledTimes(1);
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Show 1 more' }));
 
     expect(await screen.findByText('Rainy Saturday')).toBeInTheDocument();
-    expect(screen.getByText('Showing 3 of 4 stories')).toBeInTheDocument();
-    expect(screen.getAllByText('Morning Coffee')).toHaveLength(1);
+    expect(screen.getByText('Showing 21 of 21 stories')).toBeInTheDocument();
+    expect(screen.getAllByText('Morning Coffee 1')).toHaveLength(1);
+    expect(getReadingStories).toHaveBeenLastCalledWith(
+      'daily_life',
+      expect.objectContaining({ cursor: '20', limit: 20 }),
+    );
+  });
+
+  it('test_theme_pagination_given_level_filter_expect_remaining_count_from_level_totals', async () => {
+    mockCursorPages(100);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Filters (0)' }),
+    );
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByLabelText(/Beginner 1 \(A1\)/));
+    await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
+
+    const more = await screen.findByRole('button', { name: 'Show 1 more' });
+    expect(screen.getAllByText('Showing 20 of 21 stories')).toHaveLength(2);
+    await user.click(more);
+    expect(await screen.findByText('Rainy Saturday')).toBeInTheDocument();
+    expect(
+      screen.getByText("That's all 21 matching stories."),
+    ).toBeInTheDocument();
+  });
+
+  it('test_theme_pagination_given_hide_read_filter_expect_unknown_remainder_label', async () => {
+    mockCursorPages(100);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Filters (0)' }),
+    );
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByLabelText('Hide read stories'));
+    await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
+
+    const more = await screen.findByRole('button', {
+      name: 'Show up to 20 more',
+    });
+    expect(screen.getAllByText('Showing 20 matching stories')).toHaveLength(2);
+    await user.click(more);
+    expect(await screen.findByText('Rainy Saturday')).toBeInTheDocument();
+    expect(screen.getByText('Showing 21 matching stories')).toBeInTheDocument();
+    expect(
+      screen.getByText("That's all 21 matching stories."),
+    ).toBeInTheDocument();
+  });
+  it('test_theme_given_next_page_failure_expect_loaded_stories_and_retry', async () => {
+    mockCursorPages();
+    const user = userEvent.setup();
+    renderPage();
+    const more = await screen.findByRole('button', { name: 'Show 1 more' });
+    getReadingStories.mockRejectedValueOnce(new Error('Page unavailable'));
+
+    await user.click(more);
+
+    expect(
+      await screen.findByText('Could not load more stories.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Morning Coffee 1')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Rainy Saturday')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Could not load more stories.'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('test_theme_given_cached_page_refresh_failure_expect_no_next_page_error', async () => {
+    mockCursorPages();
+    const { queryClient } = renderPage();
+    await screen.findByRole('button', { name: 'Show 1 more' });
+    getReadingStories.mockRejectedValueOnce(new Error('Refresh unavailable'));
+
+    await act(async () => {
+      await queryClient.refetchQueries({
+        queryKey: readingKeys.storiesInfinitePrefix,
+      });
+    });
+
+    expect(screen.getByText('Morning Coffee 1')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Show 1 more' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Could not load more stories.'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('test_theme_given_one_story_expect_no_filters_or_more_button', async () => {
+    getReadingStories.mockResolvedValue({
+      group: {
+        id: 1,
+        key: 'daily_life',
+        order: 1,
+        storyCount: 1,
+        title: 'Daily Life',
+      },
+      stories: [baseStories[0]],
+      nextCursor: null,
+      totalCount: 1,
+      levelCounts: { A1: 1 },
+    });
+    renderPage();
+    expect(await screen.findByText('Showing 1 of 1 story')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Filters/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Show .* more/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('test_theme_given_empty_theme_expect_quiet_empty_state_without_filters', async () => {
+    getReadingStories.mockResolvedValue({
+      group: {
+        id: 1,
+        key: 'daily_life',
+        order: 1,
+        storyCount: 0,
+        title: 'Daily Life',
+      },
+      stories: [],
+      nextCursor: null,
+      totalCount: 0,
+      levelCounts: {},
+    });
+    renderPage();
+    expect(
+      await screen.findByRole('heading', {
+        name: 'No stories in this theme yet',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Clear filters|Filters/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('test_theme_given_filters_without_matches_expect_one_clear_filters_action', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(
+      await screen.findByRole('button', { name: 'Filters (0)' }),
+    );
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByLabelText(/Beginner 2/));
+    await user.click(within(dialog).getByLabelText('Hide read stories'));
+    await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    expect(
+      await screen.findByRole('heading', { name: 'No matches' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('button', { name: 'Clear filters' }),
+    ).toHaveLength(1);
+    expect(
+      screen.queryByRole('button', { name: 'Clear all' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(await screen.findByText('Morning Coffee')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Filters (0)' }),
+    ).toBeInTheDocument();
   });
 });

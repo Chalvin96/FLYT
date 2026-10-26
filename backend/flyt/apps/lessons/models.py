@@ -29,12 +29,10 @@ class LessonRelease(BaseModel, DateTimeMixin):
         Boolean, nullable=False, default=False, index=True
     )
 
-    # Explicit loads only: lesson reads must not materialize every packet in
-    # the activated revision through relationship defaults.
     lessons = relationship(
         "Lesson",
         back_populates="release",
-        lazy="select",
+        lazy="raise",
         order_by="Lesson.release_order",
     )
 
@@ -50,18 +48,22 @@ class Lesson(BaseModel, DateTimeMixin):
     )
     source_id: Mapped[str] = mapped_column(String, nullable=False)
     release_order: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    kind: Mapped[str] = mapped_column(String, nullable=False)
+    kind: Mapped[str | None] = mapped_column(String, nullable=True)
     family_id: Mapped[str | None] = mapped_column(String, nullable=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
     cefr_level: Mapped[str | None] = mapped_column(String, nullable=True)
     goal: Mapped[str | None] = mapped_column(Text, nullable=True)
+    estimated_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     packet_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
-    release = relationship("LessonRelease", back_populates="lessons", lazy="select")
+    release = relationship("LessonRelease", back_populates="lessons", lazy="raise")
     user_progress = relationship(
-        "UserLessonProgress", back_populates="lesson", lazy="select"
+        "UserLessonProgress",
+        back_populates="lesson",
+        lazy="write_only",
+        passive_deletes=True,
     )
-    pools = relationship("CardPool", back_populates="lesson", lazy="selectin")
+    pools = relationship("CardPool", back_populates="lesson", lazy="raise")
 
     __table_args__ = (
         UniqueConstraint("release_id", "source_id", name="uq_lesson_release_source_id"),
@@ -79,7 +81,11 @@ class UserLessonProgress(BaseModel, DateTimeMixin):
     )
     lesson_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("lesson_lessons.id"),
+        ForeignKey(
+            "lesson_lessons.id",
+            name="lesson_user_progress_lesson_id_fkey",
+            ondelete="CASCADE",
+        ),
         nullable=False,
         index=True,
     )
@@ -88,8 +94,8 @@ class UserLessonProgress(BaseModel, DateTimeMixin):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    user = relationship("User", foreign_keys=[user_id], lazy="select")
-    lesson = relationship("Lesson", back_populates="user_progress", lazy="select")
+    user = relationship("User", foreign_keys=[user_id], lazy="raise")
+    lesson = relationship("Lesson", back_populates="user_progress", lazy="raise")
 
     __table_args__ = (
         UniqueConstraint(

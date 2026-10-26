@@ -16,6 +16,7 @@ from flyt.apps.users.deletion import AccountDeletionService
 from flyt.apps.users.deps import get_account_deletion_service
 from flyt.apps.users.deps import get_auth_service
 from flyt.apps.users.deps import get_current_user
+from flyt.apps.users.deps import get_optional_user
 from flyt.apps.users.deps import get_oauth_service
 from flyt.apps.users.deps import get_user_service
 from flyt.apps.users.exceptions import AuthenticationError
@@ -33,6 +34,7 @@ from flyt.clients.oauth import oauth
 from flyt.core.config import settings
 from flyt.core.db import get_async_db
 from flyt.core.http import EmptyResponse
+from flyt.core.http import build_error_responses
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +84,7 @@ async def google_callback(
         await db.rollback()
         return RedirectResponse(f"{settings.FRONTEND_LOGIN_FAILURE_URL}?error=internal")
 
-    access_token = auth_service.create_access_token(data={"sub": str(user.uuid)})
+    access_token = auth_service.create_access_token(user=user)
     redirect = RedirectResponse(settings.FRONTEND_LOGIN_SUCCESS_URL)
     set_access_cookie(redirect, access_token)
     return redirect
@@ -130,15 +132,23 @@ async def dev_login(
     await db.commit()
     await db.refresh(user)
 
-    access_token = auth_service.create_access_token(data={"sub": str(user.uuid)})
+    access_token = auth_service.create_access_token(user=user)
     redirect = RedirectResponse(settings.FRONTEND_LOGIN_SUCCESS_URL)
     set_access_cookie(redirect, access_token)
     return redirect
 
 
-@router.post("/logout")
-async def logout(response: Response) -> EmptyResponse:
+@router.post("/logout", responses=build_error_responses(403))
+async def logout(
+    response: Response,
+    current_user: Annotated[User | None, Depends(get_optional_user)],
+    user_service: Annotated[UserService, Depends(get_user_service)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+) -> EmptyResponse:
     logger.info("[users.logout] entering")
+    if current_user is not None:
+        await user_service.revoke_sessions(current_user.id)
+        await db.commit()
     clear_access_cookie(response)
     response.delete_cookie(
         key="oauth_session",
@@ -150,7 +160,7 @@ async def logout(response: Response) -> EmptyResponse:
     return EmptyResponse()
 
 
-@router.get("/me", response_model=UserRead)
+@router.get("/me", response_model=UserRead, responses=build_error_responses(401))
 async def read_users_me(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
@@ -161,7 +171,7 @@ async def read_users_me(
     return current_user
 
 
-@router.get("/me/deletion-preview")
+@router.get("/me/deletion-preview", responses=build_error_responses(401))
 async def read_deletion_preview(
     current_user: Annotated[User, Depends(get_current_user)],
     deletion_service: Annotated[
@@ -178,7 +188,7 @@ async def read_deletion_preview(
     return preview
 
 
-@router.delete("/me")
+@router.delete("/me", responses=build_error_responses(401, 403))
 async def delete_users_me(
     response: Response,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -202,7 +212,7 @@ async def delete_users_me(
     return EmptyResponse()
 
 
-@router.patch("/me", response_model=UserRead)
+@router.patch("/me", response_model=UserRead, responses=build_error_responses(401, 403))
 async def update_users_me(
     payload: UserUpdate,
     db: Annotated[AsyncSession, Depends(get_async_db)],

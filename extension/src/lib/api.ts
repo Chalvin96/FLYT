@@ -17,12 +17,19 @@ const API_ORIGIN = import.meta.env.VITE_API_ORIGIN ?? 'http://localhost:8000';
 export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
+  readonly userMessage?: string;
 
-  constructor(status: number, message?: string, code?: string) {
+  constructor(
+    status: number,
+    message?: string,
+    code?: string,
+    userMessage?: string,
+  ) {
     super(message ?? `HTTP ${status}`);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.userMessage = userMessage;
   }
 }
 
@@ -47,8 +54,10 @@ const ALLOWED_DETAIL_STATES = new Set<LemmaState>([
 // Read-only, anonymous: /lexicons/resolve is a pure GET with no Bearer token. Detail is
 // optional-auth; user-scoped mutations read the cookie only for their own request.
 export async function resolveWord(word: string): Promise<ResolveResponse> {
-  const res = await fetch(`${API_ORIGIN}/lexicons/resolve?word=${encodeURIComponent(word)}`);
-  if (!res.ok) throw new ApiError(res.status, 'resolve failed');
+  const res = await fetch(
+    `${API_ORIGIN}/lexicons/resolve?word=${encodeURIComponent(word)}`,
+  );
+  if (!res.ok) throw await readApiError(res, 'resolve failed');
   const data = (await res.json()) as ResolveResponse;
   // Sanitize state at the API boundary - drop any value outside the allowed set.
   return {
@@ -92,7 +101,9 @@ export async function getLemmaDefinitions(
 // labels (backend requires query length >= 2; caller guards before sending). Returns the
 // plain label strings the popup feeds to its suggestion list.
 export async function searchSuggestions(query: string): Promise<string[]> {
-  const res = await fetch(`${API_ORIGIN}/lexicons/suggestions?query=${encodeURIComponent(query)}`);
+  const res = await fetch(
+    `${API_ORIGIN}/lexicons/suggestions?query=${encodeURIComponent(query)}`,
+  );
   if (!res.ok) throw new ApiError(res.status, 'suggestions failed');
   const data = (await res.json()) as { suggestions: { label: string }[] };
   return data.suggestions.map((s) => s.label);
@@ -116,13 +127,19 @@ export async function addToDeck(
     headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(context);
   }
-  const res = await fetch(`${API_ORIGIN}/me/cards/lemmas/${encodeURIComponent(lemmaUuid)}/add-to-deck`, {
-    ...init,
-  });
-  if (!res.ok && res.status !== 409) throw new ApiError(res.status, 'add-to-deck failed');
+  const res = await fetch(
+    `${API_ORIGIN}/me/cards/lemmas/${encodeURIComponent(lemmaUuid)}/add-to-deck`,
+    {
+      ...init,
+    },
+  );
+  if (!res.ok && res.status !== 409)
+    throw new ApiError(res.status, 'add-to-deck failed');
 }
 
-export async function translateSelection(text: string): Promise<TranslationResponse> {
+export async function translateSelection(
+  text: string,
+): Promise<TranslationResponse> {
   const token = await readSessionToken();
   if (!token) throw new ApiError(HTTP_401_UNAUTHORIZED, 'no session');
   const res = await fetch(`${API_ORIGIN}/extension/translate`, {
@@ -134,9 +151,7 @@ export async function translateSelection(text: string): Promise<TranslationRespo
     body: JSON.stringify({ text }),
   });
   if (!res.ok) {
-    const detail = await readErrorDetail(res);
-    const code = typeof detail?.code === 'string' ? detail.code : undefined;
-    throw new ApiError(res.status, 'translation failed', code);
+    throw await readApiError(res, 'translation failed');
   }
   const data = (await res.json()) as TranslationResponse;
   if (
@@ -166,7 +181,20 @@ export async function markLemmaKnown(lemmaUuid: string): Promise<void> {
   if (!res.ok) throw new ApiError(res.status, 'mark-known failed');
 }
 
-async function readErrorDetail(res: Response): Promise<ErrorDetail | undefined> {
+async function readApiError(
+  res: Response,
+  diagnostic: string,
+): Promise<ApiError> {
+  const detail = await readErrorDetail(res);
+  const code = typeof detail?.code === 'string' ? detail.code : undefined;
+  const message =
+    typeof detail?.message === 'string' ? detail.message : undefined;
+  return new ApiError(res.status, diagnostic, code, message);
+}
+
+async function readErrorDetail(
+  res: Response,
+): Promise<ErrorDetail | undefined> {
   try {
     const body = (await res.json()) as { detail?: unknown };
     if (typeof body.detail === 'object' && body.detail !== null) {
@@ -211,14 +239,14 @@ export async function importPage(payload: ImportPagePayload): Promise<void> {
     );
   }
 
-  // The popup derives user-facing copy from the error code/status (see
-  // classify + importErrorMessage), so the message here is diagnostic only.
-  const apiMessage = typeof detail?.message === 'string' ? detail.message : undefined;
-  throw new ApiError(res.status, apiMessage ?? 'Page import failed.', code);
+  const apiMessage =
+    typeof detail?.message === 'string' ? detail.message : undefined;
+  throw new ApiError(
+    res.status,
+    apiMessage ?? 'Page import failed.',
+    code,
+    apiMessage,
+  );
 }
 
-export type {
-  LemmaDefinitionsResponse,
-  ResolveCandidate,
-  ResolveResponse,
-};
+export type { LemmaDefinitionsResponse, ResolveCandidate, ResolveResponse };

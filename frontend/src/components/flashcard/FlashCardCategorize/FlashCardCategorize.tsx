@@ -9,24 +9,20 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
+import { Text } from '@flyt/ui';
 import { useState, type ReactNode } from 'react';
 
-import { useCheckableExercise } from '@/hooks/flashcard/useCheckableExercise/useCheckableExercise';
-import { gradedOutcome } from '@/lib/operationResult';
+import { useExerciseAttempt } from '@/hooks/flashcard/useExerciseAttempt/useExerciseAttempt';
+import { sentenceCaseLabel } from '@/lib/utils';
 import type { Exercise } from '@/types/lesson-contracts';
 
 import { DropZone } from '../DropZone/DropZone';
 import { OperationShell } from '../OperationShell';
 import type { OperationComponentProps } from '../operationTypes';
-import {
-  draggableTokenChipClassName,
-  TokenChip,
-  type TokenChipState,
-} from '../TokenChip/TokenChip';
+import { TokenChip, type TokenChipState } from '../TokenChip/TokenChip';
 
 type CategorizeExercise = Extract<Exercise, { operation: 'categorize' }>;
 
-/** Sentinel id for the "unassigned items" tray DropZone. */
 const TRAY_ID = '__categorize-tray__';
 interface DraggableChipProps {
   itemId: string;
@@ -37,16 +33,8 @@ interface DraggableChipProps {
   onArm?: () => void;
 }
 
-/**
- * A single draggable item chip. dnd-kit's attributes/listeners are spread
- * onto the TokenChip so it speaks pointer / touch / keyboard out of the
- * box. A supplementary onClick arms the chip for tap-to-place — this does
- * not conflict with the drag listeners because the PointerSensor's
- * activation constraint (distance: 4) lets pure taps fall through.
- *
- * The onClick stops propagation so a chip click only arms the chip; the
- * surrounding DropZone's onClick is reserved for placing the armed chip.
- */
+// A pure tap falls through dnd-kit's PointerSensor distance constraint, so the
+// drag listeners and this onClick coexist.
 function DraggableChip({
   itemId,
   text,
@@ -67,7 +55,7 @@ function DraggableChip({
       state={isActiveDrag ? 'dragging' : state}
       disabled={disabled}
       aria-label={text}
-      className={draggableTokenChipClassName}
+      grabbable
       onClick={
         onArm
           ? (event) => {
@@ -84,6 +72,7 @@ function DraggableChip({
 
 export function FlashCardCategorize({
   exercise,
+  allowRetry,
   onFinished,
   ...props
 }: OperationComponentProps<CategorizeExercise>) {
@@ -101,17 +90,14 @@ export function FlashCardCategorize({
     canReveal,
     isRevealedOrSolved,
     shakeKey,
-    check: checkExercise,
-    reveal: revealExercise,
+    reportRight,
+    reportWrong,
+    reveal,
     markDirty,
-  } = useCheckableExercise();
+    finish,
+  } = useExerciseAttempt({ allowRetry, onFinished });
 
-  // Snapshot of the learner's assignments at Reveal time. On reveal the
-  // live `assignments` get rewritten to the correct mapping (so chips relocate
-  // and reveal the answer), but coloring must still reflect what the learner
-  // actually chose — so chip state is derived from this snapshot, not the
-  // relocated `assignments`.
-  const [checkedAssignments, setCheckedAssignments] = useState<Record<
+  const [assignmentsAtReveal, setAssignmentsAtReveal] = useState<Record<
     string,
     string | null
   > | null>(null);
@@ -140,24 +126,20 @@ export function FlashCardCategorize({
     const allCorrect = items.every(
       (item) => assignments[item.item_id] === item.bucket_id,
     );
-    checkExercise(allCorrect);
+    if (allCorrect) {
+      reportRight();
+    } else {
+      reportWrong();
+    }
   }
 
   function handleReveal() {
-    // Snapshot the learner's assignments BEFORE relocation.
-    setCheckedAssignments({ ...assignments });
-    // Relocate chips to correct buckets.
+    setAssignmentsAtReveal({ ...assignments });
     setAssignments(
       Object.fromEntries(items.map((item) => [item.item_id, item.bucket_id])),
     );
     const fraction = computeFraction();
-    revealExercise(fraction);
-  }
-
-  function handleContinue() {
-    if (result) {
-      onFinished?.(gradedOutcome(result));
-    }
+    reveal(fraction);
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -175,7 +157,6 @@ export function FlashCardCategorize({
     setActiveId(null);
   }
 
-  /** Shared assignment helper for both drag-end and tap-to-place. */
   function assignItem(itemId: string, zoneId: string) {
     if (zoneId === TRAY_ID) {
       setAssignments((curr) => ({ ...curr, [itemId]: null }));
@@ -185,7 +166,6 @@ export function FlashCardCategorize({
     markDirty();
   }
 
-  /** Tap-to-place: clicking an item arms it; clicking a zone assigns it. */
   function handleZoneClick(zoneId: string) {
     if (!armedItemId || isLocked) return;
     assignItem(armedItemId, zoneId);
@@ -196,11 +176,10 @@ export function FlashCardCategorize({
     if (armedItemId === itemId) return 'selected';
     if (!isRevealedOrSolved) return 'idle';
     const item = items.find((i) => i.item_id === itemId);
-    // Colour from the learner's snapshot, not the (possibly relocated)
-    // assignments — a chip the learner misplaced shows wrong even though it now
-    // sits in its correct bucket.
-    const chosen = checkedAssignments?.[itemId] ?? assignments[itemId];
-    return chosen === item?.bucket_id ? 'correct' : 'wrong';
+    const learnerBucketId = assignmentsAtReveal
+      ? assignmentsAtReveal[itemId]
+      : assignments[itemId];
+    return learnerBucketId === item?.bucket_id ? 'correct' : 'incorrect';
   }
 
   const armedItemText = items.find(
@@ -236,12 +215,18 @@ export function FlashCardCategorize({
   return (
     <OperationShell
       exercise={exercise}
-      result={result}
       canCheck={canCheck}
-      retry={{ phase, shakeKey, canReveal, onReveal: handleReveal }}
+      attempt={{
+        kind: 'retry',
+        phase,
+        result,
+        shakeKey,
+        canReveal,
+        onReveal: handleReveal,
+      }}
       instruction="Drag each word into the right group — or tap a word, then tap its group."
       onCheck={check}
-      onContinue={handleContinue}
+      onContinue={finish}
       {...props}
     >
       <DndContext
@@ -250,24 +235,24 @@ export function FlashCardCategorize({
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        {/* Tray of unassigned items */}
         <div>
-          <p className="type-caption mb-2 text-muted-foreground/80">
-            {armedItemText
-              ? `Now tap a group for ${armedItemText}.`
-              : 'Tap a word, then tap its group — or drag it.'}
-          </p>
-          <p
-            id="categorize-tray-label"
-            className="type-label text-muted-foreground mb-2"
-          >
-            Items
-          </p>
+          <div className="mb-2 text-subtle/80">
+            <Text size="medium">
+              {armedItemText
+                ? `Now tap a group for ${armedItemText}.`
+                : 'Tap a word, then tap its group — or drag it.'}
+            </Text>
+          </div>
+          <div className="mb-2">
+            <Text id="categorize-tray-label" role="eyebrow" tone="subtle">
+              Items
+            </Text>
+          </div>
           <DropZone
             id={TRAY_ID}
             label="Items"
             tone="target"
-            className="min-h-[3.25rem] border-2 border-primary-40/60 bg-primary-5/40 p-2"
+            className="min-h-[3.25rem] border-2 border-brand-subtle/60 p-2"
           >
             {items
               .filter((item) => assignments[item.item_id] == null)
@@ -275,25 +260,27 @@ export function FlashCardCategorize({
           </DropZone>
         </div>
 
-        {/* Buckets */}
         <div className="flex flex-col gap-3 sm:flex-row">
           {buckets.map((bucket) => (
             <div key={bucket.bucket_id} className="min-w-0 flex-1">
-              <p
-                id={`bucket-label-${bucket.bucket_id}`}
-                className="type-label text-muted-foreground mb-2"
-              >
-                {bucket.label}
-              </p>
-              <p className="type-caption mb-2 text-muted-foreground/80">
-                Drop here
-              </p>
+              <div className="mb-2">
+                <Text
+                  id={`bucket-label-${bucket.bucket_id}`}
+                  role="eyebrow"
+                  tone="subtle"
+                >
+                  {sentenceCaseLabel(bucket.label)}
+                </Text>
+              </div>
+              <div className="mb-2 text-subtle/80">
+                <Text size="medium">Drop here</Text>
+              </div>
               <DropZone
                 id={bucket.bucket_id}
                 tone="target"
                 aria-labelledby={`bucket-label-${bucket.bucket_id}`}
                 onClick={() => handleZoneClick(bucket.bucket_id)}
-                className="min-h-14 content-start border-2 border-primary-40/60 bg-primary-5/30 p-2 sm:min-h-[4.5rem]"
+                className="min-h-14 content-start border-2 border-brand-subtle/60 p-2 sm:min-h-[4.5rem]"
               >
                 {items.reduce<ReactNode[]>((chips, item) => {
                   if (assignments[item.item_id] === bucket.bucket_id) {
@@ -312,7 +299,7 @@ export function FlashCardCategorize({
               text={activeItemText}
               state="dragging"
               aria-label={activeItemText}
-              className={draggableTokenChipClassName}
+              grabbable
             />
           ) : null}
         </DragOverlay>

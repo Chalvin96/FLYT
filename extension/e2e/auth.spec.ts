@@ -4,7 +4,7 @@ import {
   API_URL,
   expect,
   loginAs,
-  lookupIcon,
+  resolveSelection,
   selectText,
   test,
   waitForContentScript,
@@ -17,7 +17,7 @@ async function openLookupForBok(
   await page.goto('/article.html');
   await waitForContentScript(serviceWorker);
   await selectText(page, '#single');
-  await lookupIcon(page).click();
+  await resolveSelection(page);
 }
 
 test('a lookup resolves without sending the session token', async ({

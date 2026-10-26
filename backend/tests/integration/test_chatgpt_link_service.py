@@ -1,9 +1,10 @@
 from datetime import timedelta
+from http import HTTPStatus
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-import jwt
 import pytest
+from httpx import AsyncClient
 from pydantic import SecretStr
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import select
@@ -34,8 +35,8 @@ from flyt.apps.chatgpt_link.types import ProofVerdict
 from flyt.apps.chatgpt_link.types import RenewalFailureClass
 from flyt.apps.chatgpt_link.types import RenewedCredential
 from flyt.apps.users.models import User
+from flyt.apps.users.services import AuthService
 from flyt.apps.users.types import UserRole
-from flyt.core.config import settings
 from flyt.libs.utils.date import now
 from tests.factories import UserFactory
 
@@ -45,11 +46,7 @@ K_TEST_USER_ID = 42
 
 
 def bearer(user: User) -> dict[str, str]:
-    token = jwt.encode(
-        {"sub": str(user.uuid)},
-        settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM,
-    )
+    token = AuthService().create_access_token(user)
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -292,10 +289,29 @@ async def test_get_link_given_working_expect_working(mock_pending: dict, db) -> 
     await ChatGPTLinkFactory.create_async(
         user_id=user.id, state=ChatGPTLinkState.WORKING
     )
+    db.expunge_all()
     svc = ChatGPTLinkService(db)
     result = await svc.get_link(user.id)
     assert result.state == "working"
     assert result.connected_at is not None
+
+
+async def test_get_chatgpt_link_given_reloaded_link_expect_working_response(
+    client: AsyncClient, mock_pending: dict, db
+) -> None:
+    user = await UserFactory.create_async()
+    from tests.factories import ChatGPTLinkFactory
+
+    await ChatGPTLinkFactory.create_async(
+        user_id=user.id, state=ChatGPTLinkState.WORKING
+    )
+    db.expunge_all()
+
+    response = await client.get("/chatgpt/link", headers=bearer(user))
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["state"] == "working"
+    assert response.json()["connected_at"] is not None
 
 
 async def test_get_link_given_broken_expect_broken_reason(
@@ -309,6 +325,7 @@ async def test_get_link_given_broken_expect_broken_reason(
         state=ChatGPTLinkState.BROKEN,
         broken_reason="refresh_token_reused",
     )
+    db.expunge_all()
     svc = ChatGPTLinkService(db)
     result = await svc.get_link(user.id)
     assert result.state == "broken"
@@ -328,8 +345,10 @@ async def test_delete_link_given_existing_row_expect_row_removed(
         user_code="CODE",
         expires_at=now() + timedelta(minutes=5),
     )
+    db.expunge_all()
     svc = ChatGPTLinkService(db)
     await svc.delete_link(user.id)
+    await db.flush()
     await svc.complete_link_unlink(user.id)
     link = await db.scalar(select(ChatGPTLink).where(ChatGPTLink.user_id == user.id))
     assert link is None

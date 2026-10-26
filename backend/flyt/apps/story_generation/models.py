@@ -14,6 +14,7 @@ from sqlalchemy import Text
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
+from flyt.apps.reading.constants import TITLE_MAX_LENGTH
 
 from flyt.apps.story_generation.constants import ANCHOR_MAX_LENGTH
 from flyt.apps.story_generation.constants import ERROR_CODE_MAX_LENGTH
@@ -62,6 +63,7 @@ class Generation(BaseModel, DateTimeMixin):
     worker_claim: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=false()
     )
+    title: Mapped[str | None] = mapped_column(String(TITLE_MAX_LENGTH), nullable=True)
     text: Mapped[str | None] = mapped_column(Text, nullable=True)
     pages: Mapped[list | None] = mapped_column(JSON(none_as_null=True), nullable=True)
     mastered_lemma_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -94,7 +96,7 @@ class Generation(BaseModel, DateTimeMixin):
         "ProviderRequest",
         back_populates="generation",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="raise",
     )
 
 
@@ -133,4 +135,6 @@ class ProviderRequest(BaseModel, DateTimeMixin):
         String(UPSTREAM_IDENTIFIER_MAX_LENGTH), nullable=True
     )
 
-    generation = relationship("Generation", back_populates="provider_requests")
+    generation = relationship(
+        "Generation", back_populates="provider_requests", lazy="raise"
+    )

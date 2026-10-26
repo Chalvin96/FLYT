@@ -1,11 +1,15 @@
-from datetime import datetime
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+from pydantic import StringConstraints
 
 from flyt.apps.lexicons.types import UserLemmaState
 from flyt.apps.reading.constants import TITLE_MAX_LENGTH
+from flyt.apps.reading.constants import K_MAX_NORMALIZED_BYTES
 from flyt.apps.reading.models import ImportStatus
+
+from flyt.core.schemas import UtcDatetime
 
 
 class ReadingGroupRead(BaseModel):
@@ -25,9 +29,9 @@ class StorySummaryRead(BaseModel):
     title: str
     # None for imported stories, which carry no CEFR level or reading group.
     cefrLevel: str | None
-    createdAt: datetime
-    preview: str
+    createdAt: UtcDatetime
     wordCount: int
+    readingMinutes: int
     isRead: bool
     completed: bool
 
@@ -49,7 +53,8 @@ class HeroStoryRead(BaseModel):
     title: str
     groupTitle: str | None
     cefrLevel: str | None
-    preview: str
+    wordCount: int
+    readingMinutes: int
 
 
 class ReadingHeroResponse(BaseModel):
@@ -85,6 +90,7 @@ class StoryPageResponse(BaseModel):
     cefrLevel: str | None
     groupKey: str | None
     groupTitle: str | None
+    readingMinutes: int
     page: StoryPageRead
     totalPages: int
     lastPageIndex: int
@@ -100,7 +106,7 @@ class PasteImportCreate(BaseModel):
     """Web paste box: text plus an optional per-user title."""
 
     title: str | None = Field(default=None, max_length=TITLE_MAX_LENGTH)
-    text: str
+    text: str = Field(max_length=K_MAX_NORMALIZED_BYTES)
 
 
 class ExtensionImportCreate(BaseModel):
@@ -108,7 +114,16 @@ class ExtensionImportCreate(BaseModel):
 
     title: str | None = Field(default=None, max_length=TITLE_MAX_LENGTH)
     source_url: str
-    text: str
+    text: str = Field(max_length=K_MAX_NORMALIZED_BYTES)
+
+
+class ImportTitleUpdate(BaseModel):
+    title: Annotated[
+        str,
+        StringConstraints(
+            strip_whitespace=True, min_length=1, max_length=TITLE_MAX_LENGTH
+        ),
+    ]
 
 
 class ImportItemRead(BaseModel):
@@ -123,11 +138,11 @@ class ImportItemRead(BaseModel):
     errorMessage: str | None
     pageCount: int | None
     wordCount: int
-    createdAt: datetime
+    createdAt: UtcDatetime
 
 
 class QuotaRead(BaseModel):
-    """Lifetime import usage, so the client can render an ``n/limit`` indicator."""
+    """Active import count against the import limit."""
 
     used: int
     limit: int

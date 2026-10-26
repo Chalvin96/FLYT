@@ -4,10 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+import type { ExerciseHostAdapter } from '@/components/flashcard/exerciseAdapter';
 import { type ExerciseOutcome } from '@/lib/operationResult';
 import { type LessonDetailRead } from '@/types/api';
 import {
-  type Exercise,
   type LessonPacket,
   type SectionPacket,
 } from '@/types/lesson-contracts';
@@ -40,32 +40,39 @@ vi.mock('@/hooks/lessons/queries', () => ({
   }),
 }));
 
-vi.mock('@/components/flashcard/ExerciseView', () => ({
-  ExerciseView: ({
-    exercise,
+vi.mock('@/components/flashcard/ExerciseHost', () => ({
+  ExerciseHost: ({
+    adapter,
     onFinished,
   }: {
-    exercise: Exercise;
+    adapter: ExerciseHostAdapter;
     onFinished?: (outcome: ExerciseOutcome) => void;
-  }) => (
-    <div>
-      <h2>{exercise.id}</h2>
-      <button
-        onClick={() =>
-          onFinished?.({ kind: 'graded', correct: true, rating: 4 })
-        }
-      >
-        Finish exercise
-      </button>
-    </div>
-  ),
+  }) => {
+    if ('card' in adapter.source) return null;
+    return (
+      <div>
+        <h2>{adapter.source.id}</h2>
+        <button
+          onClick={() =>
+            onFinished?.({ kind: 'graded', correct: true, rating: 4 })
+          }
+        >
+          Finish exercise
+        </button>
+      </div>
+    );
+  },
 }));
 
-vi.mock('@/components/flashcard/FlashCardLessonEnd/FlashCardLessonEnd', () => ({
-  FlashCardLessonEnd: ({ onFinished }: { onFinished?: () => void }) => (
+vi.mock('./LessonCompletion', () => ({
+  LessonCompletion: ({
+    onPrimaryAction,
+  }: {
+    onPrimaryAction?: (destination: 'home') => void;
+  }) => (
     <div>
       <h2>Lesson complete!</h2>
-      <button onClick={onFinished}>Finish lesson</button>
+      <button onClick={() => onPrimaryAction?.('home')}>Finish lesson</button>
     </div>
   ),
 }));
@@ -82,12 +89,6 @@ vi.mock('@/components/flashcard/FlashCardInfo/FlashCardInfo', () => ({
       <h2>{section.title}</h2>
       <button onClick={onContinue}>Continue section</button>
     </div>
-  ),
-}));
-
-vi.mock('@/components/flashcard/ExerciseModeProvider', () => ({
-  ExerciseModeProvider: ({ children }: { children: ReactNode }) => (
-    <>{children}</>
   ),
 }));
 
@@ -414,6 +415,8 @@ describe('LessonDetailPage', () => {
         })}
       />,
     );
+
+    expect(mockCompleteLesson).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: /start lesson/i }));
 

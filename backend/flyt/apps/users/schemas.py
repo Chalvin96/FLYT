@@ -1,10 +1,11 @@
-from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel
 from pydantic import EmailStr
 from pydantic import Field
 from pydantic import field_validator
+
+from flyt.core.schemas import UtcDatetime
 
 
 class UserRead(BaseModel):
@@ -13,7 +14,7 @@ class UserRead(BaseModel):
     email: EmailStr
     display_name: str
     avatar_url: str | None = None
-    last_login: datetime | None = None
+    last_login: UtcDatetime | None = None
 
     model_config = {"from_attributes": True}
 

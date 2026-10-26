@@ -17,7 +17,6 @@ CLASSIFIED_TABLES = frozenset(
         "flashcard_user_cards",
         "stats_review_logs",
         "lesson_user_progress",
-        "story_import_quota",
         "chatgpt_link",
         "chatbot_openrouter_credentials",
         "flyt_ai_usage",

@@ -1,7 +1,6 @@
+import { Button, Input, Text } from '@flyt/ui';
 import React, { useEffect, useEffectEvent, useState } from 'react';
 
-import { Button } from '@flyt/ui';
-import { Input } from '@flyt/ui';
 import { hasValidNorwegianChars, normalizeLookupQuery } from './grammar';
 
 const INVALID_QUERY_MESSAGE =
@@ -64,7 +63,6 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
         onClick={handleClear}
         variant="ghost"
         size="icon"
-        className="h-11 w-11 text-muted-foreground hover:text-foreground"
         aria-label="Clear search"
       >
         <svg
@@ -102,7 +100,7 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
     return (
       <div className="w-full">
         <div className="relative">
-          <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted-foreground">
+          <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-subtle">
             {searchIcon}
           </div>
           <Input
@@ -119,7 +117,7 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
                 ? 'search-query-error'
                 : undefined
             }
-            className={value.length > 0 ? 'pl-9 pr-12' : 'pl-9'}
+            adornments={value.length > 0 ? 'both' : 'leading'}
           />
           {value.length > 0 && (
             <div className="absolute inset-y-0 right-0 flex items-center">
@@ -128,12 +126,10 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
           )}
         </div>
         {!hasValidNorwegianChars(value) && value.length > 0 && (
-          <p
-            id="search-query-error"
-            role="alert"
-            className="mt-1.5 type-caption-sm text-destructive-60"
-          >
-            {INVALID_QUERY_MESSAGE}
+          <p id="search-query-error" role="alert" className="mt-1.5">
+            <Text as="span" size="small" tone="danger">
+              {INVALID_QUERY_MESSAGE}
+            </Text>
           </p>
         )}
       </div>

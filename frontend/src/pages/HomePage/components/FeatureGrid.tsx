@@ -1,11 +1,13 @@
+import { Heading, Text } from '@flyt/ui';
 import {
   BarChart3,
   FileText,
   MessageCircle,
-  Mic,
   Puzzle,
   Sparkles,
 } from 'lucide-react';
+
+import { cn } from '@/lib/utils';
 
 const features = [
   {
@@ -13,7 +15,7 @@ const features = [
     Icon: Sparkles,
     span: true,
     title: 'Stories generated at your level',
-    tone: 'dark',
+    tone: 'inverse',
   },
   {
     body: 'Look a word up on any Norwegian page and add it without leaving the tab.',
@@ -21,13 +23,6 @@ const features = [
     span: false,
     title: 'Browser extension',
     tone: 'primary',
-  },
-  {
-    body: 'Speak the answer and have it transcribed, instead of only reading it.',
-    Icon: Mic,
-    span: false,
-    title: 'Say it out loud',
-    tone: 'warning',
   },
   {
     body: 'Streak and accuracy from real graded reviews, not minutes spent in an app.',
@@ -39,7 +34,7 @@ const features = [
   {
     body: 'A tutor chat that knows the sentence you’re stuck on.',
     Icon: MessageCircle,
-    span: false,
+    span: true,
     title: 'Ask in plain English',
     tone: 'muted',
   },
@@ -53,57 +48,66 @@ const features = [
 ] as const;
 
 const iconTone: Record<string, string> = {
-  accent: 'text-accent-70',
-  dark: 'text-white-100',
-  muted: 'text-muted-foreground',
-  primary: 'text-primary-70',
-  warning: 'text-warning-60',
+  accent: 'text-success',
+  inverse: 'text-inverse',
+  muted: 'text-subtle',
+  primary: 'text-icon-brand',
+  success: 'text-success',
 };
 
 export function FeatureGrid() {
   return (
     <section className="scroll-mt-24" id="features">
       <div className="max-w-2xl">
-        <p className="type-label text-warning-70 dark:text-warning-30">
-          Everything else
+        <p className="text-brand">
+          <Heading as="span" size="xxsmall">
+            Everything else
+          </Heading>
         </p>
-        <h2 className="mt-3 font-display type-display-lg font-semibold tracking-tight text-foreground">
-          Built for the part after &ldquo;hello&rdquo;.
-        </h2>
+        <div className="mt-3">
+          <Heading as="h2" size="xxlarge" tone="default">
+            Built for the part after &ldquo;hello&rdquo;.
+          </Heading>
+        </div>
       </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {features.map(({ body, Icon, span, title, tone }) => {
-          const isDark = tone === 'dark';
+          const isInverse = tone === 'inverse';
 
           return (
             <article
               className={`radius-section border p-6 transition-transform hover:-translate-y-1 ${
-                isDark
-                  ? 'border-transparent bg-secondary-100 text-white-100 dark:bg-secondary-90 sm:col-span-2'
-                  : 'border-border bg-card hover:border-primary-40'
-              } ${span && !isDark ? 'sm:col-span-2' : ''}`}
+                isInverse
+                  ? 'border-transparent bg-inverse text-inverse sm:col-span-2'
+                  : 'border-default bg-raised hover:border-brand-subtle'
+              } ${span && !isInverse ? 'sm:col-span-2' : ''}`}
               key={title}
             >
               <span
                 className={`grid size-9 place-items-center radius-sm border ${
-                  isDark
-                    ? 'border-white-20 bg-white-10'
-                    : 'border-border bg-background'
+                  isInverse
+                    ? 'border-inverse bg-transparent'
+                    : 'border-default bg-neutral'
                 }`}
               >
                 <Icon className={`icon-md ${iconTone[tone]}`} />
               </span>
-              <h3 className="mt-3 font-display type-body font-semibold tracking-tight">
-                {title}
-              </h3>
-              <p
-                className={`mt-2 type-caption leading-6 ${
-                  isDark ? 'text-white-70' : 'text-muted-foreground'
-                }`}
+              <div className="mt-3">
+                <Heading as="h3" size="small">
+                  {title}
+                </Heading>
+              </div>
+              <div
+                className={cn(
+                  'mt-2',
+                  isInverse ? 'text-inverse-subtle' : 'text-subtle',
+                )}
               >
-                {body}
-              </p>
+                <Text as="p" size="medium">
+                  {body}
+                </Text>
+              </div>
             </article>
           );
         })}

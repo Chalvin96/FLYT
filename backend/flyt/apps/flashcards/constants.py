@@ -23,6 +23,7 @@ class ReviewOutcome(StrEnum):
     GRADED = "graded"
     SKIPPED = "skipped"
     SERVICE_UNAVAILABLE = "service_unavailable"
+    UNSUPPORTED = "unsupported"
 
 
 # Mastery-bucket stability thresholds (in days) for the /me/cards gallery.

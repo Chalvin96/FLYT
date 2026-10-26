@@ -75,6 +75,21 @@ async def test_generation_given_multiple_provider_requests_expect_each_recorded_
     assert requests[1].completion_tokens == K_EXPECTED_COMPLETION_TOKENS
 
 
+async def test_delete_generation_given_unloaded_requests_expect_cascade(db) -> None:
+    generation = await GenerationFactory.create_async()
+    request = await ProviderRequestFactory.create_async(generation_id=generation.id)
+    generation_id = generation.id
+    request_id = request.id
+    db.expunge_all()
+
+    unloaded_generation = await db.get(Generation, generation_id)
+    assert unloaded_generation is not None
+    await db.delete(unloaded_generation)
+    await db.flush()
+
+    assert await db.get(ProviderRequest, request_id) is None
+
+
 async def test_generation_given_outcome_persisted_expect_readable(db) -> None:
     """R-007: a generation persists its quality signals so they survive the
     session."""

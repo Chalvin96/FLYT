@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 const user = {
   id: 1,
@@ -103,8 +103,13 @@ test('test_story_generation_given_viewport_expect_actions_reachable_without_over
 }) => {
   await mockStoryRoutes(page);
 
+  const viewportHeight = 900;
+
   for (const viewportWidth of [390, 768, 1440]) {
-    await page.setViewportSize({ width: viewportWidth, height: 900 });
+    await page.setViewportSize({
+      width: viewportWidth,
+      height: viewportHeight,
+    });
     await page.goto('/reading/generate');
 
     const shelf = page.getByTestId('generated-story-actions');
@@ -127,15 +132,26 @@ test('test_story_generation_given_viewport_expect_actions_reachable_without_over
     expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
 
     if (viewportWidth < 1280) {
-      const shelfClass = (await shelf.getAttribute('class')) ?? '';
-      expect(shelfClass).toContain('sticky');
-      expect(shelfClass).toContain('top-0');
+      const pane = page.locator('main');
+      await pane.evaluate((element) =>
+        element.scrollTo(0, element.scrollHeight),
+      );
+      await expect(shelf).toBeInViewport();
+      const pinnedTop = (await shelf.boundingBox())?.y ?? Number.NaN;
+      await pane.evaluate((element) => element.scrollBy(0, -300));
+      expect((await shelf.boundingBox())?.y).toBe(pinnedTop);
+      await pane.evaluate((element) => element.scrollBy(0, 300));
+      expect((await shelf.boundingBox())?.y).toBe(pinnedTop);
+      expect(
+        await pane.evaluate((element) => element.scrollTop),
+      ).toBeGreaterThan(0);
     } else {
-      // Desktop: the story body scrolls inside a bounded region while the
-      // shelf stays put above it.
+      // Desktop: the story is bounded to the viewport and its body scrolls
+      // inside that region while the shelf stays put above it.
       const card = page.getByTestId('generated-story');
-      const cardClass = (await card.getAttribute('class')) ?? '';
-      expect(cardClass).toContain('xl:max-h-');
+      const cardBox = await card.boundingBox();
+      expect(cardBox).not.toBeNull();
+      expect(cardBox?.height ?? Number.NaN).toBeLessThan(viewportHeight);
 
       const body = page.getByTestId('generated-story-body');
       await expect(body).toBeVisible();

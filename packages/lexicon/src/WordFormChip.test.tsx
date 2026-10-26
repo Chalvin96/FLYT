@@ -15,25 +15,10 @@ describe('WordFormChip', () => {
     expect(chip).toHaveAttribute('title', 'definite, singular');
   });
 
-  it('applies default variant styles', () => {
-    render(<WordFormChip form="hunder" tags={['plural']} />);
-    const chip = screen.getByTitle('plural');
-    expect(chip).toHaveClass('bg-secondary/30');
-  });
-
-  it('applies highlight variant styles', () => {
-    render(
-      <WordFormChip form="hunden" tags={['definite']} variant="highlight" />,
-    );
-    const chip = screen.getByTitle('definite');
-    expect(chip).toHaveClass('bg-primary/15');
-  });
-
   it('should display word form and gender badge', () => {
     render(<WordFormChip form="stikkrenna" tags={['Fem', 'Sing', 'Def']} />);
 
     expect(screen.getByText('stikkrenna')).toBeInTheDocument();
-    // Gender badge now shows the Norwegian article (Fem → ei).
     expect(screen.getByText('ei')).toBeInTheDocument();
   });
 

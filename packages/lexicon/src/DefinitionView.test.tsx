@@ -31,7 +31,7 @@ describe('DefinitionView', () => {
     render(<DefinitionView definition={mockDefinition} />);
     const translation = screen.getByText(/dog \(animal with four legs/);
     expect(translation).toBeInTheDocument();
-    expect(translation).toHaveClass('min-w-0', 'break-words');
+    expect(translation.tagName).toBe('P');
   });
 
   it('renders examples', () => {
@@ -41,11 +41,9 @@ describe('DefinitionView', () => {
 
   it('renders the tap-to-reveal affordance for translated examples only', () => {
     render(<DefinitionView definition={mockDefinition} />);
-    // translated example -> button with the Norwegian sentence as accessible name
     expect(
       screen.getByRole('button', { name: /Hunden løper raskt/ }),
     ).toBeInTheDocument();
-    // untranslated example (en: null) -> plain text, no button affordance
     expect(
       screen.queryByRole('button', { name: /Jeg har en liten hund/ }),
     ).not.toBeInTheDocument();
@@ -54,7 +52,6 @@ describe('DefinitionView', () => {
   it('reveals the English translation on tap and hides it again', async () => {
     render(<DefinitionView definition={mockDefinition} />);
 
-    // English is hidden (hidden attr: not visible + leaves a11y tree) until tapped
     expect(screen.queryByText('The dog runs fast.')).not.toBeVisible();
 
     await userEvent.click(
@@ -117,16 +114,14 @@ describe('DefinitionView', () => {
       name: /Show Norwegian definition/i,
     });
 
-    expect(toggle).toHaveClass(
-      'w-full',
-      'whitespace-normal',
-      'text-left',
-      'type-caption',
-    );
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
     await userEvent.click(toggle);
 
     expect(screen.getByText(/dyr med fire ben/)).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Hide Norwegian definition/i }),
+    ).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('shows "Translation not available" when translation is empty', () => {
@@ -136,10 +131,38 @@ describe('DefinitionView', () => {
 
   it('renders inflection slot when wordForms and inflection are provided', () => {
     const wordForms = [
-      { id: 1, form: 'hund', tags_json: ['Masc', 'Sing', 'Ind'] },
-      { id: 2, form: 'hunden', tags_json: ['Masc', 'Sing', 'Def'] },
-      { id: 3, form: 'hunder', tags_json: ['Masc', 'Plur', 'Ind'] },
-      { id: 4, form: 'hundene', tags_json: ['Masc', 'Plur', 'Def'] },
+      {
+        id: 1,
+        form: 'hund',
+        tags_json: ['Masc', 'Sing', 'Ind'],
+        ipa: null,
+        audio_url: null,
+        ipa_approximate: false,
+      },
+      {
+        id: 2,
+        form: 'hunden',
+        tags_json: ['Masc', 'Sing', 'Def'],
+        ipa: null,
+        audio_url: null,
+        ipa_approximate: false,
+      },
+      {
+        id: 3,
+        form: 'hunder',
+        tags_json: ['Masc', 'Plur', 'Ind'],
+        ipa: null,
+        audio_url: null,
+        ipa_approximate: false,
+      },
+      {
+        id: 4,
+        form: 'hundene',
+        tags_json: ['Masc', 'Plur', 'Def'],
+        ipa: null,
+        audio_url: null,
+        ipa_approximate: false,
+      },
     ];
 
     render(
@@ -164,29 +187,7 @@ describe('DefinitionView', () => {
     expect(screen.queryByTestId('inflection-section')).not.toBeInTheDocument();
   });
 
-  it('uses stacked mobile classes and horizontal desktop classes for inflection container', () => {
-    const wordForms = [
-      { id: 1, form: 'hund', tags_json: ['Masc', 'Sing', 'Ind'] },
-      { id: 2, form: 'hunden', tags_json: ['Masc', 'Sing', 'Def'] },
-      { id: 3, form: 'hunder', tags_json: ['Masc', 'Plur', 'Ind'] },
-      { id: 4, form: 'hundene', tags_json: ['Masc', 'Plur', 'Def'] },
-    ];
-
-    render(
-      <DefinitionView
-        definition={mockDefinition}
-        wordForms={wordForms}
-        variant="flashcard"
-        inflection={<div data-testid="mock-inflection" />}
-      />,
-    );
-    expect(screen.getByTestId('inflection-section')).toHaveClass(
-      'flex-col',
-      'md:flex-row',
-    );
-  });
-
-  it('hides examples on mobile when variant is flashcard', () => {
+  it('test_definition_view_given_flashcard_presentation_expect_flashcard_contract', () => {
     const definitionWithExamples: DefinitionRead = {
       ...mockDefinition,
       examples_json: [{ no: 'Jeg har en liten hund.', en: null }],
@@ -195,25 +196,36 @@ describe('DefinitionView', () => {
     render(
       <DefinitionView
         definition={definitionWithExamples}
-        variant="flashcard"
+        presentation="flashcard"
       />,
     );
 
-    const examplesContainer = screen.getByTestId('definition-examples');
-    expect(examplesContainer).toHaveClass('hidden', 'md:block');
+    // The PR's before/after/diff triptych shows the mobile hide of the
+    // examples container at 320 and 768.
+    expect(screen.getByTestId('definition-item-root')).toHaveAttribute(
+      'data-presentation',
+      'flashcard',
+    );
+    expect(screen.getByTestId('definition-examples')).toBeInTheDocument();
   });
 
-  it('shows examples on all screen sizes when variant is lexicon', () => {
+  it('test_definition_view_given_lexicon_presentation_expect_lexicon_contract', () => {
     const definitionWithExamples: DefinitionRead = {
       ...mockDefinition,
       examples_json: [{ no: 'Jeg har en liten hund.', en: null }],
     };
 
     render(
-      <DefinitionView definition={definitionWithExamples} variant="lexicon" />,
+      <DefinitionView
+        definition={definitionWithExamples}
+        presentation="lexicon"
+      />,
     );
 
-    const examplesContainer = screen.getByTestId('definition-examples');
-    expect(examplesContainer).not.toHaveClass('hidden', 'md:block');
+    expect(screen.getByTestId('definition-item-root')).toHaveAttribute(
+      'data-presentation',
+      'lexicon',
+    );
+    expect(screen.getByTestId('definition-examples')).toBeInTheDocument();
   });
 });

@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test';
-
+import { expect, test } from './fixtures';
 import { loginAs } from './helpers/auth';
 
 // The E2E seed (`seed_e2e_user_state`) gives `power-learner` 3 NEW review cards

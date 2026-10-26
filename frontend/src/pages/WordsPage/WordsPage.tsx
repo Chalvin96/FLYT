@@ -1,11 +1,17 @@
+import {
+  Button,
+  Card,
+  Chip,
+  Heading,
+  Skeleton,
+  Text,
+  textVariants,
+} from '@flyt/ui';
 import { BookOpen, Search } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 
-import { AppCard } from '@/components/common/AppCard/AppCard';
-import { Button } from '@/components/common/Button/Button';
 import { ErrorMessage } from '@/components/common/ErrorMessage/ErrorMessage';
 import { useLookupContext } from '@/components/lookup/useLookupContext';
-import { Skeleton } from '@/components/ui/skeleton';
 import { cn, pluralize } from '@/lib/utils';
 import type {
   CardFacet,
@@ -56,8 +62,10 @@ export function WordsPage(props: WordsPageProps) {
   const { data, isPending, isError } = props;
 
   return (
-    <div className="container-max mx-auto flex w-full max-w-2xl flex-col gap-6 pb-6">
-      <h1 className="type-title text-foreground">My cards</h1>
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 pb-6">
+      <Heading as="h1" size="large" tone="default">
+        My cards
+      </Heading>
 
       <WordsPageBody
         isError={isError}
@@ -70,7 +78,6 @@ export function WordsPage(props: WordsPageProps) {
   );
 }
 
-/** Resolves the top-level page state: loading, error, empty, or active list. */
 function WordsPageBody({
   children,
   isError,
@@ -88,11 +95,11 @@ function WordsPageBody({
 
   if (isError) {
     return (
-      <AppCard className="p-6">
-        <p className="type-body text-muted-foreground">
+      <Card padding="roomy">
+        <Text size="large" tone="subtle">
           Could not load your cards. Please refresh and try again.
-        </p>
-      </AppCard>
+        </Text>
+      </Card>
     );
   }
 
@@ -155,13 +162,11 @@ function WordsActiveSection({
       />
 
       {!showNotStarted && notStartedCount > 0 ? (
-        <button
-          className="self-start cursor-pointer rounded-full border border-border px-3 py-1.5 type-caption font-medium text-muted-foreground transition-colors hover:bg-secondary-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          onClick={() => onShowNotStartedChange(true)}
-          type="button"
-        >
-          {`Show ${pluralize(notStartedCount, 'not-started card')}`}
-        </button>
+        <div className="self-start">
+          <Chip onClick={() => onShowNotStartedChange(true)}>
+            {`Show ${pluralize(notStartedCount, 'not-started card')}`}
+          </Chip>
+        </div>
       ) : null}
 
       {cards.length === 0 ? (
@@ -188,13 +193,11 @@ function WordsActiveSection({
       )}
 
       {showNotStarted ? (
-        <Button
-          className="self-start"
-          onClick={() => onShowNotStartedChange(false)}
-          variant="link"
-        >
-          ← Back to started cards
-        </Button>
+        <span className="inline-flex self-start">
+          <Button onClick={() => onShowNotStartedChange(false)} variant="link">
+            ← Back to started cards
+          </Button>
+        </span>
       ) : null}
     </>
   );
@@ -217,44 +220,55 @@ function PaginationControls({
   }
 
   return (
-    <Button
-      className="self-start"
-      disabled={pagination.isLoading}
-      onClick={pagination.onLoadMore}
-      variant="outline"
-    >
-      {pagination.isLoading ? 'Loading more cards…' : 'Load more cards'}
-    </Button>
+    <span className="inline-flex self-start">
+      <Button
+        disabled={pagination.isLoading}
+        onClick={pagination.onLoadMore}
+        variant="outline"
+      >
+        {pagination.isLoading ? 'Loading more cards…' : 'Load more cards'}
+      </Button>
+    </span>
   );
 }
 
 function LoadingState() {
   return (
-    <AppCard className="divide-y divide-border p-0">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div className="px-5 py-4" key={i}>
-          <Skeleton className="h-5 w-40" />
-          <Skeleton className="mt-2 h-3 w-24" />
-        </div>
-      ))}
-    </AppCard>
+    <Card padding="none">
+      <div className="divide-y divide-[var(--border-default)]">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div className="px-5 py-4" key={i}>
+            <Skeleton length="medium" size="sm" variant="heading" />
+            <div className="mt-2">
+              <Skeleton length="short" size="sm" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
 function EmptyState() {
   return (
-    <AppCard className="flex flex-col items-center gap-3 p-8 text-center">
-      <BookOpen className="icon-xl text-muted-foreground" />
-      <h2 className="type-section text-foreground">No cards yet</h2>
-      <p className="max-w-sm type-body text-muted-foreground">
-        Complete a lesson or add words from the dictionary to start building
-        your review deck. Cards you study will collect here with a mastery
-        level.
-      </p>
-      <Button asChild>
-        <Link to="/lesson">Browse lessons</Link>
-      </Button>
-    </AppCard>
+    <Card padding="roomy">
+      <div className="flex flex-col items-center gap-3 text-center">
+        <BookOpen className="icon-xl text-subtle" />
+        <Heading as="h2" size="medium" tone="default">
+          No cards yet
+        </Heading>
+        <div className="max-w-sm">
+          <Text as="p" size="large" tone="subtle">
+            Complete a lesson or add words from the dictionary to start building
+            your review deck. Cards you study will collect here with a mastery
+            level.
+          </Text>
+        </div>
+        <Button asChild>
+          <Link to="/lesson">Browse lessons</Link>
+        </Button>
+      </div>
+    </Card>
   );
 }
 
@@ -271,22 +285,17 @@ function ActiveStateSummary({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <p
-        className="type-caption text-muted-foreground"
-        data-testid="cards-summary"
-      >
+      <Text data-testid="cards-summary" size="medium" tone="subtle">
         {`${facetLabel} · ${sortLabel}`}
-      </p>
+      </Text>
       {trimmedQuery ? (
-        <button
+        <Chip
           aria-label={`Clear search "${trimmedQuery}"`}
-          className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-border px-2 py-0.5 type-caption text-muted-foreground transition-colors hover:bg-secondary-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => onQueryChange('')}
-          type="button"
+          removable
         >
-          <span className="font-medium">{`"${trimmedQuery}"`}</span>
-          <span aria-hidden="true">✕</span>
-        </button>
+          {`"${trimmedQuery}"`}
+        </Chip>
       ) : null}
     </div>
   );
@@ -305,8 +314,6 @@ function FilteredEmptyState({
   showNotStarted: boolean;
   trimmedQuery: string;
 }) {
-  // F5: name the filter that produced no results, then offer recovery actions
-  // which may co-render (Clear search + Back to started cards).
   const heading = trimmedQuery
     ? `No cards match "${trimmedQuery}".`
     : facet !== 'all'
@@ -314,21 +321,28 @@ function FilteredEmptyState({
       : 'No cards in this view.';
 
   return (
-    <AppCard className="p-6 text-center">
-      <p className="type-body text-muted-foreground">{heading}</p>
-      <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
-        {trimmedQuery ? (
-          <Button onClick={() => onQueryChange('')} variant="link">
-            Clear search
-          </Button>
-        ) : null}
-        {showNotStarted ? (
-          <Button onClick={() => onShowNotStartedChange(false)} variant="link">
-            Back to started cards
-          </Button>
-        ) : null}
+    <Card padding="roomy">
+      <div className="text-center">
+        <Text size="large" tone="subtle">
+          {heading}
+        </Text>
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+          {trimmedQuery ? (
+            <Button onClick={() => onQueryChange('')} variant="link">
+              Clear search
+            </Button>
+          ) : null}
+          {showNotStarted ? (
+            <Button
+              onClick={() => onShowNotStartedChange(false)}
+              variant="link"
+            >
+              Back to started cards
+            </Button>
+          ) : null}
+        </div>
       </div>
-    </AppCard>
+    </Card>
   );
 }
 
@@ -343,9 +357,9 @@ function SummaryStrip({
   return (
     <div data-testid="summary-strip">
       <div className="flex items-baseline justify-between">
-        <p className="type-label text-muted-foreground">
+        <Heading as="div" size="xxsmall" tone="subtle">
           {pluralize(total, 'card')} total
-        </p>
+        </Heading>
       </div>
       {/* Tailwind preflight strips list-style, which drops list semantics in
           Safari/VoiceOver — keep the explicit role. */}
@@ -365,8 +379,12 @@ function SummaryStrip({
               data-testid={`bucket-${bucket.key}`}
               key={bucket.key}
             >
-              <span className="type-caption font-semibold">{count}</span>
-              <span className="type-caption">{bucket.label}</span>
+              <Text as="span" size="medium" weight="semibold">
+                {count}
+              </Text>
+              <Text as="span" size="medium">
+                {bucket.label}
+              </Text>
               <MasteryRank bucket={bucket.key} />
             </li>
           );
@@ -386,19 +404,9 @@ function FacetTabButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      aria-pressed={isActive}
-      className={cn(
-        'cursor-pointer rounded-full border px-3 py-1.5 type-caption font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        isActive
-          ? 'border-primary-60 bg-primary-10 text-primary-90'
-          : 'border-border text-muted-foreground hover:bg-secondary-10',
-      )}
-      onClick={onClick}
-      type="button"
-    >
+    <Chip onClick={onClick} pressed={isActive}>
       {label}
-    </button>
+    </Chip>
   );
 }
 
@@ -416,12 +424,12 @@ function SearchControls({
   return (
     <div className="flex items-center gap-2">
       <div className="relative flex-1">
-        <Search className="icon-sm absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <Search className="icon-sm absolute left-3 top-1/2 -translate-y-1/2 text-subtle" />
         <label className="sr-only" htmlFor="my-cards-search">
           Search your cards
         </label>
         <input
-          className="h-9 w-full radius-field border border-input bg-card pl-9 pr-3 type-caption outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
+          className={`h-9 w-full radius-field border border-strong bg-raised pl-9 pr-3 outline-none placeholder:text-subtle focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-[var(--border-focused)] ${textVariants({ size: 'medium' })}`}
           id="my-cards-search"
           onChange={(e) => onQueryChange(e.target.value)}
           placeholder="Search your cards"
@@ -431,7 +439,7 @@ function SearchControls({
       </div>
       <select
         aria-label="Sort cards"
-        className="h-9 cursor-pointer radius-field border border-input bg-transparent px-2 type-caption outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className={`h-9 cursor-pointer radius-field border border-strong bg-transparent px-2 outline-none focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-[var(--border-focused)] ${textVariants({ size: 'medium' })}`}
         onChange={(e) => onSortChange(e.target.value as CardSort)}
         value={sort}
       >

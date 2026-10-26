@@ -32,7 +32,7 @@ function segmentClasses(kind: LessonPage['kind'], state: SegmentState) {
       case 'completed':
         return 'bg-progress-primary-complete';
       default:
-        return 'bg-progress-primary-locked';
+        return 'bg-progress-locked';
     }
   }
 
@@ -42,7 +42,7 @@ function segmentClasses(kind: LessonPage['kind'], state: SegmentState) {
     case 'completed':
       return 'bg-progress-secondary-complete';
     default:
-      return 'bg-progress-secondary-locked';
+      return 'bg-progress-locked';
   }
 }
 
@@ -93,7 +93,8 @@ export function LessonProgressBar({
         const state = segmentState(index, currentIndex, maxReachedIndex);
         const { position, total: kindTotal } = kindPosition(pages, index);
         const visual = cn(
-          'block h-2 w-full transition-colors',
+          'block h-2 w-full border border-[var(--progress-border)] transition-[background-color,height]',
+          state === 'current' && 'h-3.5',
           segmentShape(page.kind, index, pages.length),
           segmentClasses(page.kind, state),
         );
@@ -103,6 +104,7 @@ export function LessonProgressBar({
             <span
               key={page.id}
               className={visual}
+              data-state={state}
               data-testid="lesson-progress-segment"
             />
           );
@@ -117,11 +119,15 @@ export function LessonProgressBar({
             aria-disabled={state === 'locked' || undefined}
             onClick={state === 'locked' ? undefined : () => onGoToPage(index)}
             className={cn(
-              'flex h-6 flex-1 cursor-pointer items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+              'flex h-6 flex-1 cursor-pointer items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focused)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background-neutral)]',
               state === 'locked' && 'cursor-not-allowed',
             )}
           >
-            <span className={visual} data-testid="lesson-progress-segment" />
+            <span
+              className={visual}
+              data-state={state}
+              data-testid="lesson-progress-segment"
+            />
           </button>
         );
       })}

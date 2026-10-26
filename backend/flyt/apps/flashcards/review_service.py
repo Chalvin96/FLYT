@@ -27,6 +27,7 @@ from flyt.apps.flashcards.constants import ReviewOutcome
 from flyt.apps.flashcards.exceptions import CardNotFoundError
 from flyt.apps.flashcards.exceptions import InvalidReviewOutcomeError
 from flyt.apps.flashcards.exceptions import InvalidReviewRatingError
+from flyt.apps.flashcards.exceptions import StaleReviewError
 from flyt.apps.flashcards.models import CardPool
 from flyt.apps.flashcards.models import CardState
 from flyt.apps.flashcards.models import CardType
@@ -113,7 +114,9 @@ class FlashcardReviewService:
             (Rating.Easy, "easy"),
         ):
             try:
-                reviewed, _ = SCHEDULER.review_card(fsrs_card, rating)
+                reviewed, _ = SCHEDULER.review_card(
+                    fsrs_card, rating, review_datetime=now_dt
+                )
             except (ValueError, AssertionError):
                 return {}
             labels[key] = format_interval(reviewed.due - now_dt)
@@ -126,40 +129,51 @@ class FlashcardReviewService:
         card_id: int,
         outcome: ReviewOutcome,
         rating: int | None,
+        review_version: int,
     ) -> tuple[UserCard, bool]:
         """Dispatch one review outcome; returns (user_card, scheduled).
 
-        Ungraded outcomes (``skipped`` / ``service_unavailable``) resolve the
-        issued variant without changing FSRS state or review logs.
+        Ungraded outcomes resolve the issued variant without changing FSRS
+        state or review logs. Only unsupported is valid for every card type.
         """
         if outcome == ReviewOutcome.GRADED:
             if rating is None:
                 raise InvalidReviewRatingError()
-            user_card = await self.review_card(user_id, user_card_id, rating, card_id)
+            user_card = await self.review_card(
+                user_id, user_card_id, rating, card_id, review_version
+            )
             return user_card, True
 
         user_card, shown = await self._load_reviewable_user_card_or_raise(
-            user_id, user_card_id, card_id
+            user_id, user_card_id, card_id, review_version
         )
-        if shown.type not in {CardType.SPEAK, CardType.WRITE}:
+        if outcome != ReviewOutcome.UNSUPPORTED and shown.type != CardType.WRITE:
             raise InvalidReviewOutcomeError()
         user_card.last_shown_card_id = card_id
         user_card.active_card_id = None
+        user_card.review_version += 1
         return user_card, False
 
     async def review_card(
-        self, user_id: int, user_card_id: int, rating: int, card_id: int
+        self,
+        user_id: int,
+        user_card_id: int,
+        rating: int,
+        card_id: int,
+        review_version: int,
     ) -> UserCard:
         if rating not in {Rating.Again, Rating.Hard, Rating.Good, Rating.Easy}:
             raise InvalidReviewRatingError()
 
         user_card, _shown = await self._load_reviewable_user_card_or_raise(
-            user_id, user_card_id, card_id
+            user_id, user_card_id, card_id, review_version
         )
 
+        reviewed_at = now_aware()
         review_payload = self._build_fsrs_review_result(
             user_card=user_card,
             rating=rating,
+            reviewed_at=reviewed_at,
         )
         last_review_at = to_utc_naive(review_payload.last_review)
         due_at = to_utc_naive(review_payload.due)
@@ -175,6 +189,7 @@ class FlashcardReviewService:
         user_card.state = FSRS_STATE_TO_DB_STATE[review_payload.state]
         user_card.last_shown_card_id = card_id
         user_card.active_card_id = None
+        user_card.review_version += 1
         # Reviewing a card means it is in the active pool. Guards against a card
         # that was surfaced via the read-path UPCOMING drip being reviewed before
         # the drip's promotion committed (would otherwise orphan it as UPCOMING).
@@ -184,7 +199,7 @@ class FlashcardReviewService:
             and user_card.state != CardState.NEW
             and user_card.introduced_at is None
         ):
-            user_card.introduced_at = now()
+            user_card.introduced_at = reviewed_at.replace(tzinfo=None)
 
         self._record_review_log(
             user_id=user_id,
@@ -258,9 +273,9 @@ class FlashcardReviewService:
                 )
             due_cards += new_cards
 
-        result = await self._to_due_cards(due_cards)
         if mode == K_REVIEW_MODE_QUICK:
-            result = result[:K_QUICK_REVIEW_CARD_COUNT]
+            due_cards = due_cards[:K_QUICK_REVIEW_CARD_COUNT]
+        result = await self._to_due_cards(due_cards)
         for due_card in result:
             due_card.user_card.active_card_id = due_card.card.id
         return result
@@ -271,15 +286,6 @@ class FlashcardReviewService:
         want: int,
         exclude_pool_ids: set[int],
     ) -> list[UserCard]:
-        """Activate up to ``want`` UPCOMING cards via ``activate_pool_for_user``.
-
-        Selects UPCOMING UserCards joined to ``CardPool`` (ordered by
-        ``_upcoming_order``), excluding ``exclude_pool_ids`` and pools that own
-        no addable FlashCard. Each selected row is routed through the shared
-        activation command so the UserLemma invariant is maintained for
-        lemma-owned pools. Returns the promoted rows so the caller can include
-        them in the due set.
-        """
         if want <= 0:
             return []
 
@@ -299,13 +305,9 @@ class FlashcardReviewService:
             promote_stmt = promote_stmt.where(UserCard.pool_id.not_in(exclude_pool_ids))
 
         upcoming_cards = list((await self.db.scalars(promote_stmt)).all())
-        promoted: list[UserCard] = []
-        for card in upcoming_cards:
-            activated = await self.card_service.activate_pool_for_user(
-                user_id, card.pool_id
-            )
-            promoted.append(activated)
-        return promoted
+        return await self.card_service.activate_pools_for_user(
+            user_id, [card.pool_id for card in upcoming_cards]
+        )
 
     async def add_more_new(self, user_id: int) -> int:
         """Promote a capped batch of UPCOMING cards to ACTIVE/NEW.
@@ -340,19 +342,19 @@ class FlashcardReviewService:
         )
 
     async def _load_reviewable_user_card_or_raise(
-        self, user_id: int, user_card_id: int, card_id: int
+        self, user_id: int, user_card_id: int, card_id: int, review_version: int
     ) -> tuple[UserCard, FlashCard]:
         user_card = await self.db.scalar(
             select(UserCard)
-            .options(selectinload(UserCard.pool))
             .where(UserCard.user_id == user_id)
             .where(UserCard.id == user_card_id)
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if not user_card:
             raise CardNotFoundError()
 
-        if user_card.active_card_id != card_id:
+        if self._answerable_variant_id(user_card) != card_id:
             raise CardNotFoundError()
 
         shown = await self.db.scalar(
@@ -362,7 +364,15 @@ class FlashcardReviewService:
         )
         if shown is None:
             raise CardNotFoundError()
+        if user_card.review_version != review_version:
+            raise StaleReviewError()
         return user_card, shown
+
+    @staticmethod
+    def _answerable_variant_id(user_card: UserCard) -> int | None:
+        if user_card.active_card_id is not None:
+            return user_card.active_card_id
+        return user_card.last_shown_card_id
 
     def _pick_variant(
         self, user_card: UserCard, pool_cards: list[FlashCard]
@@ -444,7 +454,12 @@ class FlashcardReviewService:
         pool_cards_rows = (
             await self.db.scalars(
                 select(FlashCard)
-                .options(selectinload(FlashCard.pool).raiseload(CardPool.lesson))
+                .options(
+                    selectinload(FlashCard.pool).raiseload(CardPool.lesson),
+                    selectinload(FlashCard.pool)
+                    .selectinload(CardPool.lemma)
+                    .selectinload(Lemma.word_forms),
+                )
                 .where(FlashCard.pool_id.in_(pool_ids))
                 .where(FlashCard.is_addable.is_(True))
                 .order_by(FlashCard.id.asc())
@@ -456,19 +471,15 @@ class FlashcardReviewService:
                 continue
             cards_by_pool.setdefault(card.pool_id, []).append(card)
 
-        pools = (
-            await self.db.scalars(
-                select(CardPool)
-                .options(
-                    selectinload(CardPool.lemma).selectinload(Lemma.word_forms),
-                    raiseload(CardPool.lesson),
-                )
-                .where(CardPool.id.in_(pool_ids))
-            )
-        ).all()
-        pool_by_id = {p.id: p for p in pools}
+        pool_by_id = {
+            card.pool_id: card.pool
+            for card in pool_cards_rows
+            if card.pool_id is not None
+        }
 
-        lemma_ids = {pool.lemma_id for pool in pools if pool.lemma_id is not None}
+        lemma_ids = {
+            pool.lemma_id for pool in pool_by_id.values() if pool.lemma_id is not None
+        }
         contexts_by_lemma: dict[int, UserLemmaContext] = {}
         if lemma_ids:
             context_rows = (
@@ -537,8 +548,12 @@ class FlashcardReviewService:
             last_review=to_utc_aware(user_card.last_review_at),
         )
 
-    def _build_fsrs_review_result(self, user_card: UserCard, rating: int) -> Card:
+    def _build_fsrs_review_result(
+        self, user_card: UserCard, rating: int, reviewed_at: datetime
+    ) -> Card:
         reviewed, _ = SCHEDULER.review_card(
-            self._build_fsrs_card(user_card), Rating(rating)
+            self._build_fsrs_card(user_card),
+            Rating(rating),
+            review_datetime=reviewed_at,
         )
         return reviewed

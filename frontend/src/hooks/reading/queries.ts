@@ -3,6 +3,7 @@ import {
   keepPreviousData,
   useInfiniteQuery,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
@@ -17,6 +18,7 @@ import {
 import { getApiErrorCode } from '@/lib/apiError';
 import { showApiError } from '@/lib/errors';
 import { IMPORT_ERROR_CODES } from '@/types/api';
+import type { ReadingStoryPageResponse } from '@/types/api';
 
 export const readingKeys = {
   home: ['reading-home'] as const,
@@ -38,10 +40,11 @@ export const readingKeys = {
     ['reading-story-recommendations', uuid] as const,
 };
 
-export function useReadingHome() {
+export function useReadingHome(enabled = true) {
   return useQuery({
     queryKey: readingKeys.home,
     queryFn: getReadingHome,
+    enabled,
   });
 }
 
@@ -58,12 +61,12 @@ export function readingStoryPageQueryOptions(uuid: string, page?: number) {
 export function useReadingStory(
   uuid: string,
   page?: number,
-  options: { pollWhileNotReady?: boolean } = {},
+  options: { pollWhileNotReady?: boolean; enabled?: boolean } = {},
 ) {
-  const { pollWhileNotReady = true } = options;
+  const { pollWhileNotReady = true, enabled = true } = options;
   return useQuery({
     ...readingStoryPageQueryOptions(uuid, page),
-    enabled: Boolean(uuid),
+    enabled: Boolean(uuid) && enabled,
     placeholderData: keepPreviousData,
     refetchInterval: (query) => {
       if (!pollWhileNotReady) return false;
@@ -106,6 +109,8 @@ export function useReadingStoryRecommendations(uuid: string) {
   });
 }
 
+export const READING_STORIES_PAGE_SIZE = 20;
+
 interface UseInfiniteReadingStoriesFilters {
   selectedLevels: string[];
   showReadStories: boolean;
@@ -120,7 +125,7 @@ export function useInfiniteReadingStories(
     queryFn: ({ pageParam }) =>
       getReadingStories(groupKey, {
         cursor: pageParam,
-        limit: 20,
+        limit: READING_STORIES_PAGE_SIZE,
         levels: filters.selectedLevels,
         showReadStories: filters.showReadStories,
       }),
@@ -128,6 +133,58 @@ export function useInfiniteReadingStories(
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: Boolean(groupKey),
   });
+}
+
+export function useReadingStoryPages(uuid: string, totalPages: number) {
+  const queryClient = useQueryClient();
+  const cached = queryClient
+    .getQueriesData<ReadingStoryPageResponse>({
+      queryKey: readingKeys.story(uuid),
+    })
+    .flatMap(([key, data]) =>
+      data?.uuid === uuid
+        ? [
+            {
+              data,
+              updatedAt: queryClient.getQueryState(key)?.dataUpdatedAt ?? 0,
+            },
+          ]
+        : [],
+    )
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+
+  const pages = useQueries({
+    queries: Array.from({ length: totalPages }, (_, index) => {
+      const existing = cached.find(({ data }) => data.page.index === index);
+      return {
+        ...readingStoryPageQueryOptions(uuid, index),
+        initialData: existing?.data,
+        initialDataUpdatedAt: existing?.updatedAt,
+        staleTime: Infinity,
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+      };
+    }),
+  });
+  return pages.map((query, index) => {
+    const latest = cached.find(({ data }) => data.page.index === index);
+    return latest && latest.updatedAt > query.dataUpdatedAt
+      ? { ...query, data: latest.data, dataUpdatedAt: latest.updatedAt }
+      : query;
+  });
+}
+
+export function useAllReadingThemeStories(groupKey: string | null) {
+  const query = useInfiniteReadingStories(groupKey ?? '', {
+    selectedLevels: [],
+    showReadStories: true,
+  });
+  const { fetchNextPage, hasNextPage, isFetching, isError } = query;
+  useEffect(() => {
+    if (hasNextPage && !isFetching && !isError) void fetchNextPage();
+  }, [fetchNextPage, hasNextPage, isFetching, isError]);
+  return query;
 }
 
 export function useSaveReadingProgress(uuid: string) {

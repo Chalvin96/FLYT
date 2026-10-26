@@ -1,6 +1,8 @@
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flyt.apps.reading.models import Story
 from flyt.commands.reading_ingest import IngestError
 from flyt.commands.reading_ingest import ReadingIngestService
 from flyt.commands.reading_ingest import default_fetch
@@ -22,7 +24,9 @@ K_EXPECTED_MAX_SOURCE_BYTES = 100_000_000
 
 
 @pytest.mark.anyio
-async def test_ingest_creates_story_and_enqueues(async_session: AsyncSession) -> None:
+async def test_ingest_given_ready_front_matter_expect_unpublished_source_and_publication_job(
+    async_session: AsyncSession,
+) -> None:
     await ReadingGroupFactory.create(key="classics")
     enqueued: list = []
     service = _service(async_session, fetched=_DOC, enqueued=enqueued)
@@ -30,9 +34,12 @@ async def test_ingest_creates_story_and_enqueues(async_session: AsyncSession) ->
     story = await service.ingest_from_url("https://raw.githubusercontent.com/x/y/z.md")
 
     assert story.slug == "dracula-ch1"
-    assert story.is_ready is True
-    assert "Det var en gang." in story.content
-    assert enqueued == [("generate_story_pages", (story.id,))]
+    assert story.is_ready is False
+    assert (
+        await async_session.scalar(select(Story.content).where(Story.id == story.id))
+        == "Det var en gang."
+    )
+    assert enqueued == [("generate_story_pages", (story.id, True))]
 
 
 @pytest.mark.anyio

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import { useCheckableExercise } from '@/hooks/flashcard/useCheckableExercise/useCheckableExercise';
-import { gradedOutcome } from '@/lib/operationResult';
+import { useExerciseAttempt } from '@/hooks/flashcard/useExerciseAttempt/useExerciseAttempt';
 import type { Exercise } from '@/types/lesson-contracts';
 
 import { OperationShell } from '../OperationShell';
@@ -36,6 +35,7 @@ function shuffledMovableTokenIds(
 
 export function FlashCardBuild({
   exercise,
+  allowRetry,
   onFinished,
   ...props
 }: OperationComponentProps<BuildExercise>) {
@@ -71,10 +71,12 @@ export function FlashCardBuild({
     canReveal,
     isRevealedOrSolved,
     shakeKey,
-    check: checkExercise,
-    reveal: revealExercise,
+    reportRight,
+    reportWrong,
+    reveal,
     markDirty,
-  } = useCheckableExercise();
+    finish,
+  } = useExerciseAttempt({ allowRetry, onFinished });
 
   const isLocked = isRevealedOrSolved;
 
@@ -90,7 +92,11 @@ export function FlashCardBuild({
         break;
       }
     }
-    checkExercise(allCorrect);
+    if (allCorrect) {
+      reportRight();
+    } else {
+      reportWrong();
+    }
   }
 
   function handleReveal() {
@@ -106,13 +112,7 @@ export function FlashCardBuild({
         : correctCount / movableAnswerOrder.length;
     // Set the full correct positional order.
     setSelectedTokenIds([...movableAnswerOrder]);
-    revealExercise(fraction);
-  }
-
-  function handleContinue() {
-    if (result) {
-      onFinished?.(gradedOutcome(result));
-    }
+    reveal(fraction);
   }
 
   /** Add a bank token to the first open slot. */
@@ -198,12 +198,18 @@ export function FlashCardBuild({
     <OperationShell
       exercise={exercise}
       desktopExpanded
-      result={result}
       canCheck={canCheck}
-      retry={{ phase, shakeKey, canReveal, onReveal: handleReveal }}
+      attempt={{
+        kind: 'retry',
+        phase,
+        result,
+        shakeKey,
+        canReveal,
+        onReveal: handleReveal,
+      }}
       instruction="Tap the words in order to build the sentence. Tap a placed word to send it back."
       onCheck={check}
-      onContinue={handleContinue}
+      onContinue={finish}
       {...props}
     >
       <TokenBoard

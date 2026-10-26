@@ -1,8 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useLocation } from '@tanstack/react-router';
 
-import { ErrorBoundary } from '@/components/common/ErrorBoundary/ErrorBoundary';
-import { useJudgeLessonWrite } from '@/hooks/lessons/useJudgeLessonWrite';
 import { useReviewSession } from '@/hooks/review/useReviewSession';
+import { routeErrorComponent } from '@/lib/routeErrorComponent';
 import { ReviewSessionPage } from '@/pages/ReviewSessionPage/ReviewSessionPage';
 
 type ReviewSessionSearch = {
@@ -10,45 +9,18 @@ type ReviewSessionSearch = {
 };
 
 function ReviewSessionRouteComponent() {
-  const { mode } = Route.useSearch();
-  const {
-    currentCard,
-    status,
-    counts,
-    isLoading,
-    isError,
-    error,
-    isRetrying,
-    retry,
-    isSubmitting,
-    presentationSeq,
-    currentCardAhead,
-    submitReview,
-  } = useReviewSession(mode);
-  const writeExerciseId =
-    currentCard?.lesson_id != null && currentCard.card.type === 'write'
-      ? currentCard.card.payload.id
-      : null;
-  const judgeWrite = useJudgeLessonWrite(
-    currentCard?.lesson_id ?? 0,
-    writeExerciseId,
-  );
-
+  const location = useLocation();
   return (
-    <ReviewSessionPage
-      currentCard={currentCard}
-      status={status}
-      counts={counts}
-      loadState={{ isLoading, isError, isRetrying }}
-      error={error}
-      onRetry={retry}
-      isSubmitting={isSubmitting}
-      presentationSeq={presentationSeq}
-      currentCardAhead={currentCardAhead}
-      judgeWrite={judgeWrite}
-      submitReview={submitReview}
+    <ActiveReviewSession
+      key={location.state.__TSR_key}
+      mode={location.search.mode === 'quick' ? 'quick' : 'full'}
     />
   );
+}
+
+function ActiveReviewSession({ mode }: ReviewSessionSearch) {
+  const session = useReviewSession(mode);
+  return <ReviewSessionPage session={session} />;
 }
 
 export const Route = createFileRoute('/_reviewSession/review/session')({
@@ -56,12 +28,5 @@ export const Route = createFileRoute('/_reviewSession/review/session')({
     mode: search.mode === 'quick' ? 'quick' : 'full',
   }),
   component: ReviewSessionRouteComponent,
-  errorComponent: ({ error, reset }) => (
-    <ErrorBoundary
-      error={error}
-      reset={reset}
-      homeTo="/home"
-      title="Review failed"
-    />
-  ),
+  errorComponent: routeErrorComponent('Review failed'),
 });

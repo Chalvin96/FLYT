@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { SessionControl } from './SessionControl';
 
 const meta: Meta<typeof SessionControl> = {
-  title: 'Common/SessionControl',
+  title: 'Features/Common/SessionControl',
   component: SessionControl,
 };
 

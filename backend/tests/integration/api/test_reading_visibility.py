@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flyt.apps.reading.models import Story
 from flyt.apps.reading.models import StoryVisibility
-from flyt.apps.reading.services import public_story_filter
+from flyt.apps.reading.queries import public_story_filter
 from tests.factories import ReadingGroupFactory
 from tests.factories import StoryFactory
 from tests.factories import StoryPageFactory
@@ -16,7 +16,7 @@ from tests.helpers.auth import authenticate
 
 
 @pytest.mark.anyio
-async def test_public_story_filter_given_two_axes_expect_only_public_ready_with_pages(
+async def test_public_story_filter_given_two_axes_expect_only_public_ready(
     async_session: AsyncSession,
 ) -> None:
     group = await ReadingGroupFactory.create()
@@ -28,10 +28,10 @@ async def test_public_story_filter_given_two_axes_expect_only_public_ready_with_
     )
     await StoryPageFactory.create(story=public_ready_with_pages, index=0)
 
-    public_ready_no_pages = await StoryFactory.create(
+    public_not_ready_no_pages = await StoryFactory.create(
         reading_group=group,
         visibility=StoryVisibility.PUBLIC,
-        is_ready=True,
+        is_ready=False,
     )
 
     public_not_ready_with_pages = await StoryFactory.create(
@@ -54,7 +54,7 @@ async def test_public_story_filter_given_two_axes_expect_only_public_ready_with_
         ).all()
     )
     assert visible_ids == {public_ready_with_pages.id}
-    assert public_ready_no_pages.id not in visible_ids
+    assert public_not_ready_no_pages.id not in visible_ids
     assert public_not_ready_with_pages.id not in visible_ids
     assert private_ready_with_pages.id not in visible_ids
 
@@ -64,8 +64,7 @@ async def test_save_progress_given_non_public_story_expect_rejected(
     client: AsyncClient,
 ) -> None:
     user = await UserFactory.create()
-    # Ready but unpaginated is not readable.
-    story = await StoryFactory.create(is_ready=True)
+    story = await StoryFactory.create(is_ready=False)
     await authenticate(client, user)
 
     response = await client.post(

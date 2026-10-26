@@ -43,39 +43,36 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from collections.abc import Sequence
 from dataclasses import asdict
 from enum import StrEnum
 import json
-from datetime import datetime
-from datetime import UTC
-import httpx
 from pathlib import Path
 import sys
 import time
 from typing import Any
-from collections.abc import Sequence
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flyt.apps.story_generation.constants import K_ESTIMATED_OUTPUT_TOKENS_PER_WORD
 from flyt.apps.story_generation.eval_profiles import PROFILES
 from flyt.apps.story_generation.eval_profiles import build_pages
 from flyt.apps.story_generation.eval_profiles import build_selection
 from flyt.apps.story_generation.eval_profiles import EvalDeck
 from flyt.apps.story_generation.eval_profiles import EvalProfile
 from flyt.apps.story_generation.eval_profiles import load_eval_deck
-from flyt.apps.story_generation.prompt import build_prompt
+from flyt.apps.story_generation.prompt import build_story_request
 from flyt.apps.story_generation.prompt import strip_markup
 from flyt.apps.story_generation.quality import measure
 from flyt.apps.reading.import_text import normalize_text
 from flyt.apps.reading.import_text import word_count
 from flyt.apps.story_generation.vocabulary import VocabularySelection
 from flyt.clients.openrouter import OpenRouterProvider
-from flyt.clients.provider import GenerationRequest
 from flyt.clients.provider import ModelProvider
 from flyt.clients.provider import ProviderFailure
 from flyt.core.config import settings
 from flyt.core.db import AsyncSessionLocal
+from flyt.libs.utils.date import now_aware
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_OUTPUT = REPO_ROOT / "artifacts" / "eval" / "story_generation.json"
@@ -285,17 +282,12 @@ async def evaluate_profile(
 ) -> dict[str, Any]:
     """Generate and measure one profile, reusing the production pipeline."""
     selection = build_selection(profile, deck)
-    prompt = build_prompt(
+    request = build_story_request(
         base_words=selection.base_words,
         target_words=selection.target_words,
         length=profile.requested_length,
         topic=profile.topic,
         base_truncated=selection.base_truncated,
-    )
-    request = GenerationRequest(
-        instructions=prompt.instructions,
-        prompt=prompt.prompt,
-        max_tokens=profile.requested_length * K_ESTIMATED_OUTPUT_TOKENS_PER_WORD,
     )
     start = time.monotonic()
     try:
@@ -416,7 +408,7 @@ def _build_payload(
     output: Path,
 ) -> dict[str, Any]:
     return {
-        "generated_at": datetime.now(UTC).isoformat(),
+        "generated_at": now_aware().isoformat(),
         "provider": provider.name,
         "model": provider.model,
         "reasoning_enabled": bool(

@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flyt.apps.reading.services import ReadingService
+from flyt.apps.reading import queries
 from tests.factories import ReadingGroupFactory
 from tests.factories import StoryFactory
 from tests.factories import StoryPageFactory
@@ -20,8 +20,9 @@ async def test_get_story_page_returns_page_and_progress(
     await StoryPageFactory.create(story=story, index=0, content="Page one.")
     await StoryPageFactory.create(story=story, index=1, content="Page two.")
 
-    service = ReadingService(async_session)
-    result = await service.get_story_page(story.uuid, user.id, page_index=1)
+    result = await queries.get_story_page(
+        async_session, story.uuid, user.id, page_index=1
+    )
 
     assert result.page.index == 1
     assert result.page.content == "Page two."

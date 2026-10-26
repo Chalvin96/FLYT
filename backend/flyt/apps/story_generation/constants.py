@@ -12,6 +12,7 @@ ANCHOR_MAX_LENGTH = 32
 K_TOPIC_MAX_LENGTH = 200
 K_ESTIMATED_OUTPUT_TOKENS_PER_WORD = 3
 K_GENERATE_STORY_JOB = "generate_story"
+K_DEFAULT_STORY_TITLE = "Generated story"
 
 
 class StoryGenerationErrorCode(StrEnum):

@@ -45,6 +45,7 @@ async def test_build_pages_given_known_word_form_expect_token_linked_to_lemma(
 ) -> None:
     lemma = await LemmaFactory.create()
     await WordFormFactory.create(lemma=lemma, form="katt")
+    async_session.expunge_all()
 
     pages = await build_pages(async_session, "En katt.")
     tokens = pages[0].tokens

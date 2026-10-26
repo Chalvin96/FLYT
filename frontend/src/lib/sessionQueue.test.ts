@@ -18,14 +18,24 @@ function iso(ms: number): string {
   return new Date(ms).toISOString();
 }
 
-/** Minimal UserCard fixture: only id, state, due_at, card.id matter. */
 function makeCard(id: number, state: CardState, dueMs: number): UserCard {
   return {
     id,
+    user_id: 1,
+    pool_id: id,
+    review_version: 0,
+    fsrs_stability: null,
+    fsrs_difficulty: null,
+    fsrs_step: null,
+    last_review_at: null,
     state,
     due_at: iso(dueMs),
-    card: { id: id * 10 },
-  } as UserCard;
+    card: {
+      id: id * 10,
+      type: 'definition',
+      payload: { word: `word-${id}`, pos: 'noun', definitions: [] },
+    },
+  };
 }
 
 describe('startOfNextUtcDay', () => {
@@ -78,56 +88,130 @@ describe('counts', () => {
 });
 
 describe('applyReview (replace-by-id)', () => {
-  it('keeps a card moved to learning with a due still within today', () => {
+  it('test_apply_review_given_learning_due_today_expect_card_kept_with_returned_version', () => {
     const q = buildQueue([makeCard(1, 'new', NOW)]);
-    const next = applyReview(q, 1, 'learning', NOW + 60_000, NOW);
+    const next = applyReview(
+      q,
+      1,
+      {
+        card_state: 'learning',
+        due_at: iso(NOW + 60_000),
+        review_version: 7,
+      },
+      NOW,
+    );
 
     expect(next.cards.size).toBe(1);
-    const updated = next.cards.get(1)!;
-    expect(updated.state).toBe('learning');
-    expect(updated.due_at).toBe(iso(NOW + 60_000));
-    // input queue is immutable
-    expect(q.cards.get(1)!.state).toBe('new');
+    expect(next.cards.get(1)).toMatchObject({
+      state: 'learning',
+      due_at: iso(NOW + 60_000),
+      review_version: 7,
+    });
+    expect(q.cards.get(1)).toMatchObject({ state: 'new', review_version: 0 });
   });
 
-  it('shifts counts new -> learning when a new card is answered', () => {
+  it('test_apply_review_given_new_card_entering_learning_expect_counts_updated', () => {
     const q = buildQueue([makeCard(1, 'new', NOW)]);
-    const next = applyReview(q, 1, 'learning', NOW + 60_000, NOW);
+    const next = applyReview(
+      q,
+      1,
+      {
+        card_state: 'learning',
+        due_at: iso(NOW + 60_000),
+        review_version: 1,
+      },
+      NOW,
+    );
 
     expect(counts(next)).toEqual({ new: 0, learning: 1, review: 0 });
     expect(counts(q)).toEqual({ new: 1, learning: 0, review: 0 });
   });
 
-  it('drops a card that graduates to review', () => {
+  it('test_apply_review_given_graduated_card_expect_card_removed', () => {
     const q = buildQueue([makeCard(1, 'learning', NOW)]);
-    const next = applyReview(q, 1, 'review', NOW + 86_400_000, NOW);
+    const next = applyReview(
+      q,
+      1,
+      {
+        card_state: 'review',
+        due_at: iso(NOW + 86_400_000),
+        review_version: 1,
+      },
+      NOW,
+    );
 
     expect(next.cards.has(1)).toBe(false);
     expect(counts(next)).toEqual({ new: 0, learning: 0, review: 0 });
   });
 
-  it('drops a learning card whose new due crosses UTC midnight', () => {
+  it('test_apply_review_given_learning_due_next_day_expect_card_removed', () => {
     const q = buildQueue([makeCard(1, 'learning', NOW)]);
-    const next = applyReview(q, 1, 'learning', startOfNextUtcDay(NOW), NOW);
+    const next = applyReview(
+      q,
+      1,
+      {
+        card_state: 'learning',
+        due_at: iso(startOfNextUtcDay(NOW)),
+        review_version: 1,
+      },
+      NOW,
+    );
 
     expect(next.cards.has(1)).toBe(false);
   });
 
-  it('keeps a relearning card whose new due is still today', () => {
+  it('test_apply_review_given_relearning_due_today_expect_card_kept_with_returned_version', () => {
     const q = buildQueue([makeCard(1, 'review', NOW)]);
-    const next = applyReview(q, 1, 'relearning', NOW + 2 * 60_000, NOW);
+    const next = applyReview(
+      q,
+      1,
+      {
+        card_state: 'relearning',
+        due_at: iso(NOW + 2 * 60_000),
+        review_version: 4,
+      },
+      NOW,
+    );
 
-    expect(next.cards.get(1)!.state).toBe('relearning');
+    expect(next.cards.get(1)).toMatchObject({
+      state: 'relearning',
+      review_version: 4,
+    });
     expect(next.cards.size).toBe(1);
   });
 
-  it('is a no-op when the id is not in the queue', () => {
+  it('test_apply_review_given_absent_card_expect_queue_unchanged', () => {
     const q = buildQueue([makeCard(1, 'new', NOW)]);
-    expect(applyReview(q, 999, 'learning', NOW + 60_000, NOW)).toBe(q);
+    expect(
+      applyReview(
+        q,
+        999,
+        {
+          card_state: 'learning',
+          due_at: iso(NOW + 60_000),
+          review_version: 1,
+        },
+        NOW,
+      ),
+    ).toBe(q);
   });
 });
 
 describe('showNext', () => {
+  it('test_show_next_given_offset_free_due_expect_utc_eligibility', () => {
+    const dueAt = Date.UTC(2026, 9, 3, 23, 59, 58);
+    const card = {
+      ...makeCard(1, 'review', dueAt),
+      due_at: '2026-10-03T23:59:58',
+    };
+
+    expect(showNext(buildQueue([card]), dueAt + 1000)).toEqual({
+      kind: 'card',
+      card,
+      ahead: false,
+    });
+  });
+
   it('returns done when the queue is empty', () => {
     expect(showNext(buildQueue([]), NOW)).toEqual({ kind: 'done' });
   });

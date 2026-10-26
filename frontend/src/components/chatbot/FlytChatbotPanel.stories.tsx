@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { fn } from 'storybook/test';
 
+import { CHATBOT_MODEL_IDS } from '@/api/chatbot';
+
 import { FlytChatbotPanel } from './FlytChatbotPanel';
 
 const lessonContext = {
@@ -22,7 +24,7 @@ const selectionContext = {
 };
 
 const meta = {
-  title: 'Chatbot/FlytChatbotPanel',
+  title: 'Features/Chatbot/FlytChatbotPanel',
   component: FlytChatbotPanel,
   tags: ['autodocs'],
   parameters: {
@@ -30,8 +32,8 @@ const meta = {
   },
   decorators: [
     (Story) => (
-      <div className="flex min-h-screen justify-end bg-background">
-        <div className="flex h-screen w-full max-w-[420px] flex-col overflow-hidden border-l border-border/70">
+      <div className="flex min-h-screen justify-end bg-neutral">
+        <div className="flex h-screen w-full max-w-[420px] flex-col overflow-hidden border-l border-default/70">
           <Story />
         </div>
       </div>
@@ -103,7 +105,7 @@ export const SelectedText: Story = {
 export const ConversationWithChatGPT: Story = {
   args: {
     context: lessonContext,
-    defaultModel: 'chatgpt',
+    defaultModel: CHATBOT_MODEL_IDS.CHATGPT,
     messages: [
       {
         id: 'question-1',
@@ -205,7 +207,7 @@ export const NarrowPanel: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="flex min-h-screen items-center justify-center bg-neutral p-4">
         <div className="h-[620px] w-[320px]">
           <Story />
         </div>
@@ -238,14 +240,14 @@ export const ErrorState: Story = {
 export const FlytUnavailable: Story = {
   args: {
     context: lessonContext,
-    unavailableModels: ['flyt'],
+    unavailableModels: [CHATBOT_MODEL_IDS.FLYT],
   },
 };
 
 export const ModelChoice: Story = {
   args: {
     context: lessonContext,
-    defaultModel: 'flyt',
+    defaultModel: CHATBOT_MODEL_IDS.FLYT,
     messages: longConversation.slice(0, 2),
   },
 };
@@ -257,7 +259,7 @@ export const EmbeddedCard: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4 sm:p-8">
+      <div className="flex min-h-screen items-center justify-center bg-neutral p-4 sm:p-8">
         <div className="h-[620px] w-full max-w-[420px]">
           <Story />
         </div>
@@ -276,7 +278,7 @@ export const MobileLessonContext: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="h-[100dvh] w-full bg-background">
+      <div className="h-[100dvh] w-full bg-neutral">
         <Story />
       </div>
     ),

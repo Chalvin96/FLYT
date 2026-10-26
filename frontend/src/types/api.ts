@@ -35,7 +35,6 @@ export const FlashCardType = {
   BUILD: 'build',
   JUDGE: 'judge',
   FIND_FIX: 'find_fix',
-  SPEAK: 'speak',
   WRITE: 'write',
 } as const;
 export type FlashCardType = Schema<'CardType'>;
@@ -105,11 +104,13 @@ export interface RatingPreviews {
   easy: string;
 }
 
-export type UngradedOutcome = 'skipped' | 'service_unavailable';
+export type UngradedOutcome = Exclude<Schema<'ReviewOutcome'>, 'graded'>;
 
-export type ReviewSubmission =
-  | { card_id: number; outcome: 'graded'; rating: 1 | 2 | 3 | 4 }
-  | { card_id: number; outcome: UngradedOutcome };
+export type ReviewSubmission = Pick<
+  Schema<'ReviewSubmission'>,
+  'card_id' | 'review_version'
+> &
+  ({ outcome: 'graded'; rating: 1 | 2 | 3 | 4 } | { outcome: UngradedOutcome });
 
 export type ReviewSubmissionBody = ReviewSubmission extends infer T
   ? T extends { card_id: number }
@@ -137,7 +138,7 @@ export type UserUpdate = Schema<'UserUpdate'>;
 export type DeletionPreviewRead = Schema<'DeletionPreviewRead'>;
 
 export type LessonSummaryRead = Omit<Schema<'LessonSummaryRead'>, 'kind'> & {
-  kind: LessonKind;
+  kind: LessonKind | null;
 };
 
 export type LessonProgressRead = Schema<'LessonProgressRead'>;
@@ -148,7 +149,7 @@ export type LessonDetailRead = Omit<
   Schema<'LessonDetailRead'>,
   'kind' | 'packet'
 > & {
-  kind: LessonKind;
+  kind: LessonKind | null;
   packet: LessonPacket;
 };
 
@@ -282,15 +283,9 @@ export type MyCardsResponse = Omit<Schema<'MyCardsResponse'>, 'summary'> & {
   summary: MyCardsSummary;
 };
 
-export interface MyCardsParams {
-  facet?: CardFacet;
-  bucket?: MasteryBucket | null;
-  started_only?: boolean;
-  q?: string;
-  sort?: CardSort;
-  page?: number;
-  limit?: number;
-}
+export type MyCardsParams = NonNullable<
+  paths['/me/cards']['get']['parameters']['query']
+>;
 
 export type ImportStatus = Schema<'ImportStatus'>;
 export type ImportItem = Schema<'ImportItemRead'>;
@@ -298,6 +293,7 @@ export type ImportQuota = Schema<'QuotaRead'>;
 export type ImportListResponse = Schema<'ImportListResponse'>;
 export type ImportStatusFilter = ImportStatus;
 export type PasteImportCreate = Schema<'PasteImportCreate'>;
+export type ImportTitleUpdate = Schema<'ImportTitleUpdate'>;
 
 export const IMPORT_ERROR_CODES = {
   EMPTY: 'IMPORT_EMPTY',

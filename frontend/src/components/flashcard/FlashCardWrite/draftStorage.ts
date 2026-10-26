@@ -9,6 +9,22 @@ export function readDraft(key: string): string | null {
   }
 }
 
+export function readDraftMigratingLegacy(
+  key: string,
+  legacyKey?: string,
+): string | null {
+  const current = readDraft(key);
+  if (current || !legacyKey) return current;
+
+  const legacy = readDraft(legacyKey);
+  if (legacy === null) return current;
+
+  if (saveDraft(key, legacy) === 'saved') {
+    removeDraft(legacyKey);
+  }
+  return legacy;
+}
+
 export function saveDraft(key: string, value: string): DraftStorageStatus {
   try {
     const storage = globalThis.localStorage;
@@ -29,4 +45,15 @@ export function removeDraft(key: string): DraftRemovalStatus {
   } catch {
     return 'unavailable';
   }
+}
+
+export function removeDraftAndLegacy(
+  key: string,
+  legacyKey?: string,
+): DraftRemovalStatus {
+  const current = removeDraft(key);
+  const legacy = legacyKey ? removeDraft(legacyKey) : 'removed';
+  return current === 'removed' && legacy === 'removed'
+    ? 'removed'
+    : 'unavailable';
 }

@@ -1,13 +1,19 @@
+import { Heading, Text } from '@flyt/ui';
+import { Check, Minus } from 'lucide-react';
 import { useRef, useState } from 'react';
 
-import { Button } from '@/components/common/Button/Button';
 import { SpanView } from '@/components/portable/SpanView';
-import { useCheckableExercise } from '@/hooks/flashcard/useCheckableExercise/useCheckableExercise';
-import { gradedOutcome } from '@/lib/operationResult';
+import { useExerciseAttempt } from '@/hooks/flashcard/useExerciseAttempt/useExerciseAttempt';
 import { cn } from '@/lib/utils';
 import type { Exercise } from '@/types/lesson-contracts';
 
-import { ExerciseModeProvider } from '../ExerciseModeProvider';
+import { AnswerOption } from '../AnswerOption/AnswerOption';
+import { resolveAnswerOptionState } from '../AnswerOption/answerOptionState';
+import {
+  answerVerdictStatusText,
+  verdictBlankClass,
+  type ChoiceVerdict,
+} from '../answerVerdict';
 import { OperationShell } from '../OperationShell';
 import type { OperationComponentProps } from '../operationTypes';
 
@@ -18,50 +24,9 @@ type BlankSegment = Extract<
   { kind: 'blank' }
 >;
 
-type FillState = 'empty' | 'filled' | 'correct' | 'wrong';
-
-/**
- * recall_fill is a "choose the correct form" drill, NOT a free-recall typed
- * blank and NOT a generic multiple-choice. The real data feeds a single slot
- * with a minimal pair of near-identical inflections (e.g. `stor` / `stort`,
- * `leser` / `leste`). The learner's job is to discriminate the right form for
- * that slot, in context.
- *
- * The UI leads with the sentence as the hero on the warm mat. The blank is an
- * inline underline that fills LIVE when a form is picked — the learner reads
- * the whole completed sentence ("Huset er stort"), which is the thing plain
- * Choose cannot do. The forms sit in a compact, tactile choice strip directly
- * under the sentence: warm chips on the mat, no outer card. One tap fills the
- * slot; tapping another form swaps it. No drag, no token bank.
- */
-const FILL_CLASSES: Record<FillState, string> = {
-  empty: 'border-dashed border-secondary-40 text-secondary-50',
-  filled: 'border-primary-60 text-primary-90',
-  correct: 'border-accent-60 text-accent-90',
-  wrong: 'border-destructive-60 text-destructive-90',
-};
-
-const OPTION_BASE =
-  'type-body h-10 rounded-full border-2 px-4 font-semibold transition-[background-color,border-color,box-shadow,color,transform] hover:-translate-y-0.5';
-const OPTION_UNSELECTED =
-  'border-secondary-20 bg-secondary-10 text-secondary-90 shadow-none hover:bg-secondary-20 hover:border-secondary-40 hover:shadow-tile';
-const OPTION_SELECTED =
-  'tint-selected ring-selected ring-2 ring-offset-2 ring-offset-background';
-const OPTION_CORRECT = 'tint-judge-correct text-accent-90';
-const OPTION_WRONG = 'tint-judge-wrong text-destructive-90';
-
-export function FlashCardRecallFill(
-  props: OperationComponentProps<RecallFillExercise>,
-) {
-  return (
-    <ExerciseModeProvider allowRetry={false}>
-      <FlashCardRecallFillOneShot {...props} />
-    </ExerciseModeProvider>
-  );
-}
-
-function FlashCardRecallFillOneShot({
+export function FlashCardRecallFill({
   exercise,
+  allowRetry,
   onFinished,
   ...props
 }: OperationComponentProps<RecallFillExercise>) {
@@ -75,23 +40,37 @@ function FlashCardRecallFillOneShot({
   const optionRefs = useRef<Record<string, Array<HTMLButtonElement | null>>>(
     {},
   );
-  const { result, check: checkExercise } = useCheckableExercise();
+  const {
+    phase,
+    result,
+    dirty,
+    canReveal,
+    shakeKey,
+    reveal,
+    markDirty,
+    check: checkExercise,
+    finish,
+  } = useExerciseAttempt({ allowRetry, onFinished });
   const isLocked = Boolean(result);
 
-  const canCheck = blanks.every((b) => answers[b.blank_id] !== undefined);
+  const canCheck =
+    blanks.every((b) => answers[b.blank_id] !== undefined) &&
+    (phase !== 'wrong' || dirty);
 
   function check() {
     checkExercise(blanks.every((b) => answers[b.blank_id] === b.answer_index));
   }
 
-  function handleContinue() {
-    if (result) {
-      onFinished?.(gradedOutcome(result));
-    }
+  function handleReveal() {
+    const correctCount = blanks.filter(
+      (blank) => answers[blank.blank_id] === blank.answer_index,
+    ).length;
+    reveal(blanks.length === 0 ? 0 : correctCount / blanks.length);
   }
 
   function selectOption(blankId: string, optionIndex: number) {
     if (isLocked) return;
+    if (answers[blankId] !== optionIndex) markDirty();
     setAnswers((curr) => ({ ...curr, [blankId]: optionIndex }));
     setActiveByBlank((curr) => ({ ...curr, [blankId]: optionIndex }));
   }
@@ -100,17 +79,17 @@ function FlashCardRecallFillOneShot({
     return blanks.findIndex((b) => b.blank_id === blankId) + 1;
   }
 
-  function fillState(blank: BlankSegment): FillState {
+  function fillState(blank: BlankSegment): ChoiceVerdict {
     const filled = answers[blank.blank_id];
-    if (filled === undefined) return 'empty';
-    if (!result) return 'filled';
-    return filled === blank.answer_index ? 'correct' : 'wrong';
+    if (filled === undefined) return 'idle';
+    if (!result) return 'selected';
+    return filled === blank.answer_index ? 'correct' : 'incorrect';
   }
 
   function moveActive(blank: BlankSegment, nextIndex: number) {
     const length = blank.options.length;
     const normalized = (nextIndex + length) % length;
-    setActiveByBlank((curr) => ({ ...curr, [blank.blank_id]: normalized }));
+    selectOption(blank.blank_id, normalized);
     optionRefs.current[blank.blank_id]?.[normalized]?.focus();
   }
 
@@ -136,19 +115,18 @@ function FlashCardRecallFillOneShot({
     }
   }
 
-  /**
-   * Inline slot rendered inside the sentence for a blank. Reads as an
-   * underline in the sentence typography, not a boxed field: empty = dashed
-   * warm underline; filled = solid colored underline + the chosen form.
-   * Correct/wrong recolor the underline + text after Check.
-   */
   function renderSlot(blank: BlankSegment) {
     const filled = answers[blank.blank_id];
     const state = fillState(blank);
-    const label =
-      filled !== undefined
-        ? `Blank ${blankNumber(blank.blank_id)}, ${blank.options[filled]}`
-        : `Blank ${blankNumber(blank.blank_id)}, empty`;
+    const statusText = result ? answerVerdictStatusText[state] : undefined;
+    const label = [
+      `Blank ${blankNumber(blank.blank_id)}, ${
+        filled !== undefined ? blank.options[filled] : 'empty'
+      }`,
+      statusText,
+    ]
+      .filter(Boolean)
+      .join(', ');
     return (
       <span
         data-testid="blank-fill"
@@ -156,11 +134,26 @@ function FlashCardRecallFillOneShot({
         data-state={state}
         aria-label={label}
         className={cn(
-          'mx-0.5 inline-block min-w-blank border-b-2 px-1 align-baseline font-semibold transition-colors',
-          FILL_CLASSES[state],
+          'mx-0.5 inline-block min-w-blank border-b-2 px-1 align-baseline transition-colors',
+          verdictBlankClass[state],
         )}
       >
-        {filled !== undefined ? blank.options[filled] : '\u00a0'}
+        <Text as="span" weight="semibold">
+          {filled !== undefined ? blank.options[filled] : '\u00a0'}
+        </Text>
+        {state === 'correct' ? (
+          <Check
+            aria-hidden="true"
+            className="ml-1 inline size-3.5 text-icon-success"
+            strokeWidth={3}
+          />
+        ) : state === 'incorrect' ? (
+          <Minus
+            aria-hidden="true"
+            className="ml-1 inline size-3.5 text-icon-danger"
+            strokeWidth={3}
+          />
+        ) : null}
       </span>
     );
   }
@@ -179,18 +172,27 @@ function FlashCardRecallFillOneShot({
   return (
     <OperationShell
       exercise={exercise}
-      bodyClassName="bg-transparent"
       desktopExpanded
-      result={result}
       canCheck={canCheck}
+      attempt={
+        allowRetry
+          ? {
+              kind: 'retry',
+              phase,
+              result,
+              shakeKey,
+              canReveal,
+              onReveal: handleReveal,
+            }
+          : { kind: 'single', result }
+      }
       instruction="Tap a word below to drop it into the blank. Tap another to swap it."
       onCheck={check}
-      onContinue={handleContinue}
+      onContinue={finish}
       {...props}
     >
-      {/* The sentence is the hero; the blank fills live as a form is picked. */}
-      <div className="radius-section border border-border bg-secondary-5 p-4">
-        <p className="text-prompt leading-roomy text-foreground">
+      <div className="radius-section border border-default bg-neutral-subtle p-4">
+        <Text size="fluid" tone="default">
           {keyedSegments.map(({ key, segment }) => {
             if (segment.kind === 'span') {
               return <SpanView key={key} spans={segment.spans} />;
@@ -201,14 +203,9 @@ function FlashCardRecallFillOneShot({
               </span>
             );
           })}
-        </p>
+        </Text>
       </div>
 
-      {/*
-        Compact, sentence-led choice strip per blank. Pills sit directly on
-        the mat — no outer card. Warm unselected chips, primary selected,
-        warm-green correct, coral wrong.
-      */}
       <div className="flex flex-col gap-3">
         {blanks.map((blank) => {
           const groupLabel =
@@ -218,7 +215,9 @@ function FlashCardRecallFillOneShot({
           const activeIndex = activeByBlank[blank.blank_id] ?? 0;
           return (
             <div key={blank.blank_id} className="flex flex-col gap-2">
-              <p className="type-label text-muted-foreground">{groupLabel}</p>
+              <Heading as="div" size="xxsmall" tone="subtle">
+                {groupLabel}
+              </Heading>
               <div
                 role="radiogroup"
                 aria-label={groupLabel}
@@ -226,44 +225,34 @@ function FlashCardRecallFillOneShot({
               >
                 {blank.options.map((optionText, optionIndex) => {
                   const selected = answers[blank.blank_id] === optionIndex;
-                  const isCorrect =
-                    result && optionIndex === blank.answer_index;
-                  const isWrong = result && selected && !isCorrect;
-                  const isTabbable =
-                    !result && (selected || activeIndex === optionIndex);
+                  const isAnswer = optionIndex === blank.answer_index;
+                  const state = resolveAnswerOptionState({
+                    checked: selected,
+                    graded: isLocked,
+                    isAnswer,
+                  });
+                  const isTabbable = !isLocked && activeIndex === optionIndex;
                   return (
-                    <Button
+                    <AnswerOption
                       key={optionIndex}
-                      ref={(element) => {
-                        const arr = (optionRefs.current[blank.blank_id] ??= []);
-                        arr[optionIndex] = element;
-                      }}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      data-checked={selected}
                       aria-label={optionText}
-                      tabIndex={result ? -1 : isTabbable ? 0 : -1}
+                      checked={selected}
                       disabled={isLocked}
-                      variant="outline"
+                      label={optionText}
                       lang="no"
-                      className={cn(
-                        OPTION_BASE,
-                        !selected &&
-                          !isCorrect &&
-                          !isWrong &&
-                          OPTION_UNSELECTED,
-                        selected && !result && OPTION_SELECTED,
-                        isCorrect && OPTION_CORRECT,
-                        isWrong && OPTION_WRONG,
-                      )}
+                      layout="inline"
                       onClick={() => selectOption(blank.blank_id, optionIndex)}
                       onKeyDown={(event) =>
                         handleRadioKeyDown(event, blank, optionIndex)
                       }
-                    >
-                      {optionText}
-                    </Button>
+                      ref={(element) => {
+                        const refs = (optionRefs.current[blank.blank_id] ??=
+                          []);
+                        refs[optionIndex] = element;
+                      }}
+                      state={state}
+                      tabIndex={isTabbable ? 0 : -1}
+                    />
                   );
                 })}
               </div>

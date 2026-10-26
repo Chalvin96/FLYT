@@ -1,57 +1,56 @@
+import { Badge, Button, Heading, Text } from '@flyt/ui';
 import { Link } from '@tanstack/react-router';
 
-import { BaseHeroCard } from '@/components/common/BaseHeroCard/BaseHeroCard';
-import { DecoReading } from '@/components/common/BaseHeroCard/decorations';
-import { Button } from '@/components/common/Button/Button';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
 import type { ReadingHeroStory } from '@/types/api';
 
-import { getCefrBadgeClassName } from './readingDisplay';
+import {
+  formatReadingMinutes,
+  formatReadingWordCount,
+  getCefrBadgeTone,
+} from './readingDisplay';
 
 interface ReadingHeroCardProps {
   story: ReadingHeroStory;
 }
 
 export function ReadingHeroCard({ story }: ReadingHeroCardProps) {
-  const subtitle = story.preview;
-
   return (
-    <BaseHeroCard
-      className="bg-secondary-80 text-white-100"
-      label="Today's Story"
-      labelClass="text-white-60"
-      badge="Reading"
-      badgeClass="bg-white-20 text-white-100"
-      title={story.title}
-      subtitle={subtitle}
-      subtitleClass="text-white-70"
-      decoration={<DecoReading />}
-      details={
-        <div className="flex flex-wrap items-center gap-3">
+    <section className="space-y-3 radius-section border border-brand-subtle bg-brand-subtle p-4 sm:p-5">
+      <Text as="p" size="small" weight="semibold" tone="selected">
+        Start here
+      </Text>
+      <div className="line-clamp-2 break-words">
+        <Heading as="h2" size="medium" lang="nb" title={story.title}>
+          {story.title}
+        </Heading>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {story.cefrLevel ? (
           <Badge
-            variant="outline"
-            className={cn(
-              'rounded-full px-2 py-0.5 type-caption-sm font-semibold',
-              getCefrBadgeClassName(story.cefrLevel),
-            )}
+            shape="pill"
+            size="sm"
+            tone={getCefrBadgeTone(story.cefrLevel)}
           >
             {story.cefrLevel}
           </Badge>
-          <span className="type-caption text-white-70">{story.groupTitle}</span>
-        </div>
-      }
-      primaryAction={
-        <Button
-          asChild
-          className="w-full bg-white-100 text-secondary-90 hover:bg-white-90 sm:w-auto"
-          size="sm"
-        >
-          <Link to="/reading/story/$uuid" params={{ uuid: story.uuid }}>
-            Start reading
-          </Link>
-        </Button>
-      }
-    />
+        ) : null}
+        <Text as="span" size="small" tone="default">
+          {[
+            story.readingMinutes > 0
+              ? formatReadingMinutes(story.readingMinutes)
+              : null,
+            formatReadingWordCount(story.wordCount),
+            story.groupTitle,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </Text>
+      </div>
+      <Button asChild size="md" width="full-on-mobile">
+        <Link to="/reading/story/$uuid" params={{ uuid: story.uuid }}>
+          Start reading
+        </Link>
+      </Button>
+    </section>
   );
 }

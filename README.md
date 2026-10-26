@@ -9,12 +9,16 @@ Flyt brings learning and practice into one place. Work through a lesson, read
 Norwegian with a dictionary at hand, and review the concepts and words you save.
 
 **[Open Flyt](https://flyt.umebocchi.my.id)** ·
-[Run locally](CONTRIBUTING.md#running-the-stack) ·
-[Contribute](CONTRIBUTING.md) ·
+[Run locally](knowledge/operations/runtime.md#running-the-stack) ·
+[Runtime guide](knowledge/operations/runtime.md) ·
 [Privacy](https://flyt.umebocchi.my.id/about#privacy)
 
 The hosted app is free and uses Google Sign-In. There is no paid tier or
 expiring trial.
+
+![A Flyt review card for "bok": its meanings with examples, its inflection table, and the four FSRS grades with their next intervals](.github/screenshots/review-revealed.webp)
+
+![Flyt on a phone: the home screen, a lesson exercise, a word looked up while reading, and a review card](.github/screenshots/mobile.webp)
 
 ## How learning works
 
@@ -33,19 +37,47 @@ You can also:
 - **Explore the dictionary:** look up definitions, inflections, and
   pronunciation from Ordbokene data, with English glosses supplied by the
   companion [norsk-lemma](https://github.com/Chalvin96/norsk-lemma) project.
-- **Read across the web with FlytLese:** the Chromium extension offers word
+- **Read across the web with FlytLese:** the Chrome and Firefox extension offers word
   lookup, text translation, vocabulary saving, and article import. Chrome and
-  Edge store listings are not published yet; Firefox and Safari are not supported.
+  Firefox store listings are not published yet. Safari is not supported.
 - **Ask for help:** the chatbot can use your message and current page context.
-  AI generation, chat, and speech features depend on the deployment's provider
-  and service configuration.
+  AI generation and chat depend on the deployment's provider configuration.
+
+## A closer look
+
+| Read with a dictionary at hand                                                                                                 | Learn through structured lessons                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| ![The reader with "kantine" tapped and its dictionary entry in the side panel](.github/screenshots/reader-word.webp)           | ![A lesson dialogue with speaker turns, audio playback, and example sentences](.github/screenshots/lesson-dialogue.webp) |
+| **Generate a story from your own words**                                                                                       | **Look words up anywhere with FlytLese**                                                                                 |
+| ![A generated story ready to read, next to the length, topic, and provider settings](.github/screenshots/generate-result.webp) | ![The FlytLese extension showing a word's entry over a Norwegian web page](.github/screenshots/extension-lookup.webp)    |
+
+## Engineering highlights
+
+- **Typed end to end.** The FastAPI schema generates
+  [`api.generated.ts`](frontend/src/types/api.generated.ts), and CI fails when
+  the committed types drift from the API.
+- **Spaced repetition you can trust.** Review scheduling uses
+  [FSRS](https://github.com/open-spaced-repetition/py-fsrs). Each card rotates
+  through exercise variants of one concept, and adding a word you already
+  study never resets its schedule.
+- **One design system for app and extension.** `@flyt/ui` and `@flyt/lexicon`
+  are shared by the web app and the Manifest V3 extension. Storybook
+  interaction tests cover the components.
+- **Tested at every layer.** The backend suite runs against a real PostgreSQL
+  and Redis. Vitest and Storybook cover the frontend, and Playwright runs the
+  web app and the extension against a seeded Compose stack.
+- **Ratchets, not wishes.** CI fails on migration drift. New test names,
+  React Doctor findings, and design-system escape hatches are checked against
+  committed limits, so none of them can grow past what the repository allows.
+- **Documented decisions.** [`knowledge/`](knowledge/) records the current
+  architecture and domain rules.
 
 ## Run locally
 
 The development stack needs Python **3.12+**, [uv](https://docs.astral.sh/uv/),
 Node **24+**, **pnpm 12**, PostgreSQL **16**, and Redis. The exact pnpm version is
 pinned in [`package.json`](package.json); CI and the backend container use Python
-3.12. Docker is also required for the isolated end-to-end test runners.
+3.14. Docker is also required for the isolated end-to-end test runners.
 
 From a checkout of this repository, install the workspace dependencies and copy
 the environment templates:
@@ -56,7 +88,7 @@ cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env.local
 ```
 
-Then follow the **[local setup guide](CONTRIBUTING.md#running-the-stack)** to
+Then follow the **[local setup guide](knowledge/operations/runtime.md#running-the-stack)** to
 configure PostgreSQL and Redis, set real signing and provider-encryption keys,
 install the locked Python dependencies, and apply migrations. The environment
 templates need configuration before the API can start. The guide includes a
@@ -88,17 +120,17 @@ imported separately from public releases:
 | Lessons and their audio references                        | [norsk-lesson-factory](https://github.com/Chalvin96/norsk-lesson-factory) |
 | Dictionary, pronunciation, and vocabulary frequency ranks | [norsk-lemma](https://github.com/Chalvin96/norsk-lemma)                   |
 
-Use the [content import guide](CONTRIBUTING.md#loading-data-lessons-dictionary-reading-stories)
+Use the [content import guide](knowledge/operations/runtime.md#loading-data-lessons-dictionary-reading-stories)
 for download URLs, preview commands, and frequency-deck creation. Preview lesson
 imports before applying them: a lesson release replaces the curriculum, removing
 omitted lessons and their lesson-owned learner state. Lesson audio remains
 hosted by the content producer.
 
-## Contribute
+## Develop
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, environment variables, tests,
-hooks, and conventions. Backend tests require a disposable database; the
-[testing guide](CONTRIBUTING.md#tests) provides an isolated setup. The browser and
+Read the [runtime guide](knowledge/operations/runtime.md) for setup, environment variables, tests,
+and hooks. Backend tests require a disposable database; the
+[testing guide](knowledge/operations/runtime.md#tests) provides an isolated setup. The browser and
 extension end-to-end runners create and clean up their own Compose stacks.
 
 Pull requests and `master` run the same [CI checks](.github/workflows/_ci.yml),
@@ -111,11 +143,10 @@ security. Run the affected workspace checks before submitting a change.
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
 | [`frontend/`](frontend/)                                                 | React, TypeScript, Vite, TanStack Router/Query, and Tailwind CSS web app             |
 | [`backend/`](backend/)                                                   | FastAPI API, SQLAlchemy models, Alembic migrations, FSRS scheduling, and arq workers |
-| [`extension/`](extension/)                                               | FlytLese Chromium Manifest V3 extension                                              |
+| [`extension/`](extension/)                                               | FlytLese Chrome and Firefox Manifest V3 extension                                    |
 | [`packages/ui/`](packages/ui/), [`packages/lexicon/`](packages/lexicon/) | UI and dictionary components shared by the web app and extension                     |
 | [`morph-svc/`](morph-svc/README.md)                                      | Optional morphology fallback service                                                 |
-| [`stt-svc/`](stt-svc/README.md)                                          | Optional speech transcription service behind the backend                             |
-| [`knowledge/`](knowledge/)                                               | Current product, domain, architecture, and operations documentation                  |
+| [`knowledge/`](knowledge/)                                               | Durable product, domain, architecture, and design rationale                          |
 
 PostgreSQL stores durable content and learner state; Redis supports transient
 coordination and generation. The API and background worker run as separate
@@ -127,10 +158,9 @@ engineering boundaries.
 
 Backend and frontend container images publish to GHCR after CI passes on
 `master`. Deployment is managed outside this repository. The
-[operations guide](CONTRIBUTING.md#optional-services-and-operations) covers
-migrations, workers, readiness checks, and recovery; the optional
-[morphology](morph-svc/README.md) and [speech](stt-svc/README.md) services have their
-own deployment guides.
+[operations guide](knowledge/operations/runtime.md#optional-services-and-operations) covers
+migrations, workers, readiness checks, and recovery. The optional
+[morphology](morph-svc/README.md) service has its own deployment guide.
 
 The hosted app's [privacy policy](https://flyt.umebocchi.my.id/about#privacy)
 explains account and learning data, external AI processing, error monitoring,
@@ -140,7 +170,7 @@ recent history, and page context to the selected provider. You can delete your
 account in the app.
 
 For deployment details, see [authentication and API boundaries](knowledge/architecture/auth-and-api.md)
-and [provider credential operations](knowledge/operations/chatgpt-link.md).
+and [provider credential rotation](knowledge/operations/runtime.md#provider-credential-rotation).
 
 ## Attribution and licenses
 
@@ -169,11 +199,3 @@ Frequency ranking for the word-pack decks is derived from the **Norwegian Kelly
 list**, used under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/):
 
 > Norwegian Kelly list, UiO Text Laboratory (tekstlab.uio.no/kelly), CC BY-SA 4.0.
-
-### Speech models and runtime
-
-The optional CPU speech service uses **NB-Whisper Medium** under Apache-2.0 and
-**faster-whisper / CTranslate2** under MIT. See the
-[speech service notices](stt-svc/NOTICE.md) for model provenance and distributed
-license text. Browser clients use the authenticated backend proxy; the frontend
-does not ship a model runtime.

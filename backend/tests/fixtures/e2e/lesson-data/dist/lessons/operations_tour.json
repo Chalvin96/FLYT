@@ -55,10 +55,6 @@
     },
     {
       "kind": "exercise",
-      "id": "tour-speak"
-    },
-    {
-      "kind": "exercise",
       "id": "tour-write"
     },
     {
@@ -532,22 +528,6 @@
     },
     {
       "kind": "exercise",
-      "id": "tour-speak",
-      "operation": "speak",
-      "objective_id": "obj-tour",
-      "prompt": [
-        {
-          "kind": "text",
-          "value": "Si setningen høyt."
-        }
-      ],
-      "explanation": null,
-      "payload": {
-        "target": "Jeg jobber i dag."
-      }
-    },
-    {
-      "kind": "exercise",
       "id": "tour-write",
       "operation": "write",
       "objective_id": "obj-tour",
@@ -613,7 +593,6 @@
         "tour-judge",
         "tour-find-fix",
         "tour-categorize",
-        "tour-speak",
         "tour-write"
       ]
     },

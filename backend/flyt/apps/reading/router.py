@@ -9,9 +9,10 @@ from fastapi import Query
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-
+from flyt.apps.reading import queries
 from flyt.apps.reading.exceptions import ReadingNotFoundError
 from flyt.apps.reading.exceptions import ReadingNotReadyError
+from flyt.apps.reading.services import calculate_reading_minutes
 from flyt.apps.reading.schemas import HeroStoryRead
 from flyt.apps.reading.schemas import ReadingGroupRead
 from flyt.apps.reading.schemas import ReadingGroupsResponse
@@ -28,26 +29,21 @@ from flyt.apps.reading.schemas import StoryTokenRead
 from flyt.apps.reading.services import ReadingService
 from flyt.apps.users.deps import get_current_user
 from flyt.apps.users.models import User
-from flyt.apps.users.services import UserVocabularyQueries
+from flyt.core.http import build_error_responses
 from flyt.core.db import get_async_db
 from flyt.core.http import EmptyResponse
 from flyt.core.http import error_response
 
 logger = logging.getLogger(__name__)
 
-
-def get_reading_service(db: AsyncSession = Depends(get_async_db)) -> ReadingService:
-    return ReadingService(db, user_vocabulary_queries=UserVocabularyQueries(db))
-
-
 router = APIRouter(prefix="/reading", tags=["reading"])
 
 
 @router.get("/groups")
 async def get_groups(
-    service: Annotated[ReadingService, Depends(get_reading_service)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
 ) -> ReadingGroupsResponse:
-    groups = await service.list_groups()
+    groups = await queries.list_groups(db)
     return ReadingGroupsResponse(
         groups=[
             ReadingGroupRead(
@@ -62,11 +58,11 @@ async def get_groups(
     )
 
 
-@router.get("/stories")
+@router.get("/stories", responses=build_error_responses(401, 404))
 async def get_stories(
     group_key: Annotated[str, Query(min_length=1)],
     current_user: Annotated[User, Depends(get_current_user)],
-    service: Annotated[ReadingService, Depends(get_reading_service)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     cursor: Annotated[str | None, Query()] = None,
     levels: Annotated[str | None, Query()] = None,
@@ -77,7 +73,8 @@ async def get_stories(
         parsed_levels = [level.strip() for level in levels.split(",") if level.strip()]
 
     try:
-        result = await service.list_stories(
+        result = await queries.list_stories(
+            db=db,
             group_key=group_key,
             user_id=current_user.id,
             limit=limit,
@@ -99,8 +96,8 @@ async def get_stories(
                     title=item.story.title,
                     cefrLevel=item.story.cefr_level,
                     createdAt=item.story.created_at,
-                    preview=service.build_preview(item.story.content),
                     wordCount=item.story.word_count,
+                    readingMinutes=calculate_reading_minutes(item.story.word_count),
                     isRead=item.is_read,
                     completed=item.completed,
                 )
@@ -122,12 +119,12 @@ async def get_stories(
         ) from error
 
 
-@router.get("/home")
+@router.get("/home", responses=build_error_responses(401))
 async def get_home(
     current_user: Annotated[User, Depends(get_current_user)],
-    service: Annotated[ReadingService, Depends(get_reading_service)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
 ) -> ReadingHomeResponse:
-    home = await service.get_home(current_user.id)
+    home = await queries.get_home(db, current_user.id)
     return ReadingHomeResponse(
         todaysStory=(
             None
@@ -137,7 +134,8 @@ async def get_home(
                 title=home.hero.title,
                 groupTitle=home.hero.reading_group.title,
                 cefrLevel=home.hero.cefr_level,
-                preview=service.build_preview(home.hero.content),
+                wordCount=home.hero.word_count,
+                readingMinutes=calculate_reading_minutes(home.hero.word_count),
             )
         ),
         sections=[
@@ -155,8 +153,8 @@ async def get_home(
                         title=item.story.title,
                         cefrLevel=item.story.cefr_level,
                         createdAt=item.story.created_at,
-                        preview=service.build_preview(item.story.content),
                         wordCount=item.story.word_count,
+                        readingMinutes=calculate_reading_minutes(item.story.word_count),
                         isRead=item.is_read,
                         completed=item.completed,
                     )
@@ -170,9 +168,9 @@ async def get_home(
 
 @router.get("/hero")
 async def get_hero(
-    service: Annotated[ReadingService, Depends(get_reading_service)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
 ) -> ReadingHeroResponse:
-    story = await service.get_hero()
+    story = await queries.get_hero(db)
     return ReadingHeroResponse(
         todaysStory=(
             None
@@ -182,23 +180,25 @@ async def get_hero(
                 title=story.title,
                 groupTitle=story.reading_group.title,
                 cefrLevel=story.cefr_level,
-                preview=service.build_preview(story.content),
+                wordCount=story.word_count,
+                readingMinutes=calculate_reading_minutes(story.word_count),
             )
         )
     )
 
 
 @router.get(
-    "/stories/{story_uuid}/recommendations",
+    "/stories/{story_uuid}/recommendations", responses=build_error_responses(401, 404)
 )
 async def get_story_recommendations(
     story_uuid: UUID,
     current_user: Annotated[User, Depends(get_current_user)],
-    service: Annotated[ReadingService, Depends(get_reading_service)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
     limit: Annotated[int, Query(ge=1, le=10)] = 3,
 ) -> StoryRecommendationsResponse:
     try:
-        stories = await service.get_story_recommendations(
+        stories = await queries.get_story_recommendations(
+            db=db,
             story_uuid=story_uuid,
             user_id=current_user.id,
             limit=limit,
@@ -210,8 +210,8 @@ async def get_story_recommendations(
                     title=story.story.title,
                     cefrLevel=story.story.cefr_level,
                     createdAt=story.story.created_at,
-                    preview=service.build_preview(story.story.content),
                     wordCount=story.story.word_count,
+                    readingMinutes=calculate_reading_minutes(story.story.word_count),
                     isRead=story.is_read,
                     completed=story.completed,
                 )
@@ -228,15 +228,15 @@ async def get_story_recommendations(
         return StoryRecommendationsResponse(stories=[])
 
 
-@router.get("/stories/{story_uuid}")
+@router.get("/stories/{story_uuid}", responses=build_error_responses(401, 404, 409))
 async def get_story(
     story_uuid: UUID,
     current_user: Annotated[User, Depends(get_current_user)],
-    service: Annotated[ReadingService, Depends(get_reading_service)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
     page: int | None = None,
 ) -> StoryPageResponse:
     try:
-        result = await service.get_story_page(story_uuid, current_user.id, page)
+        result = await queries.get_story_page(db, story_uuid, current_user.id, page)
     except ReadingNotFoundError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -256,6 +256,7 @@ async def get_story(
         groupTitle=(
             result.story.reading_group.title if result.story.reading_group else None
         ),
+        readingMinutes=calculate_reading_minutes(result.story.word_count),
         page=StoryPageRead(
             index=result.page.index,
             content=result.page.content,
@@ -268,16 +269,20 @@ async def get_story(
     )
 
 
-@router.post("/stories/{story_uuid}/progress")
+@router.post(
+    "/stories/{story_uuid}/progress",
+    responses=build_error_responses(401, 403, 404, 409),
+)
 async def save_progress(
     story_uuid: UUID,
     body: StoryProgressUpdate,
     db: Annotated[AsyncSession, Depends(get_async_db)],
     current_user: Annotated[User, Depends(get_current_user)],
-    service: Annotated[ReadingService, Depends(get_reading_service)],
 ) -> EmptyResponse:
     try:
-        await service.save_progress(story_uuid, current_user.id, body.pageIndex)
+        await ReadingService(db).save_progress(
+            story_uuid, current_user.id, body.pageIndex
+        )
         await db.commit()
         return EmptyResponse()
     except ReadingNotFoundError as error:

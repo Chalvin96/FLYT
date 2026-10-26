@@ -1,3 +1,4 @@
+import { Heading, Text } from '@flyt/ui';
 import { Clock } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 
@@ -17,7 +18,7 @@ export function LessonListItem({ lesson }: { lesson: LessonSummaryRead }) {
     <Link
       to="/lesson/$lessonId"
       params={{ lessonId: String(lesson.id) }}
-      className="flex w-full items-start gap-3 px-5 py-5 transition-colors hover:bg-secondary-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      className="flex w-full flex-wrap items-start gap-3 px-5 py-5 transition-colors hover:bg-neutral-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--border-focused)] sm:flex-nowrap"
     >
       <span
         className={cn(
@@ -29,26 +30,34 @@ export function LessonListItem({ lesson }: { lesson: LessonSummaryRead }) {
       </span>
 
       <div className="min-w-0 flex-1">
-        <p className="type-label text-muted-foreground/80">
-          Lesson {lesson.order}
+        <p className="text-subtle/80">
+          <Heading as="span" size="xxsmall">
+            Lesson {lesson.order}
+          </Heading>
         </p>
-        <h3 className="type-body font-semibold text-foreground">
+        <Heading as="h3" size="small" tone="default">
           {lesson.title}
-        </h3>
+        </Heading>
         {lesson.goal && (
-          <p className="mt-2 type-caption text-muted-foreground">
-            {stripInlineMarkdown(lesson.goal)}
-          </p>
+          <div className="mt-2">
+            <Text size="medium" tone="subtle">
+              {stripInlineMarkdown(lesson.goal)}
+            </Text>
+          </div>
         )}
         {hasEstimate && (
-          <p className="mt-2 inline-flex items-center gap-1 type-caption text-muted-foreground">
-            <Clock aria-hidden className="icon-sm" />
-            <span>~{lesson.estimated_minutes} min</span>
+          <p className="mt-2 inline-flex items-center gap-1">
+            <Clock aria-hidden className="icon-sm text-subtle" />
+            <Text as="span" size="medium" tone="subtle">
+              ~{lesson.estimated_minutes} min
+            </Text>
           </p>
         )}
       </div>
 
-      <LessonStateLabel state={lesson.state} />
+      <div className="ml-13 flex basis-full sm:ml-0 sm:basis-auto">
+        <LessonStateLabel state={lesson.state} />
+      </div>
     </Link>
   );
 }

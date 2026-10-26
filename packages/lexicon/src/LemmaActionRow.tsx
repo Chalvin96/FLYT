@@ -19,7 +19,6 @@ export interface LemmaActionRowProps {
   behavior?: LemmaActionBehavior;
   knowLabel?: string;
   addLabel?: string;
-  className?: string;
 }
 
 function resolveLabels(
@@ -77,7 +76,6 @@ export function LemmaActionRow({
   behavior,
   knowLabel: knowLabelProp,
   addLabel: addLabelProp,
-  className,
 }: LemmaActionRowProps) {
   const resolvedBehavior: Required<LemmaActionBehavior> = {
     showStateLabels: behavior?.showStateLabels ?? true,
@@ -102,7 +100,7 @@ export function LemmaActionRow({
   );
 
   return (
-    <div className={className ?? 'grid grid-cols-2 gap-3'}>
+    <div className="grid grid-cols-2 gap-3">
       <Button
         type="button"
         size="sm"

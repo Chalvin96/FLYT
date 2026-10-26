@@ -124,8 +124,6 @@ class FlashcardDeckService:
         user_studied = {r.deck_id: r.studied for r in user_rows}
         user_owned_pool_counts = {r.deck_id: r.owned_pools for r in user_rows}
 
-        # Column select: avoid the Deck.cards lazy="selectin" cascade that pulls
-        # every FlashCard (and their pools/lemmas) just to read four columns.
         deck_rows = (
             await self.db.execute(
                 select(Deck.id, Deck.name, Deck.description, Deck.cefr_range).where(

@@ -1,10 +1,12 @@
 name: Extension Release
 
-# Manual release only: the extension ships on its own cadence and must NEVER build or
-# release on a master push (frontend/backend changes are independent). Triggered either
-# manually via the "Run workflow" button or by pushing an ext-v* tag.
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Check store authentication without uploading or submitting
+        type: boolean
+        default: true
   push:
     tags:
       - 'ext-v*'
@@ -20,42 +22,109 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 12.4.2
-
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Validate release version
+        run: |
+          VERSION=$(node -p "require('./extension/package.json').version")
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            if [[ "$GITHUB_REF_NAME" != "ext-v${VERSION}" ]]; then
+              echo "Expected tag ext-v${VERSION}, got ${GITHUB_REF_NAME}" >&2
+              exit 1
+            fi
+            TAG="$GITHUB_REF_NAME"
+          else
+            TAG="dev-${GITHUB_SHA::7}"
+          fi
+          echo "ASSET_PREFIX=extension/flytlese-${TAG}" >> "$GITHUB_ENV"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 12.14.0
+          standalone: false
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --filter "@flyt/extension..."
 
-      - name: Build extension
-        run: pnpm --filter "@flyt/extension" build
-
-      - name: Zip extension
+      - name: Build both browsers
+        env:
+          VITE_API_ORIGIN: https://api.flyt.umebocchi.my.id
+          VITE_APP_ORIGIN: https://flyt.umebocchi.my.id
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          if [ "$TAG" = "$GITHUB_REF" ]; then
-            TAG="dev-${GITHUB_SHA::7}"
-          fi
-          (cd extension/dist && zip -r "../flytlese-${TAG}.zip" .)
-          echo "ASSET=extension/flytlese-${TAG}.zip" >> "$GITHUB_ENV"
+          pnpm --filter @flyt/extension build
+          pnpm --filter @flyt/extension build:firefox
+          pnpm --filter @flyt/extension lint:firefox
+
+      - name: Package extension archives
+        run: |
+          python3 - <<'PY'
+          import os
+          import subprocess
+          from pathlib import Path
+          from zipfile import ZIP_DEFLATED, ZipFile
+
+          prefix = os.environ["ASSET_PREFIX"]
+          for browser in ("chrome", "firefox"):
+              root = Path("extension/dist") / browser
+              with ZipFile(f"{prefix}-{browser}.zip", "w", ZIP_DEFLATED) as archive:
+                  for path in sorted(root.rglob("*")):
+                      if path.is_file():
+                          archive.write(path, path.relative_to(root))
+
+          subprocess.run([
+              "git", "archive", "--format=zip", f"--output={prefix}-sources.zip",
+              os.environ["GITHUB_SHA"], "extension/", "packages/ui/", "packages/lexicon/",
+              "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "tsconfig.base.json",
+              "scripts/check_pnpm_version.mjs", "LICENSE", ".gitignore",
+          ], check=True)
+          PY
 
       - name: Upload GitHub Release asset
-        if: startsWith(github.ref, 'refs/tags/ext-v')
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/ext-v')
         uses: softprops/action-gh-release@v3
         with:
-          files: ${{ env.ASSET }}
+          files: ${{ env.ASSET_PREFIX }}-*.zip
+          fail_on_unmatched_files: true
 
       - name: Upload workflow artifact
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7
         with:
           name: flytlese-zip
-          path: extension/flytlese-*.zip
+          path: ${{ env.ASSET_PREFIX }}-*.zip
+          if-no-files-found: error
+
+      - name: Publish to extension stores
+        if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/ext-v')) || (github.event_name == 'workflow_dispatch' && inputs.dry_run)
+        env:
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
+          CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL: ${{ secrets.CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL }}
+          CHROME_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.CHROME_SERVICE_ACCOUNT_PRIVATE_KEY }}
+          FIREFOX_EXTENSION_ID: ${{ secrets.FIREFOX_EXTENSION_ID }}
+          FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+          FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
+        run: |
+          args=()
+          if [[ -n "$CHROME_EXTENSION_ID" && -n "$CHROME_PUBLISHER_ID" && -n "$CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL" && -n "$CHROME_SERVICE_ACCOUNT_PRIVATE_KEY" ]]; then
+            args+=(--chrome-api-version v2 --chrome-zip "${PWD}/${ASSET_PREFIX}-chrome.zip")
+          else
+            echo "Skipping Chrome: store credentials are incomplete."
+          fi
+          if [[ -n "$FIREFOX_EXTENSION_ID" && -n "$FIREFOX_JWT_ISSUER" && -n "$FIREFOX_JWT_SECRET" ]]; then
+            args+=(--firefox-zip "${PWD}/${ASSET_PREFIX}-firefox.zip" --firefox-sources-zip "${PWD}/${ASSET_PREFIX}-sources.zip")
+          else
+            echo "Skipping Firefox: store credentials are incomplete."
+          fi
+          if [[ ${#args[@]} -eq 0 ]]; then
+            exit 0
+          fi
+          if [[ "$DRY_RUN" == true ]]; then
+            args+=(--dry-run)
+          fi
+          pnpm --filter @flyt/extension exec publish-extension "${args[@]}"

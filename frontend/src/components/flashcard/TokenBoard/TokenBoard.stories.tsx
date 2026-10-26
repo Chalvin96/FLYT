@@ -15,7 +15,7 @@ const ANSWER_ORDER = ['jeg', 'snakker', 'ikke', 'norsk', 'enn'];
 const MOVABLE_ANSWER_ORDER = ['snakker', 'ikke', 'norsk', 'enn'];
 
 const meta = {
-  title: 'Flashcard/TokenBoard',
+  title: 'Features/Flashcard/TokenBoard',
   component: TokenBoard,
   tags: ['autodocs'],
   decorators: [

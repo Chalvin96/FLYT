@@ -1,4 +1,4 @@
-import { K_RATING_AGAIN, K_RATING_EASY, K_RATING_HARD } from './fsrsRatings';
+import { K_RATING_AGAIN, K_RATING_EASY } from './fsrsRatings';
 
 export type Rating = 1 | 2 | 3 | 4;
 
@@ -22,7 +22,7 @@ export type GradedOutcome = {
 /** Use when an exercise advances without creating scheduling evidence. */
 export type UngradedOutcome = {
   kind: 'ungraded';
-  outcome: 'skipped' | 'service_unavailable';
+  outcome: 'skipped' | 'service_unavailable' | 'unsupported';
 };
 
 export type ExerciseOutcome = GradedOutcome | UngradedOutcome;
@@ -43,10 +43,4 @@ export function gradedOutcome(result: OperationResult): GradedOutcome {
     correct: result.correct,
     rating: ratingFromResult(result),
   };
-}
-
-export function revealRating(
-  fraction: number,
-): typeof K_RATING_HARD | typeof K_RATING_AGAIN {
-  return fraction >= 0.5 ? K_RATING_HARD : K_RATING_AGAIN;
 }

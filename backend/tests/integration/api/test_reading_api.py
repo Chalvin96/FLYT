@@ -10,6 +10,7 @@ from flyt.apps.flashcards.models import UserCard
 from flyt.apps.reading.models import Story
 from flyt.apps.reading.models import StoryVisibility
 from flyt.apps.reading.models import UserStory
+from flyt.apps.reading.services import calculate_reading_minutes
 from flyt.apps.users.models import UserLemma
 from flyt.core.config import settings
 from tests.factories import CardPoolFactory
@@ -34,6 +35,8 @@ K_EXPECTED_PAGE_STORY_COUNT = 3
 K_HOME_SECTION_STORY_LIMIT = 6
 K_HOME_SECTION_SEED_STORY_COUNT = 8
 K_NONPUBLIC_SECTION_STORY_COUNT = 2
+K_LONG_STORY_WORD_COUNT = 451
+K_LONG_STORY_READING_MINUTES = 4
 
 
 async def test_get_groups_returns_counts(client: AsyncClient) -> None:
@@ -912,15 +915,107 @@ async def test_get_groups_given_empty_db_expect_groups_returned(
     assert test_group["storyCount"] == 0
 
 
+async def test_get_stories_given_story_word_count_expect_reading_minutes(
+    client: AsyncClient,
+) -> None:
+    user = await UserFactory.create()
+    group = await ReadingGroupFactory.create(key="travel", title="Travel")
+    story = await StoryFactory.create(
+        reading_group=group, word_count=K_LONG_STORY_WORD_COUNT
+    )
+    await StoryPageFactory.create(story=story, index=0)
+    await authenticate(client, user)
+
+    response = await client.get("/reading/stories", params={"group_key": group.key})
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["stories"][0]["readingMinutes"] == (
+        K_LONG_STORY_READING_MINUTES
+    )
+
+
+async def test_get_story_recommendations_given_story_word_count_expect_reading_minutes(
+    client: AsyncClient,
+) -> None:
+    user = await UserFactory.create()
+    group = await ReadingGroupFactory.create(key="daily_life", title="Daily Life")
+    current = await StoryFactory.create(reading_group=group)
+    recommended = await StoryFactory.create(
+        reading_group=group, word_count=K_LONG_STORY_WORD_COUNT
+    )
+    await StoryPageFactory.create(story=current, index=0)
+    await StoryPageFactory.create(story=recommended, index=0)
+    await authenticate(client, user)
+
+    response = await client.get(f"/reading/stories/{current.uuid}/recommendations")
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["stories"][0]["readingMinutes"] == (
+        K_LONG_STORY_READING_MINUTES
+    )
+
+
+async def test_get_story_given_story_word_count_expect_reading_minutes(
+    client: AsyncClient,
+) -> None:
+    user = await UserFactory.create()
+    group = await ReadingGroupFactory.create(key="daily_life", title="Daily Life")
+    story = await StoryFactory.create(
+        reading_group=group, word_count=K_LONG_STORY_WORD_COUNT
+    )
+    await StoryPageFactory.create(story=story, index=0)
+    await authenticate(client, user)
+
+    response = await client.get(f"/reading/stories/{story.uuid}")
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["readingMinutes"] == K_LONG_STORY_READING_MINUTES
+
+
+async def test_get_home_given_starter_story_expect_word_count_and_reading_minutes(
+    client: AsyncClient,
+) -> None:
+    user = await UserFactory.create()
+    group = await ReadingGroupFactory.create(key="daily_life", title="Daily Life")
+    story = await StoryFactory.create(
+        reading_group=group, word_count=K_LONG_STORY_WORD_COUNT
+    )
+    await StoryPageFactory.create(story=story, index=0)
+    await authenticate(client, user)
+
+    response = await client.get("/reading/home")
+
+    assert response.status_code == HTTPStatus.OK
+    todays_story = response.json()["todaysStory"]
+    assert todays_story["wordCount"] == K_LONG_STORY_WORD_COUNT
+    assert todays_story["readingMinutes"] == K_LONG_STORY_READING_MINUTES
+
+
+async def test_get_hero_given_starter_story_expect_word_count_and_reading_minutes(
+    client: AsyncClient,
+) -> None:
+    group = await ReadingGroupFactory.create(key="daily_life", title="Daily Life")
+    story = await StoryFactory.create(
+        reading_group=group, word_count=K_LONG_STORY_WORD_COUNT
+    )
+    await StoryPageFactory.create(story=story, index=0)
+
+    response = await client.get("/reading/hero")
+
+    assert response.status_code == HTTPStatus.OK
+    todays_story = response.json()["todaysStory"]
+    assert todays_story["wordCount"] == K_LONG_STORY_WORD_COUNT
+    assert todays_story["readingMinutes"] == K_LONG_STORY_READING_MINUTES
+
+
 def _expected_home_story(story: Story) -> dict[str, object]:
-    # Seeded content stays under the 18-word preview limit, so preview == content.
     return {
         "uuid": str(story.uuid),
         "title": story.title,
         "cefrLevel": story.cefr_level,
-        "createdAt": story.created_at.isoformat(),
-        "preview": story.content,
-        "wordCount": len((story.content or "").split()),
+        "createdAt": f"{story.created_at.isoformat()}Z",
+        "wordCount": story.word_count,
+        "readingMinutes": calculate_reading_minutes(story.word_count),
         "isRead": False,
         "completed": False,
     }

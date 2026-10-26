@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ErrorMessage } from './ErrorMessage';
 
 describe('ErrorMessage', () => {
-  it('renders title and message', () => {
+  it('test_error_message_given_no_title_expect_flyt_default_copy', () => {
     render(<ErrorMessage error="Network error" />);
 
     expect(screen.getByRole('alert')).toBeInTheDocument();
@@ -13,7 +13,7 @@ describe('ErrorMessage', () => {
     expect(screen.getByText('Network error')).toBeInTheDocument();
   });
 
-  it('calls retry and dismiss handlers', async () => {
+  it('test_error_message_given_retry_and_dismiss_expect_default_labels_on_both_actions', async () => {
     const onRetry = vi.fn();
     const onDismiss = vi.fn();
 

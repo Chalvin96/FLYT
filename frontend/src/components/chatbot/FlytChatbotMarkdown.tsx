@@ -1,3 +1,4 @@
+import { Heading, Text } from '@flyt/ui';
 import type { Components } from 'react-markdown';
 import { Component, Suspense, useCallback, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -9,12 +10,12 @@ import { cn } from '@/lib/utils';
 
 const chatbotMarkdownComponents: Components = {
   strong: ({ children }) => (
-    <strong className="font-semibold text-foreground">{children}</strong>
+    <Text as="strong" weight="semibold" tone="default">
+      {children}
+    </Text>
   ),
   em: ({ children }) => <em className="italic">{children}</em>,
-  del: ({ children }) => (
-    <del className="text-muted-foreground">{children}</del>
-  ),
+  del: ({ children }) => <del className="text-subtle">{children}</del>,
   a: ({ children, href }) => {
     const safeLink = resolveChatbotLink(href);
 
@@ -24,13 +25,15 @@ const chatbotMarkdownComponents: Components = {
 
     return (
       <a
-        className="font-medium text-secondary-70 underline underline-offset-2"
+        className="underline underline-offset-2"
         href={safeLink.href}
         {...(safeLink.isExternal
           ? { rel: 'noopener noreferrer', target: '_blank' }
           : {})}
       >
-        {children}
+        <Text as="span" tone="subtle">
+          {children}
+        </Text>
         {safeLink.isExternal ? (
           <span className="sr-only"> Opens in a new tab.</span>
         ) : null}
@@ -55,27 +58,33 @@ const chatbotMarkdownComponents: Components = {
   h5: ChatbotMarkdownHeading,
   h6: ChatbotMarkdownHeading,
   blockquote: ({ children }) => (
-    <blockquote className="border-l-2 border-border pl-3 text-muted-foreground">
+    <blockquote className="border-l-2 border-default pl-3 text-subtle">
       {children}
     </blockquote>
   ),
-  hr: () => <hr className="border-t border-border" />,
+  hr: () => <hr className="border-t border-default" />,
   table: ({ children }) => (
     <div className="max-w-full overflow-x-auto">
-      <table className="min-w-full border-collapse type-caption-sm">
-        {children}
-      </table>
+      <Text as="div" size="small">
+        <table className="min-w-full border-collapse">{children}</table>
+      </Text>
     </div>
   ),
   thead: ({ children }) => (
-    <thead className="bg-secondary-10">{children}</thead>
+    <thead className="bg-neutral-subtle">{children}</thead>
   ),
   tbody: ({ children }) => (
-    <tbody className="divide-y divide-border">{children}</tbody>
+    <tbody className="divide-y divide-[var(--border-default)]">
+      {children}
+    </tbody>
   ),
   tr: ({ children }) => <tr>{children}</tr>,
   th: ({ children }) => (
-    <th className="px-2 py-1.5 text-left font-semibold">{children}</th>
+    <th className="px-2 py-1.5 text-left">
+      <Text as="div" weight="semibold">
+        {children}
+      </Text>
+    </th>
   ),
   td: ({ children }) => <td className="px-2 py-1.5">{children}</td>,
   img: ({ alt, src }) => {
@@ -88,16 +97,20 @@ const chatbotMarkdownComponents: Components = {
     return <ChatbotMarkdownImage alt={alt} src={safeSrc} />;
   },
   code: ({ children }) => (
-    <code className="rounded bg-muted px-1 py-0.5 font-mono type-caption-sm text-foreground">
-      {children}
+    <code className="rounded-sm bg-neutral-subtle px-1 py-0.5">
+      <Text as="span" size="small" font="mono" tone="default">
+        {children}
+      </Text>
     </code>
   ),
   pre: ({ children }) => (
     <pre
-      className="overflow-x-auto radius-field bg-muted p-3 type-caption-sm leading-6"
+      className="overflow-x-auto radius-field bg-neutral-subtle p-3"
       tabIndex={0}
     >
-      {children}
+      <Text as="div" size="small">
+        {children}
+      </Text>
     </pre>
   ),
 };
@@ -141,9 +154,9 @@ function resolveChatbotLink(href: string | undefined) {
 
 function ChatbotMarkdownHeading({ children }: { children?: ReactNode }) {
   return (
-    <h3 className="font-display type-body font-semibold text-foreground">
+    <Heading as="h3" size="small" tone="default">
       {children}
-    </h3>
+    </Heading>
   );
 }
 
@@ -171,9 +184,9 @@ function ChatbotMarkdownImage({ alt, src }: { alt?: string; src: string }) {
 
   if (state === 'error') {
     return (
-      <span className="type-caption-sm text-muted-foreground">
+      <Text as="span" size="small" tone="subtle">
         {alt ? `Image unavailable — ${alt}` : 'Image unavailable'}
-      </span>
+      </Text>
     );
   }
 
@@ -182,7 +195,7 @@ function ChatbotMarkdownImage({ alt, src }: { alt?: string; src: string }) {
       {state === 'pending' ? (
         <span
           aria-hidden="true"
-          className="import-cover-shimmer absolute inset-0 block min-h-40 w-full max-w-full overflow-hidden radius-field bg-secondary-10"
+          className="import-cover-shimmer absolute inset-0 block min-h-40 w-full max-w-full overflow-hidden radius-field bg-neutral-subtle"
           data-testid="chatbot-markdown-image-loading"
         />
       ) : null}
@@ -211,31 +224,33 @@ function ChatbotMarkdownSkeleton() {
       className="block space-y-2"
       data-testid="chatbot-markdown-skeleton"
     >
-      <span className="block h-3 w-11/12 animate-pulse radius-field bg-muted" />
-      <span className="block h-3 w-4/5 animate-pulse radius-field bg-muted" />
-      <span className="block h-3 w-3/5 animate-pulse radius-field bg-muted" />
+      <span className="block h-3 w-11/12 animate-pulse radius-field bg-neutral-subtle" />
+      <span className="block h-3 w-4/5 animate-pulse radius-field bg-neutral-subtle" />
+      <span className="block h-3 w-3/5 animate-pulse radius-field bg-neutral-subtle" />
     </span>
   );
 }
 
 export function ChatbotMessageMarkdown({ children }: { children: string }) {
   return (
-    <BubbleContent className="mt-1 min-w-0 break-words type-body leading-7 text-foreground [&>*+*]:mt-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0">
-      <ChatbotMarkdownErrorBoundary
-        fallback={
-          <span className="whitespace-pre-wrap break-words">{children}</span>
-        }
-      >
-        <Suspense fallback={<ChatbotMarkdownSkeleton />}>
-          <LazyMarkdown
-            allowedElements={chatbotMarkdownAllowedElements}
-            components={chatbotMarkdownComponents}
-            skipHtml
-          >
-            {children}
-          </LazyMarkdown>
-        </Suspense>
-      </ChatbotMarkdownErrorBoundary>
+    <BubbleContent className="mt-1 min-w-0 break-words [&>div>*+*]:mt-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0">
+      <Text as="div" size="large" tone="default">
+        <ChatbotMarkdownErrorBoundary
+          fallback={
+            <span className="whitespace-pre-wrap break-words">{children}</span>
+          }
+        >
+          <Suspense fallback={<ChatbotMarkdownSkeleton />}>
+            <LazyMarkdown
+              allowedElements={chatbotMarkdownAllowedElements}
+              components={chatbotMarkdownComponents}
+              skipHtml
+            >
+              {children}
+            </LazyMarkdown>
+          </Suspense>
+        </ChatbotMarkdownErrorBoundary>
+      </Text>
     </BubbleContent>
   );
 }

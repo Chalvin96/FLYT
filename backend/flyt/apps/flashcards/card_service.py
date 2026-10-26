@@ -8,7 +8,6 @@ from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import delete
-from sqlalchemy import func
 from sqlalchemy import select
 from sqlalchemy import update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -243,64 +242,69 @@ class FlashcardCardService:
         await self._sync_sense_cues(lemma.word, lemma.pos)
         return pool
 
-    async def activate_pool_for_user(self, user_id: int, pool_id: int) -> UserCard:
-        """Create or promote the user's UserCard for a pool to ACTIVE.
-
-        - Missing UserCard: created as ACTIVE, NEW, due_at=now(), introduced_at=now().
-        - Existing UPCOMING UserCard: promoted in place to the same active-new shape.
-        - Existing ACTIVE UserCard: idempotent success without resetting scheduling.
-
-        For lemma-owned pools, ensures the matching UserLemma row exists. The
-        daily new-card limit is not enforced here; callers (drip) check the
-        allowance before calling.
-        """
-        pool = await self.db.get(
-            CardPool,
-            pool_id,
-            options=[raiseload(CardPool.lesson)],
-        )
-        if pool is None:
+    async def activate_pools_for_user(
+        self, user_id: int, pool_ids: Sequence[int]
+    ) -> list[UserCard]:
+        if not pool_ids:
+            return []
+        ordered_pool_ids = list(dict.fromkeys(pool_ids))
+        pools = (
+            await self.db.scalars(
+                select(CardPool)
+                .where(CardPool.id.in_(ordered_pool_ids))
+                .options(raiseload(CardPool.lesson))
+            )
+        ).all()
+        if len(pools) != len(ordered_pool_ids):
             raise CardNotFoundError()
 
         activated_at = now()
         insert_stmt = pg_insert(UserCard).values(
-            user_id=user_id,
-            pool_id=pool_id,
-            due_at=activated_at,
-            introduced_at=activated_at,
-            state=CardState.NEW,
-            enrollment_state=Enrollment.ACTIVE,
+            [
+                {
+                    "user_id": user_id,
+                    "pool_id": pool_id,
+                    "due_at": activated_at,
+                    "introduced_at": activated_at,
+                    "state": CardState.NEW,
+                    "enrollment_state": Enrollment.ACTIVE,
+                }
+                for pool_id in sorted(ordered_pool_ids)
+            ]
         )
         insert_stmt = insert_stmt.on_conflict_do_nothing(
             constraint="uq_user_card_pool",
         )
         await self.db.execute(insert_stmt)
 
-        user_card = await self.db.scalar(
-            select(UserCard)
-            .options(raiseload(UserCard.pool))
-            .where(UserCard.user_id == user_id)
-            .where(UserCard.pool_id == pool_id)
-            .with_for_update()
+        user_cards = (
+            await self.db.scalars(
+                select(UserCard)
+                .options(raiseload(UserCard.pool))
+                .where(UserCard.user_id == user_id)
+                .where(UserCard.pool_id.in_(ordered_pool_ids))
+                .order_by(UserCard.id)
+                .with_for_update()
+            )
+        ).all()
+        if len(user_cards) != len(ordered_pool_ids):
+            raise RuntimeError("Failed to activate user cards")
+
+        for user_card in user_cards:
+            if user_card.enrollment_state == Enrollment.UPCOMING:
+                user_card.enrollment_state = Enrollment.ACTIVE
+                user_card.state = CardState.NEW
+                user_card.due_at = activated_at
+                user_card.introduced_at = activated_at
+            elif user_card.enrollment_state != Enrollment.ACTIVE:
+                raise ConflictError("Card cannot be activated", "CARD_NOT_ACTIVATABLE")
+
+        await self.user_lemma_service.ensure_lemmas_for_user(
+            user_id, [pool.lemma_id for pool in pools if pool.lemma_id is not None]
         )
-        if user_card is None:
-            raise RuntimeError("Failed to activate user card")
-
-        if user_card.enrollment_state == Enrollment.UPCOMING:
-            user_card.enrollment_state = Enrollment.ACTIVE
-            user_card.state = CardState.NEW
-            user_card.due_at = activated_at
-            user_card.introduced_at = activated_at
-            await self.db.flush()
-        elif user_card.enrollment_state == Enrollment.ACTIVE:
-            pass
-        else:
-            raise ConflictError("Card cannot be activated", "CARD_NOT_ACTIVATABLE")
-
-        if pool.lemma_id is not None:
-            await self.user_lemma_service.ensure_lemma_for_user(user_id, pool.lemma_id)
-
-        return user_card
+        await self.db.flush()
+        cards_by_pool = {card.pool_id: card for card in user_cards}
+        return [cards_by_pool[pool_id] for pool_id in ordered_pool_ids]
 
     async def add_lemma_to_deck(
         self,
@@ -308,11 +312,7 @@ class FlashcardCardService:
         lemma_uuid: uuid.UUID,
         context: LemmaContextCreate | None = None,
     ) -> None:
-        lemma = await self.db.scalar(
-            select(Lemma)
-            .options(selectinload(Lemma.definitions))
-            .where(Lemma.uuid == lemma_uuid)
-        )
+        lemma = await self.db.scalar(select(Lemma).where(Lemma.uuid == lemma_uuid))
         if lemma is None:
             raise LemmaNotDeckableError()
 
@@ -320,7 +320,7 @@ class FlashcardCardService:
             lemma,
             log_repair=True,
         )
-        await self.activate_pool_for_user(user_id, pool.id)
+        await self.activate_pools_for_user(user_id, [pool.id])
         if context is not None:
             context_insert = pg_insert(UserLemmaContext).values(
                 user_id=user_id,
@@ -337,7 +337,7 @@ class FlashcardCardService:
                     ],
                     set_={
                         "source_title": context_insert.excluded.source_title,
-                        "updated_at": func.now(),
+                        "updated_at": now(),
                     },
                 )
             )

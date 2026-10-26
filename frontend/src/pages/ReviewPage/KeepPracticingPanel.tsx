@@ -1,7 +1,5 @@
-import { PlusCircle } from 'lucide-react';
-
-import { Button } from '@/components/common/Button/Button';
-import { IconWell } from '@/components/common/IconWell/IconWell';
+import { Button, Heading, Text } from '@flyt/ui';
+import { Link } from '@tanstack/react-router';
 
 export interface KeepPracticingPanelProps {
   onAddMoreNew?: () => void;
@@ -12,30 +10,46 @@ export function KeepPracticingPanel({
   onAddMoreNew,
   isAddMoreNewPending = false,
 }: KeepPracticingPanelProps) {
-  if (!onAddMoreNew) {
-    return null;
-  }
-
   return (
-    <section className="w-full text-left">
-      <div className="mb-2 px-1 type-caption font-medium tracking-[0.08em] text-muted-foreground">
-        Keep practicing
+    <div className="w-full space-y-6 text-left">
+      {onAddMoreNew ? (
+        <section>
+          <div className="mb-2 px-1">
+            <Heading as="div" size="xxsmall" tone="subtle">
+              Keep practicing
+            </Heading>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            shape="pill"
+            width="full"
+            disabled={isAddMoreNewPending}
+            onClick={onAddMoreNew}
+          >
+            Add more new words
+          </Button>
+        </section>
+      ) : null}
+
+      <div>
+        <div className="mb-2 px-1">
+          <Text as="div" size="medium" tone="subtle">
+            Switch it up
+          </Text>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <Button asChild variant="outline" shape="pill">
+            <Link to="/lesson">Lesson</Link>
+          </Button>
+          <Button asChild variant="ghost" shape="pill">
+            <Link to="/reading">Reading</Link>
+          </Button>
+          <Button asChild variant="ghost" shape="pill">
+            <Link to="/review/cards">Cards</Link>
+          </Button>
+        </div>
       </div>
-      <Button
-        type="button"
-        variant="outline"
-        className="flex h-11 w-full items-center gap-2 rounded-full"
-        disabled={isAddMoreNewPending}
-        onClick={onAddMoreNew}
-      >
-        <IconWell
-          size="sm"
-          tone="accent"
-          icon={PlusCircle}
-          iconProps={{ strokeWidth: 1.9 }}
-        />
-        Add more new words
-      </Button>
-    </section>
+    </div>
   );
 }

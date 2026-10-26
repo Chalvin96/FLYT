@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { SearchBar } from './SearchBar';
 
 const meta = {
-  title: 'Lexicon/SearchBar',
+  title: 'Features/Lexicon/SearchBar',
   component: SearchBar,
   tags: ['autodocs'],
   argTypes: {

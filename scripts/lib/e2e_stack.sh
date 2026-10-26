@@ -3,6 +3,8 @@
 # scripts/run_extension_e2e.sh. Both need the same backend, the same committed
 # fixtures, and the same deterministic users; only the client differs.
 
+export FLYT_E2E_PROVIDER_CREDENTIAL_KEY="${FLYT_E2E_PROVIDER_CREDENTIAL_KEY:-$(python3 -c "import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())")}"
+
 e2e_compose() {
   docker compose \
     -p "${COMPOSE_PROJECT_NAME}" \
@@ -11,7 +13,7 @@ e2e_compose() {
 }
 
 e2e_stack_down() {
-  (cd "${ROOT_DIR}" && e2e_compose down -v --remove-orphans) >/dev/null 2>&1 || true
+  (cd "${ROOT_DIR}" && e2e_compose down -v --remove-orphans --rmi local) >/dev/null 2>&1 || true
 }
 
 wait_for_url() {
@@ -38,14 +40,12 @@ e2e_stack_up() {
 
   cd "${ROOT_DIR}"
 
-  # When the host has not exported an OpenRouter key, swap the openrouter
-  # provider for the stub so the generate→ready→lookup→import flow still has
-  # coverage without a paid call. ChatGPT stays offered (locked) so the surface
-  # mirrors production. The recording spec still needs the real key and skips
-  # without one.
   if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
     export STORY_GENERATION_ENABLED_PROVIDERS='["stub","chatgpt"]'
     echo "OPENROUTER_API_KEY not set; stub provider enabled (canned text, no model call), chatgpt offered (locked) for this run."
+  else
+    export STORY_GENERATION_ENABLED_PROVIDERS='["openrouter","chatgpt","stub"]'
+    echo "OPENROUTER_API_KEY set; openrouter enabled for the recording spec, stub also enabled for the always-on flow spec."
   fi
 
   echo "Starting fresh E2E stack with project ${COMPOSE_PROJECT_NAME}..."
@@ -71,4 +71,27 @@ e2e_stack_up() {
 
   echo "Seeding deterministic E2E users..."
   e2e_compose exec -T backend python scripts/seed_e2e.py
+}
+
+run_playwright_tests() {
+  if [[ -z "${FLYT_PLAYWRIGHT_IMAGE:-}" ]]; then
+    pnpm exec playwright install chromium
+    pnpm exec playwright test "$@"
+    return
+  fi
+
+  local user_args=(--user "$(id -u):$(id -g)")
+  if docker info --format '{{.SecurityOptions}}' | grep -q rootless; then
+    user_args=()
+  fi
+
+  docker run --rm --network host --ipc host \
+    "${user_args[@]}" \
+    --env HOME=/tmp \
+    --env FLYT_E2E_BASE_URL --env FLYT_E2E_API_URL --env CI \
+    --env OPENROUTER_API_KEY --env FLYT_E2E_FIXTURE_PORT \
+    --volume "${ROOT_DIR}:${ROOT_DIR}" \
+    --workdir "${PWD}" \
+    "${FLYT_PLAYWRIGHT_IMAGE}" \
+    ./node_modules/.bin/playwright test "$@"
 }

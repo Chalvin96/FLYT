@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMe } from '@/hooks/auth/queries';
 import { useLesson } from '@/hooks/lessons/queries';
 import { LessonDetailPage } from '@/pages/LessonDetailPage/LessonDetailPage';
+import { LESSON_COMPLETION_DESTINATIONS } from '@/pages/LessonDetailPage/useLessonDetailState';
 
 function LessonDetailRouteComponent() {
   const { lessonId } = Route.useParams();
@@ -21,8 +22,12 @@ function LessonDetailRouteComponent() {
       isLoading={isLoading}
       lesson={lesson}
       userId={user?.id}
-      onExit={() => {
-        void navigate({ to: '/lesson' });
+      onExit={(destination) => {
+        if (destination === LESSON_COMPLETION_DESTINATIONS.review) {
+          void navigate({ to: '/review/session', search: { mode: 'quick' } });
+        } else {
+          void navigate({ to: '/home' });
+        }
       }}
     />
   );

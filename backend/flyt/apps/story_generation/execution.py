@@ -21,9 +21,8 @@ from flyt.apps.story_generation.models import Generation
 from flyt.apps.story_generation.models import GenerationOutcome
 from flyt.apps.story_generation.models import ProviderRequest
 from flyt.apps.story_generation.models import ProviderRequestOutcome
-from flyt.apps.story_generation.prompt import build_prompt
-from flyt.apps.story_generation.prompt import build_provider_request
-from flyt.apps.story_generation.prompt import strip_markup
+from flyt.apps.story_generation.output import parse_generation_output
+from flyt.apps.story_generation.prompt import build_story_request
 from flyt.apps.story_generation.prompt import validate_topic
 from flyt.apps.story_generation.quality import measure
 from flyt.apps.story_generation.quality import resolve_lemma_ids
@@ -33,7 +32,6 @@ from flyt.apps.story_generation.vocabulary import VocabularySelection
 from flyt.apps.story_generation.vocabulary import VocabularyService
 from flyt.apps.story_generation.vocabulary import has_unknown_targets
 from flyt.apps.reading.annotation import build_pages
-from flyt.apps.reading.import_text import normalize_text
 from flyt.apps.reading.import_text import word_count
 from flyt.apps.reading.tokenization import PageData
 from flyt.apps.story_generation.exceptions import TopicTooLongRefused
@@ -205,10 +203,13 @@ class GenerationExecution:
 
         A cancelled caller waits for the finalization to finish before the
         cancellation propagates, so the durable outcome, the provider
-        request row, and the debit land together.
+        request row, and the debit land together. ``asyncio.wait`` keeps the
+        finalization task independent from caller cancellation without
+        exposing handled finalization errors to the loop's exception handler.
         """
         try:
-            await asyncio.shield(finalization_task)
+            await asyncio.wait({finalization_task})
+            finalization_task.result()
         except asyncio.CancelledError:
             await self._wait_for_finalization_after_cancellation(finalization_task)
             raise
@@ -232,17 +233,18 @@ class GenerationExecution:
     async def _wait_for_finalization_after_cancellation(
         self, finalization_task: asyncio.Task[None]
     ) -> None:
-        while True:
+        while not finalization_task.done():
             try:
-                await asyncio.shield(finalization_task)
-                return
+                await asyncio.wait({finalization_task})
             except asyncio.CancelledError:
                 continue
-            except Exception:
-                logger.exception(
-                    "Story generation finalization failed after cancellation"
-                )
-                return
+
+        try:
+            finalization_task.result()
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            logger.exception("Story generation finalization failed after cancellation")
 
     async def _claim_generation(self) -> int | None:
         result = await self._db.execute(
@@ -284,17 +286,16 @@ class GenerationExecution:
             )
             return None
 
-        prompt = build_prompt(
-            base_words=selection.base_words,
-            target_words=selection.target_words,
-            length=length,
-            topic=topic,
-            base_truncated=selection.base_truncated,
-        )
         return PreparedGeneration(
             selection=selection,
             provider_name=generation.provider,
-            request=build_provider_request(prompt, length),
+            request=build_story_request(
+                base_words=selection.base_words,
+                target_words=selection.target_words,
+                length=length,
+                topic=topic,
+                base_truncated=selection.base_truncated,
+            ),
         )
 
     async def _resolve_provider(self, provider_name: str) -> ProviderSelection | None:
@@ -366,7 +367,8 @@ class GenerationExecution:
         selection: VocabularySelection,
         result: GenerationResult,
     ) -> None:
-        normalized = normalize_text(strip_markup(result.text))
+        output = parse_generation_output(result.text)
+        normalized = output.text
         pages = await build_pages(self._db, normalized)
         uuid_to_id = await resolve_lemma_ids(self._db, pages)
         quality = measure(
@@ -382,6 +384,7 @@ class GenerationExecution:
             )
             .values(
                 outcome=GenerationOutcome.READY,
+                title=output.title,
                 text=normalized,
                 pages=_serialize_pages(pages),
                 mastered_lemma_count=quality.mastered_lemma_count,

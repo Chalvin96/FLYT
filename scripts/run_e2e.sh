@@ -10,6 +10,8 @@ FRONTEND_HOST="${FLYT_E2E_FRONTEND_HOST:-127.0.0.1}"
 FRONTEND_PORT="${FLYT_E2E_FRONTEND_PORT:-4173}"
 BASE_URL="http://${FRONTEND_HOST}:${FRONTEND_PORT}"
 API_URL="http://${API_HOST}:${API_PORT}"
+export FLYT_E2E_API_HOST="${API_HOST}" FLYT_E2E_API_PORT="${API_PORT}"
+export FLYT_E2E_FRONTEND_HOST="${FRONTEND_HOST}" FLYT_E2E_FRONTEND_PORT="${FRONTEND_PORT}"
 COMPOSE_PROJECT_NAME="${FLYT_E2E_COMPOSE_PROJECT:-flyt-e2e-$(date +%s)-$$}"
 PREVIEW_LOG="/tmp/flyt-e2e-preview-${COMPOSE_PROJECT_NAME}.log"
 PREVIEW_PID=""
@@ -33,9 +35,6 @@ echo "Building frontend preview against ${API_URL}..."
 cd "${ROOT_DIR}/frontend"
 FLYT_API_URL="${API_URL}" pnpm build
 
-echo "Ensuring Playwright Chromium is installed..."
-pnpm exec playwright install chromium
-
 echo "Starting frontend preview on ${BASE_URL}..."
 setsid pnpm preview --host "${FRONTEND_HOST}" --port "${FRONTEND_PORT}" --strictPort >"${PREVIEW_LOG}" 2>&1 &
 PREVIEW_PID=$!
@@ -45,4 +44,4 @@ wait_for_url "${BASE_URL}/login" "frontend preview"
 echo "Running Playwright E2E suite..."
 FLYT_E2E_BASE_URL="${BASE_URL}" \
 FLYT_E2E_API_URL="${API_URL}" \
-pnpm exec playwright test "$@"
+run_playwright_tests "$@"

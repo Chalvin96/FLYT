@@ -1,3 +1,5 @@
+import { Glyph, Heading, Text } from '@flyt/ui';
+
 const questions = [
   {
     answer:
@@ -29,34 +31,35 @@ const questions = [
 export function FaqSection() {
   return (
     <section className="scroll-mt-24" id="faq">
-      <h2 className="font-display type-display-lg font-semibold tracking-tight text-foreground">
+      <Heading as="h2" size="xxlarge" tone="default">
         Questions
-      </h2>
-      <div className="mt-6 max-w-3xl border-t border-border">
+      </Heading>
+      <div className="mt-6 max-w-3xl border-t border-default">
         {questions.map(({ answer, question }, index) => (
           <details
-            className="group border-b border-border"
+            className="group border-b border-default"
             key={question}
             open={index === 0}
           >
-            <summary className="flex cursor-pointer items-center justify-between gap-4 py-5 font-display type-body font-semibold marker:content-none [&::-webkit-details-marker]:hidden">
-              {question}
-              <span
-                aria-hidden
-                className="type-title font-normal text-muted-foreground group-open:hidden"
-              >
-                +
+            <summary className="flex cursor-pointer items-center justify-between gap-4 py-5 marker:content-none [&::-webkit-details-marker]:hidden">
+              <Text as="span" size="large" weight="semibold">
+                {question}
+              </Text>
+              <span aria-hidden className="text-subtle group-open:hidden">
+                <Glyph>+</Glyph>
               </span>
               <span
                 aria-hidden
-                className="hidden type-title font-normal text-muted-foreground group-open:inline"
+                className="hidden text-subtle group-open:inline"
               >
-                &ndash;
+                <Glyph>&ndash;</Glyph>
               </span>
             </summary>
-            <p className="max-w-[70ch] pb-5 type-caption leading-7 text-muted-foreground">
-              {answer}
-            </p>
+            <div className="max-w-[70ch] pb-5">
+              <Text as="p" size="medium" tone="subtle">
+                {answer}
+              </Text>
+            </div>
           </details>
         ))}
       </div>

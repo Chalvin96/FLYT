@@ -1,46 +1,23 @@
+import { Heading, Text } from '@flyt/ui';
 import { useRef, useState } from 'react';
 
-import { useCheckableExercise } from '@/hooks/flashcard/useCheckableExercise/useCheckableExercise';
-import { gradedOutcome } from '@/lib/operationResult';
+import { useExerciseAttempt } from '@/hooks/flashcard/useExerciseAttempt/useExerciseAttempt';
 import { cn } from '@/lib/utils';
 import type { Exercise } from '@/types/lesson-contracts';
 
-import { ExerciseModeProvider } from '../ExerciseModeProvider';
+import {
+  answerVerdictStatusText,
+  verdictWordClass,
+  type ChoiceVerdict,
+} from '../answerVerdict';
 import { OperationShell } from '../OperationShell';
 import type { OperationComponentProps } from '../operationTypes';
 
 type FindFixExercise = Extract<Exercise, { operation: 'find_fix' }>;
 
-/**
- * Word state -> className. The exercise reads like a passage in a reading
- * app: comfortable prose, and tapping a word lays a highlighter mark over
- * it — no underline, no chip border, no lift. Resting words give only a
- * soft hover wash; the instructor line tells the user to tap. Result
- * states swap the mark colour in place: mint for the real error
- * (revealed), coral + strike for a wrong pick. Keyboard roving + aria +
- * data-state are preserved.
- */
-type WordState = 'idle' | 'selected' | 'correct' | 'wrong';
-
-const WORD_CLASSES: Record<WordState, string> = {
-  idle: 'bg-secondary-10 text-foreground hover:bg-warning-10',
-  selected: 'bg-warning-20 text-warning-90',
-  correct: 'bg-primary-30 text-primary-90',
-  wrong: 'bg-destructive-30 text-destructive-90 line-through decoration-2',
-};
-
-export function FlashCardFindFix(
-  props: OperationComponentProps<FindFixExercise>,
-) {
-  return (
-    <ExerciseModeProvider allowRetry={false}>
-      <FlashCardFindFixOneShot {...props} />
-    </ExerciseModeProvider>
-  );
-}
-
-function FlashCardFindFixOneShot({
+export function FlashCardFindFix({
   exercise,
+  allowRetry,
   onFinished,
   ...props
 }: OperationComponentProps<FindFixExercise>) {
@@ -48,19 +25,28 @@ function FlashCardFindFixOneShot({
   const [focusedIndex, setFocusedIndex] = useState(0);
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const { tokens } = exercise.payload;
-  const { result, check: checkExercise } = useCheckableExercise();
+  const {
+    phase,
+    result,
+    dirty,
+    canReveal,
+    shakeKey,
+    reveal,
+    markDirty,
+    check: checkExercise,
+    finish,
+  } = useExerciseAttempt({ allowRetry, onFinished });
 
   function check() {
     checkExercise(selected === exercise.payload.error_token_id);
   }
 
-  function handleContinue() {
-    if (result) {
-      onFinished?.(gradedOutcome(result));
-    }
+  function selectToken(tokenId: string) {
+    if (selected !== tokenId) markDirty();
+    setSelected(tokenId);
   }
 
-  function wordState(tokenId: string): WordState {
+  function wordState(tokenId: string): ChoiceVerdict {
     if (!result) {
       return selected === tokenId ? 'selected' : 'idle';
     }
@@ -68,7 +54,7 @@ function FlashCardFindFixOneShot({
       return 'correct';
     }
     if (selected === tokenId) {
-      return 'wrong';
+      return 'incorrect';
     }
     return 'idle';
   }
@@ -84,59 +70,86 @@ function FlashCardFindFixOneShot({
     <OperationShell
       exercise={exercise}
       desktopExpanded
-      result={result}
-      canCheck={selected !== null}
+      canCheck={selected !== null && (phase !== 'wrong' || dirty)}
+      attempt={
+        allowRetry
+          ? {
+              kind: 'retry',
+              phase,
+              result,
+              shakeKey,
+              canReveal,
+              onReveal: () => reveal(0),
+            }
+          : { kind: 'single', result }
+      }
       instruction="Tap the word in the sentence that contains the error."
       onCheck={check}
-      onContinue={handleContinue}
+      onContinue={finish}
       {...props}
     >
-      <p
-        aria-label="Sentence to inspect"
-        lang="no"
-        className="radius-field type-section mx-auto max-w-text bg-card p-5 leading-roomy text-foreground shadow-tile"
-      >
-        {tokens.map((token, index) => (
-          <span key={token.token_id}>
-            {index > 0 ? ' ' : null}
-            <button
-              ref={(node) => {
-                buttonRefs.current[index] = node;
-              }}
-              type="button"
-              disabled={Boolean(result)}
-              data-state={wordState(token.token_id)}
-              aria-pressed={selected === token.token_id}
-              aria-label={token.text}
-              tabIndex={index === focusedIndex ? 0 : -1}
-              className={cn(
-                'cursor-pointer rounded px-1.5 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:cursor-default',
-                WORD_CLASSES[wordState(token.token_id)],
-              )}
-              onFocus={() => setFocusedIndex(index)}
-              onKeyDown={(event) => {
-                if (event.key === 'ArrowRight') {
-                  event.preventDefault();
-                  moveFocus(index + 1);
-                }
-                if (event.key === 'ArrowLeft') {
-                  event.preventDefault();
-                  moveFocus(index - 1);
-                }
-              }}
-              onClick={() => setSelected(token.token_id)}
-            >
-              {token.text}
-            </button>
-          </span>
-        ))}
-      </p>
+      <div className="radius-field mx-auto max-w-text bg-raised p-5 shadow-tile">
+        <Text
+          as="p"
+          aria-label="Sentence to inspect"
+          lang="no"
+          size="large"
+          tone="default"
+        >
+          {tokens.map((token, index) => {
+            const state = wordState(token.token_id);
+            const statusText = result
+              ? answerVerdictStatusText[state]
+              : undefined;
+            return (
+              <span key={token.token_id}>
+                {index > 0 ? ' ' : null}
+                <button
+                  ref={(node) => {
+                    buttonRefs.current[index] = node;
+                  }}
+                  type="button"
+                  disabled={Boolean(result)}
+                  data-state={state}
+                  aria-pressed={selected === token.token_id}
+                  aria-label={
+                    statusText ? `${token.text}, ${statusText}` : token.text
+                  }
+                  tabIndex={index === focusedIndex ? 0 : -1}
+                  className={cn(
+                    'cursor-pointer rounded-sm px-1.5 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focused)] focus-visible:ring-offset-1 disabled:cursor-default',
+                    verdictWordClass[state],
+                  )}
+                  onFocus={() => setFocusedIndex(index)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowRight') {
+                      event.preventDefault();
+                      moveFocus(index + 1);
+                    }
+                    if (event.key === 'ArrowLeft') {
+                      event.preventDefault();
+                      moveFocus(index - 1);
+                    }
+                  }}
+                  onClick={() => selectToken(token.token_id)}
+                >
+                  {token.text}
+                </button>
+              </span>
+            );
+          })}
+        </Text>
+      </div>
       {result ? (
-        <div className="radius-field border border-border bg-card p-4">
-          <p className="type-label text-muted-foreground">Correction</p>
-          <p lang="no" className="type-body mt-2">
-            {exercise.payload.feedback}
-          </p>
+        <div className="radius-field border border-default bg-raised p-4">
+          <Heading as="div" size="xxsmall" tone="subtle">
+            Correction
+          </Heading>
+          <div className="mt-2">
+            <Text as="p" lang="no" size="large">
+              {exercise.payload.feedback}
+            </Text>
+          </div>
         </div>
       ) : null}
     </OperationShell>

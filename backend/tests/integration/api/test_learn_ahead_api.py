@@ -4,6 +4,7 @@ from http import HTTPStatus
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from flyt.apps.flashcards.models import Enrollment
 from tests.factories import CardPoolFactory
@@ -32,6 +33,7 @@ async def _make_upcoming(user, *, rank: int, key: str):
 
 async def test_add_more_new_given_upcoming_cards_expect_promoted_count(
     client: AsyncClient,
+    db: AsyncSession,
 ) -> None:
     user = await UserFactory.create()
     await UserSettingsFactory.create(user=user, daily_new_limit=2)
@@ -39,6 +41,7 @@ async def test_add_more_new_given_upcoming_cards_expect_promoted_count(
         await _make_upcoming(user, rank=i + 1, key=f"amn-api-{i}")
 
     await authenticate(client, user)
+    db.expunge_all()
 
     response = await client.post("/me/cards/add-more-new")
 

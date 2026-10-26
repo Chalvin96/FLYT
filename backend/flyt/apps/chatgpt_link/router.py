@@ -16,6 +16,7 @@ from flyt.apps.chatgpt_link.rotation import complete_link_poll
 from flyt.apps.chatgpt_link.services import ChatGPTLinkService
 from flyt.apps.users.deps import get_current_user
 from flyt.apps.users.models import User
+from flyt.core.http import build_error_responses
 from flyt.core.db import get_async_db
 from flyt.core.http import http_error
 
@@ -29,7 +30,7 @@ def get_chatgpt_link_service(
 router = APIRouter(prefix="/chatgpt/link", tags=["chatgpt-link"])
 
 
-@router.patch("")
+@router.patch("", responses=build_error_responses(401, 403))
 async def set_chatgpt_link_model(
     payload: ChatGPTLinkModelUpdate,
     user: Annotated[User, Depends(get_current_user)],
@@ -44,7 +45,7 @@ async def set_chatgpt_link_model(
     return response
 
 
-@router.get("")
+@router.get("", responses=build_error_responses(401))
 async def get_chatgpt_link(
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[ChatGPTLinkService, Depends(get_chatgpt_link_service)],
@@ -52,7 +53,7 @@ async def get_chatgpt_link(
     return await service.get_link(current_user.id)
 
 
-@router.post("/start")
+@router.post("/start", responses=build_error_responses(401, 403, 503))
 async def start_chatgpt_link(
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[ChatGPTLinkService, Depends(get_chatgpt_link_service)],
@@ -66,7 +67,7 @@ async def start_chatgpt_link(
         raise http_error(error) from error
 
 
-@router.post("/poll")
+@router.post("/poll", responses=build_error_responses(401, 403, 409, 503))
 async def poll_chatgpt_link(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_async_db)],
@@ -77,7 +78,11 @@ async def poll_chatgpt_link(
         raise http_error(error) from error
 
 
-@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=build_error_responses(401, 403),
+)
 async def delete_chatgpt_link(
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[ChatGPTLinkService, Depends(get_chatgpt_link_service)],

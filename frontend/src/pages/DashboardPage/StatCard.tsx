@@ -1,3 +1,4 @@
+import { Heading, Text } from '@flyt/ui';
 import type { ReactNode } from 'react';
 
 export function StatCard({
@@ -13,13 +14,19 @@ export function StatCard({
 }) {
   return (
     <div
-      className={`shadow-soft radius-field border-l-3 flex flex-col bg-card p-3 ${borderClass}`}
+      className={`shadow-soft radius-field border-l-3 flex flex-col bg-raised p-3 ${borderClass}`}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <p className="type-stat text-foreground">{value}</p>
+        <Text size="2xl-none" tone="default" weight="bold">
+          {value}
+        </Text>
         {badge}
       </div>
-      <p className="type-label mt-2 text-muted-foreground">{label}</p>
+      <p className="mt-2">
+        <Heading as="span" size="xxsmall" tone="subtle">
+          {label}
+        </Heading>
+      </p>
     </div>
   );
 }

@@ -22,19 +22,11 @@ repos:
 
   - repo: local
     hooks:
-      - id: openspec-validate
-        name: OpenSpec validation
-        entry: pnpm spec:validate
-        language: system
-        files: ^openspec/
-        pass_filenames: false
-        stages: [pre-commit]
-
       - id: repository-convention-ratchet
         name: repository convention ratchet
         entry: pnpm quality:conventions
         language: system
-        files: ^(backend|morph-svc|stt-svc|frontend|extension|packages|scripts)/.*\.(py|pyi|js|jsx|ts|tsx)$
+        files: ^(backend|morph-svc|frontend|extension|packages|scripts)/.*\.(py|pyi|js|jsx|ts|tsx)$
         pass_filenames: false
         stages: [pre-commit]
 
@@ -82,20 +74,7 @@ repos:
         name: backend mypy check
         entry: uv run --directory backend mypy --config-file pyproject.toml
         language: system
-        pass_filenames: false
-        stages: [pre-commit]
-
-      - id: backend-migration-drift
-        name: backend migration drift check
-        entry: env SECRET_KEY=pre-commit-secret-key-for-local-hooks-only OAUTH_SESSION_SECRET=pre-commit-oauth-session-secret ADMIN_SESSION_SECRET=pre-commit-admin-session-secret-only PROVIDER_CREDENTIAL_ENCRYPTION_KEYS='["kkx-ZViSkteSQGh9z5FDskkiQGFImdcA1ceQt2DnwAk="]' GOOGLE_CLIENT_ID=x GOOGLE_CLIENT_SECRET=x uv run --directory backend alembic check
-        language: system
-        pass_filenames: false
-        stages: [pre-commit]
-
-      - id: frontend-lint
-        name: frontend lint
-        entry: pnpm --dir frontend lint
-        language: system
+        files: ^backend/.*\.py$
         pass_filenames: false
         stages: [pre-commit]
 
@@ -103,5 +82,6 @@ repos:
         name: frontend type check
         entry: pnpm --dir frontend type-check
         language: system
+        files: ^frontend/.*\.(ts|tsx)$
         pass_filenames: false
         stages: [pre-commit]

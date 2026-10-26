@@ -2,15 +2,19 @@
 """Ratchet React Doctor findings against the recorded per-rule baseline.
 
 Runs the pinned react-doctor devDependency with --json and fails when errors
-appear, when any rule exceeds its recorded warning count, or when a rule absent
-from the baseline reports warnings. When counts drop below the baseline it asks
-for the baseline to be lowered so improvements ratchet in.
+appear, when the report and the baseline come from different analyser versions,
+when the baseline asks the scan for flags other than the sanctioned ones, when
+any rule exceeds its recorded warning count, or when a rule absent from the
+baseline reports warnings. When counts drop below the baseline it asks for the
+baseline to be lowered so improvements ratchet in.
 
-The scan uses the flags in the baseline's `scan_args` to skip the dead-code and
-supply-chain plugins: their unused-file/export/dependency findings resolve
-node_modules and vary by install state, so they are not a deterministic ratchet
-target. This ratchet covers deterministic AST lint rules. Keep intentional
-exceptions reviewable in the pull request description when changing the baseline.
+The sanctioned scan skips the dead-code and supply-chain plugins: their
+unused-file/export/dependency findings resolve node_modules and vary by install
+state, so they are not a deterministic ratchet target. This ratchet covers
+deterministic AST lint rules. Those flags are pinned here rather than left to the
+baseline, so that changing what the scan measures is an edit to this checker and
+a baseline requesting anything else fails the gate. Keep intentional exceptions
+reviewable in the pull request description when changing the baseline.
 """
 
 from __future__ import annotations
@@ -25,6 +29,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BASELINE_PATH = Path(__file__).resolve().parent / "react_doctor_baseline.json"
+K_BASELINE_NAME = BASELINE_PATH.relative_to(REPO_ROOT).as_posix()
+K_SANCTIONED_SCAN_ARGS = ["--no-dead-code", "--no-supply-chain"]
+K_FAILURE_HEADER = "React Doctor ratchet failed:"
+K_REPORT_NAME = "react-doctor.json"
 
 
 def load_report(report_path: Path) -> dict:
@@ -32,10 +40,8 @@ def load_report(report_path: Path) -> dict:
         return json.load(handle)
 
 
-def run_scanner(scan_args: list[str], report_path: Path) -> None:
-    # Uses the react-doctor devDependency pinned in package.json (no network
-    # fetch); the report's version field is checked against the baseline below.
-    command = [
+def build_scanner_command(scan_args: list[str], report_path: str) -> list[str]:
+    return [
         "pnpm",
         "exec",
         "react-doctor",
@@ -43,11 +49,43 @@ def run_scanner(scan_args: list[str], report_path: Path) -> None:
         *scan_args,
         "--json",
         "--json-out",
-        str(report_path),
+        report_path,
     ]
-    completed = subprocess.run(command, cwd=REPO_ROOT, check=False)
+
+
+def run_scanner(scan_args: list[str], report_path: Path) -> None:
+    completed = subprocess.run(
+        build_scanner_command(scan_args, str(report_path)), cwd=REPO_ROOT, check=False
+    )
     if not report_path.exists():
         raise SystemExit(f"react-doctor did not produce a report (exit {completed.returncode})")
+
+
+def render_scan_args_mismatch(scan_args: list[str]) -> str:
+    changed = [
+        f"  {'+' if flag in scan_args else '-'} {flag}"
+        for flag in sorted(set(scan_args) ^ set(K_SANCTIONED_SCAN_ARGS))
+    ]
+    return "\n".join(
+        [
+            K_FAILURE_HEADER,
+            f"  scan args {' '.join(scan_args)} do not match the sanctioned "
+            f"{' '.join(K_SANCTIONED_SCAN_ARGS)}",
+            *changed,
+            "  Update K_SANCTIONED_SCAN_ARGS in this checker to change what the "
+            "ratchet measures.",
+        ]
+    )
+
+
+def render_version_mismatch(report: dict, baseline: dict, scan_args: list[str]) -> str:
+    command = " ".join(build_scanner_command(scan_args, K_REPORT_NAME))
+    return (
+        f"{K_FAILURE_HEADER}\n"
+        f"  report version {report['version']} does not match baseline version "
+        f"{baseline['version']}\n"
+        f"  {command}"
+    )
 
 
 def compare(report: dict, baseline: dict) -> list[str]:
@@ -74,7 +112,7 @@ def compare(report: dict, baseline: dict) -> list[str]:
             improvements.append(f"{rule}: {observed} warnings (baseline {limit})")
 
     if improvements:
-        print("Rules below baseline — lower scripts/react_doctor_baseline.json to lock them in:")
+        print(f"Rules below baseline — lower {K_BASELINE_NAME} to lock them in:")
         for line in improvements:
             print(f"  {line}")
 
@@ -91,30 +129,32 @@ def main() -> int:
     args = parser.parse_args()
 
     baseline = json.loads(BASELINE_PATH.read_text())
+    scan_args = baseline["scan_args"]
+
+    if scan_args != K_SANCTIONED_SCAN_ARGS:
+        print(render_scan_args_mismatch(scan_args), file=sys.stderr)
+        return 1
 
     if args.report:
         report = load_report(args.report)
     else:
         with tempfile.TemporaryDirectory() as tmp:
-            report_path = Path(tmp) / "react-doctor.json"
-            run_scanner(baseline.get("scan_args", []), report_path)
+            report_path = Path(tmp) / K_REPORT_NAME
+            run_scanner(scan_args, report_path)
             report = load_report(report_path)
 
     if report["version"] != baseline["version"]:
-        print(
-            f"warning: report version {report['version']} differs from baseline "
-            f"{baseline['version']}; counts may not be comparable",
-            file=sys.stderr,
-        )
+        print(render_version_mismatch(report, baseline, scan_args), file=sys.stderr)
+        return 1
 
     problems = compare(report, baseline)
     if problems:
-        print("React Doctor ratchet failed:", file=sys.stderr)
+        print(K_FAILURE_HEADER, file=sys.stderr)
         for line in problems:
             print(f"  {line}", file=sys.stderr)
         print(
             "Fix the regression or explain an intentional exception in the pull request "
-            "before updating scripts/react_doctor_baseline.json.",
+            f"before updating {K_BASELINE_NAME}.",
             file=sys.stderr,
         )
         return 1

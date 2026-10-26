@@ -1,10 +1,11 @@
+import { Text } from '@flyt/ui';
 import type { Meta, StoryObj } from '@storybook/react';
 
-import type { DefinitionRead, WordFormRead } from './types';
 import { DefinitionView } from './DefinitionView';
+import type { DefinitionRead, WordFormRead } from './types';
 
 const meta = {
-  title: 'Lexicon/DefinitionView',
+  title: 'Features/Lexicon/DefinitionView',
   component: DefinitionView,
   tags: ['autodocs'],
   argTypes: {
@@ -46,15 +47,6 @@ export const Default: Story = {
   args: {
     definition: mockDefinition,
     onAddToDeck: undefined,
-  },
-};
-
-export const NoAlternatives: Story = {
-  args: {
-    definition: {
-      ...mockDefinition,
-      translation: mockDefinition.translation,
-    },
   },
 };
 
@@ -113,17 +105,25 @@ export const WithNounInflection: Story = {
       { id: 4, form: 'hundene', tags_json: ['Masc', 'Plur', 'Def'] },
     ] as WordFormRead[],
     inflection: (
-      <div className="text-sm text-muted-foreground">
+      <Text as="div" size="medium" tone="subtle">
         [Inflection table renders here in the app]
-      </div>
+      </Text>
     ),
   },
 };
 
 export const LexiconDefault: Story = {
-  name: 'Lexicon: Default (Auto-variant)',
+  name: 'Lexicon: Default (auto presentation)',
   args: {
     definition: mockDefinition,
-    onAddToDeck: undefined,
+    onAddToDeck: () => undefined,
+  },
+};
+
+export const FlashcardVariant: Story = {
+  name: 'Flashcard presentation (Examples below md)',
+  args: {
+    definition: mockDefinition,
+    presentation: 'flashcard',
   },
 };

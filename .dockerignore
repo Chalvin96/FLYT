@@ -12,3 +12,5 @@
 backend/.venv
 backend/.env
 frontend/.env.local
+
+.env.production

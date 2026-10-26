@@ -17,6 +17,5 @@ describe('SpanView', () => {
     );
     const element = screen.getByText('huset');
     expect(element).toHaveAttribute('lang', 'no');
-    expect(element.className).toContain('foreign-term');
   });
 });

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 
 import { useDashboardStats } from '@/hooks/dashboard/queries';
 import {
@@ -7,6 +7,7 @@ import {
   useDueCards,
   useSubscribeToDeck,
 } from '@/hooks/review/queries';
+import { useStartReviewSession } from '@/hooks/review/useStartReviewSession';
 import { ReviewPage } from '@/pages/ReviewPage/ReviewPage';
 
 type ReviewPageSearch = {
@@ -15,7 +16,7 @@ type ReviewPageSearch = {
 
 function ReviewIndexRouteComponent() {
   const { mode } = Route.useSearch();
-  const navigate = useNavigate();
+  const startReviewSession = useStartReviewSession();
   const { data: dueCards, isPending: isLoading } = useDueCards();
   const { data: stats } = useDashboardStats();
   const hasPracticed = (stats?.wordsPracticed ?? 0) > 0;
@@ -33,12 +34,7 @@ function ReviewIndexRouteComponent() {
         isAddMoreNewPending,
       }}
       hasPracticed={hasPracticed}
-      onStart={(selection) => {
-        void navigate({
-          to: '/review/session',
-          search: { mode: selection },
-        });
-      }}
+      onStart={startReviewSession}
       onAddMoreNew={addMoreNew}
       decks={decks}
       subscribingDeckId={subscribingDeckId}

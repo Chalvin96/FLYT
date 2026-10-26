@@ -14,6 +14,18 @@ from tests.factories import UserFactory
 pytestmark = pytest.mark.anyio
 
 
+async def test_admin_logout_given_copied_session_expect_revoked(
+    async_session,
+) -> None:
+    admin = await UserFactory.create(role=UserRole.ADMIN)
+    token = _token_for(admin)
+    provider = _provider(async_session)
+
+    await provider.logout(_Req(token))
+
+    assert await provider.authenticate(_Req(token)) is None
+
+
 def _provider(async_session) -> AdminAuthProvider:
     @contextlib.asynccontextmanager
     async def session():
@@ -35,7 +47,7 @@ class _Req:
 
 
 def _token_for(user) -> str:
-    return AuthService().create_access_token(data={"sub": str(user.uuid)})
+    return AuthService().create_access_token(user=user)
 
 
 async def test_authenticate_given_active_admin_expect_admin_user(  # ume-ignore: UME-PY003

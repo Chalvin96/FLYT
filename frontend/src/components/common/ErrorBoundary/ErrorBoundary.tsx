@@ -1,8 +1,7 @@
+import { Button, Card, Heading, Text } from '@flyt/ui';
 import { useEffect } from 'react';
 import { Link, type LinkProps } from '@tanstack/react-router';
 
-import { AppCard } from '@/components/common/AppCard/AppCard';
-import { Button } from '@/components/common/Button/Button';
 import { ErrorMessage } from '@/components/common/ErrorMessage/ErrorMessage';
 import { logClientError } from '@/lib/errors';
 
@@ -78,20 +77,26 @@ export function ErrorBoundary({
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-lg items-center px-4 py-6">
-      <AppCard className="w-full p-5">
+      <Card fillHeight padding="default">
         {badgeText && (
-          <p className="type-label text-muted-foreground">{badgeText}</p>
+          <Heading as="div" size="xxsmall" tone="subtle">
+            {badgeText}
+          </Heading>
         )}
-        <h1 className="type-title text-foreground">{title}</h1>
+        <Heading as="h1" size="large" tone="default">
+          {title}
+        </Heading>
         {description && (
-          <p className="mt-2 type-body text-muted-foreground">{description}</p>
+          <div className="mt-2">
+            <Text as="p" size="large" tone="subtle">
+              {description}
+            </Text>
+          </div>
         )}
         {showError && (
-          <ErrorMessage
-            error={toDisplayError(error)}
-            title=""
-            className="mt-4"
-          />
+          <div className="mt-4">
+            <ErrorMessage error={toDisplayError(error)} title="" />
+          </div>
         )}
         {(showError || showHomeLink) && (
           <div className="mt-4 flex flex-wrap gap-2">
@@ -99,19 +104,19 @@ export function ErrorBoundary({
               <Button
                 type="button"
                 onClick={handleReset}
-                className="w-full sm:w-auto"
+                width="full-on-mobile"
               >
                 {resetLabel}
               </Button>
             )}
             {showHomeLink && (
-              <Button asChild variant="ghost" className="w-full sm:w-auto">
+              <Button asChild variant="ghost" width="full-on-mobile">
                 <Link to={homeTo}>{homeLabel}</Link>
               </Button>
             )}
           </div>
         )}
-      </AppCard>
+      </Card>
     </div>
   );
 }

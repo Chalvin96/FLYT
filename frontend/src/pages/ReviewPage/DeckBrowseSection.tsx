@@ -1,15 +1,12 @@
+import { Button, Card, Heading, Skeleton, Text } from '@flyt/ui';
 import { Check, Layers, LoaderCircle, Plus } from 'lucide-react';
 
-import { appCardClassName } from '@/components/common/AppCard/AppCard';
-import { Button } from '@/components/common/Button/Button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { cn, formatNumber, pluralize } from '@/lib/utils';
+import { formatNumber, pluralize } from '@/lib/utils';
 import type { DeckSummaryItem } from '@/types/api';
 
 export interface DeckBrowseSectionProps {
   decks: DeckSummaryItem[];
   isLoading?: boolean;
-  /** Deck id with a subscribe mutation currently in-flight, or null. */
   subscribingDeckId?: number | null;
   onSubscribe?: (deckId: number) => void;
 }
@@ -21,33 +18,38 @@ function getProgressPercent(studied: number, total: number) {
 
 function DeckSkeletonCard() {
   return (
-    <div className={cn(appCardClassName, 'p-4')}>
+    <Card padding="compact">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-2">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-3 w-48" />
+          <Skeleton length="short" />
+          <Skeleton length="medium" size="sm" />
         </div>
-        <Skeleton className="h-8 w-24 rounded-full" />
+        <div className="h-8 w-24">
+          <Skeleton shape="pill" variant="block" />
+        </div>
       </div>
       <div className="mt-3 flex items-center justify-between">
-        <Skeleton className="h-3 w-16" />
-        <Skeleton className="h-3 w-20" />
+        <div className="w-16">
+          <Skeleton size="sm" />
+        </div>
+        <div className="w-20">
+          <Skeleton size="sm" />
+        </div>
       </div>
-      <Skeleton className="mt-2 h-1.5 w-full rounded-full" />
-    </div>
+      <div className="mt-2 h-1.5">
+        <Skeleton shape="pill" variant="block" />
+      </div>
+    </Card>
   );
 }
 
 function SubscribedBadge() {
   return (
-    <span
-      className={cn(
-        'inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 type-caption-sm font-semibold',
-        'bg-secondary-20 text-secondary-90',
-      )}
-    >
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 bg-neutral-pressed text-default">
       <Check className="icon-sm" aria-hidden />
-      Subscribed
+      <Text as="span" size="small" weight="semibold">
+        Subscribed
+      </Text>
     </span>
   );
 }
@@ -68,16 +70,18 @@ function DeckCard({
   const hasProgress = deck.studied_count > 0;
 
   return (
-    <div className={cn(appCardClassName, 'p-4 transition-colors')}>
+    <Card padding="compact">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="type-body font-semibold text-foreground">
+          <Heading as="h3" size="small" tone="default">
             {deck.name}
-          </h3>
+          </Heading>
           {deck.description ? (
-            <p className="mt-1 type-caption leading-5 text-muted-foreground">
-              {deck.description}
-            </p>
+            <div className="mt-1">
+              <Text as="p" size="medium" tone="subtle">
+                {deck.description}
+              </Text>
+            </div>
           ) : null}
         </div>
         {deck.is_subscribed ? (
@@ -87,7 +91,7 @@ function DeckCard({
             type="button"
             size="sm"
             variant="outline"
-            className="shrink-0 rounded-full"
+            shape="pill"
             disabled={isSubscribing}
             onClick={() => onSubscribe?.(deck.id)}
           >
@@ -102,20 +106,20 @@ function DeckCard({
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-3">
-        <span className="type-caption text-muted-foreground">
+        <Text as="span" size="medium" tone="subtle">
           {pluralize(deck.card_count, 'word')}
-        </span>
+        </Text>
         {hasProgress ? (
-          <span className="type-caption font-medium text-muted-foreground">
+          <Text as="span" size="medium" weight="semibold" tone="subtle">
             {formatNumber(deck.studied_count)} / {formatNumber(deck.card_count)}{' '}
             studied
-          </span>
+          </Text>
         ) : null}
       </div>
 
       {hasProgress ? (
         <div
-          className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary-10"
+          className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-neutral-subtle"
           role="progressbar"
           aria-label={`${deck.name} progress`}
           aria-valuemin={0}
@@ -123,12 +127,14 @@ function DeckCard({
           aria-valuenow={deck.studied_count}
         >
           <div
-            className="h-full origin-left rounded-full bg-gradient-to-r from-primary-70 to-primary-40 transition-transform duration-500 ease-out"
-            style={{ transform: `scaleX(${progressPercent / 100})` }}
+            className="h-full w-full rounded-full border border-[var(--progress-border)] bg-progress-primary-complete transition-[clip-path] duration-500 ease-out"
+            style={{
+              clipPath: `inset(0 calc(100% - ${progressPercent}%) 0 0 round 9999px)`,
+            }}
           />
         </div>
       ) : null}
-    </div>
+    </Card>
   );
 }
 
@@ -142,20 +148,20 @@ export function DeckBrowseSection({
 
   return (
     <section
-      className="mx-auto mt-12 w-full max-w-md border-t border-border/60 pt-8 pb-6"
+      className="mx-auto mt-12 w-full max-w-md border-t border-default/60 pt-8 pb-6"
       aria-label="Word packs"
     >
       <div className="flex items-center gap-2">
-        <span className="flex size-7 items-center justify-center rounded-full bg-primary-10 text-primary-70">
+        <span className="flex size-7 items-center justify-center rounded-full bg-brand-subtle text-icon-brand">
           <Layers className="icon-sm" aria-hidden />
         </span>
         <div>
-          <p className="type-label text-muted-foreground">
+          <Heading as="div" size="xxsmall" tone="subtle">
             Expand your vocabulary
-          </p>
-          <h2 className="font-display type-section font-semibold text-foreground">
+          </Heading>
+          <Heading as="h2" size="medium" tone="default">
             Word packs
-          </h2>
+          </Heading>
         </div>
       </div>
 

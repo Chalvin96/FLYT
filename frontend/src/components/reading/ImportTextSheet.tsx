@@ -1,13 +1,16 @@
-import { useMemo, useState } from 'react';
-
-import { BottomSheetDialogContent } from '@/components/common/BottomSheetDialogContent/BottomSheetDialogContent';
-import { Button } from '@/components/common/Button/Button';
 import {
+  BottomSheetDialogContent,
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
-} from '@/components/ui/dialog';
+  Heading,
+  Text,
+  textVariants,
+} from '@flyt/ui';
+import { useMemo, useState } from 'react';
+
 import { useCreatePasteImport } from '@/hooks/imports/queries';
 import { useIsDesktop } from '@/hooks/ui/useIsDesktop';
 import { getApiErrorCode } from '@/lib/apiError';
@@ -103,10 +106,10 @@ function ImportTextSheetInner({
   const body = (
     <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
       <div className="space-y-1">
-        <DialogTitle className="type-title font-display text-foreground">
+        <DialogTitle size="title">
           {showQuotaDialog ? 'Import limit reached' : 'Import text'}
         </DialogTitle>
-        <DialogDescription className="sr-only">
+        <DialogDescription visuallyHidden>
           {showQuotaDialog
             ? 'You have reached the import limit.'
             : 'Paste Norwegian text to turn it into a tap-to-read story.'}
@@ -114,22 +117,24 @@ function ImportTextSheetInner({
       </div>
 
       {showQuotaDialog ? (
-        <p className="type-caption text-muted-foreground">
+        <Text as="p" size="medium" tone="subtle">
           You&apos;ve reached your import limit. Your existing imports stay
           available.
-        </p>
+        </Text>
       ) : (
         <>
-          <p className="type-caption text-muted-foreground">
+          <Text as="p" size="medium" tone="subtle">
             Paste Norwegian text. We&apos;ll process it into a reader you can
             tap through.
-          </p>
+          </Text>
 
           <label
             htmlFor="import-title"
-            className="flex items-center justify-between type-label-sm text-foreground"
+            className="flex items-center justify-between"
           >
-            <span>Title (optional)</span>
+            <Heading as="span" size="xxsmall" tone="default">
+              Title (optional)
+            </Heading>
           </label>
           <input
             id="import-title"
@@ -138,22 +143,19 @@ function ImportTextSheetInner({
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Title (optional)"
             maxLength={200}
-            className="radius-field h-9 w-full border border-secondary-20 bg-white-100 px-3 type-caption text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={`radius-field h-9 w-full border border-default bg-overlay px-3 ${textVariants({ size: 'medium', tone: 'default' })} placeholder:text-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focused)]`}
           />
 
           <label
             htmlFor="import-text"
-            className="flex items-center justify-between type-label-sm text-foreground"
+            className="flex items-center justify-between"
           >
-            <span>
+            <Heading as="span" size="xxsmall" tone="default">
               Text<span className="sr-only"> (required)</span>
-            </span>
-            <span
-              aria-hidden="true"
-              className="type-caption-sm text-muted-foreground"
-            >
+            </Heading>
+            <Text as="span" size="small" tone="subtle" aria-hidden="true">
               required
-            </span>
+            </Text>
           </label>
           <textarea
             id="import-text"
@@ -162,23 +164,21 @@ function ImportTextSheetInner({
             placeholder="Paste text here…"
             rows={6}
             className={cn(
-              'radius-field min-h-[8rem] w-full resize-y border bg-white-100 p-3 type-caption text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              isOverSize ? 'border-destructive-40' : 'border-secondary-20',
+              'radius-field min-h-[8rem] w-full resize-y border bg-overlay p-3',
+              textVariants({ size: 'medium', tone: 'default' }),
+              'placeholder:text-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focused)]',
+              isOverSize ? 'border-danger-subtle' : 'border-default',
             )}
             aria-invalid={isOverSize}
             required
             aria-required="true"
           />
 
-          <p
-            className={cn(
-              'type-caption-sm',
-              isOverSize ? 'text-destructive-70' : 'text-muted-foreground',
-            )}
-            aria-live="polite"
-          >
-            {counterText}
-          </p>
+          <div className={cn(isOverSize ? 'text-danger' : 'text-subtle')}>
+            <Text as="p" aria-live="polite" size="small">
+              {counterText}
+            </Text>
+          </div>
         </>
       )}
 
@@ -220,15 +220,7 @@ function ImportTextSheetInner({
           if (!createImport.isPending) onOpenChange(open);
         }}
       >
-        <DialogContent
-          className={cn(
-            // Match the bespoke dimensions the prior hand-rolled panel used so
-            // the visual footprint is unchanged, but route through the Radix
-            // DialogPrimitive.Content wrapper so focus is trapped and Escape
-            // / outside-click dismiss properly (LookupSheet does the same).
-            'left-1/2 top-1/2 max-h-[var(--sheet-max-height-tall)] w-[min(var(--dialog-desktop-max-width),calc(100%-3rem))] translate-x-[-50%] translate-y-[-50%] gap-0 overflow-y-auto p-5',
-          )}
-        >
+        <DialogContent padding="compact" variant="sheet">
           {body}
         </DialogContent>
       </Dialog>
@@ -242,10 +234,7 @@ function ImportTextSheetInner({
         if (!createImport.isPending) onOpenChange(open);
       }}
     >
-      <BottomSheetDialogContent
-        className="flex flex-col gap-0 px-5 py-5"
-        showCloseButton
-      >
+      <BottomSheetDialogContent layout="column" padding="roomy" showCloseButton>
         {body}
       </BottomSheetDialogContent>
     </Dialog>

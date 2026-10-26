@@ -1,4 +1,5 @@
 import type { LessonSummaryRead } from '@/types/api';
+import { parseUtcTimestamp } from '@/utils/date';
 
 import { K_LESSON_STATE } from './constants';
 
@@ -12,7 +13,7 @@ function parseActivityTime(lesson: LessonSummaryRead) {
     return 0;
   }
 
-  const time = Date.parse(lesson.last_activity_at);
+  const time = parseUtcTimestamp(lesson.last_activity_at);
   return Number.isNaN(time) ? 0 : time;
 }
 

@@ -22,7 +22,7 @@ export const reviewKeys = {
 };
 
 type DueCardsQueryOptions = {
-  refetchOnMount?: boolean;
+  refetchOnMount?: boolean | 'always';
   refetchOnReconnect?: boolean;
   refetchOnWindowFocus?: boolean;
 };

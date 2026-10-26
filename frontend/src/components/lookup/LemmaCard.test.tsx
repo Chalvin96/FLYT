@@ -70,7 +70,7 @@ function renderWithClient(ui: React.ReactNode) {
 }
 
 describe('LemmaCard', () => {
-  it('renders lemma header with word, pos and primary translation', () => {
+  it('test_lemma_card_given_verb_expect_sentence_case_pos_and_translation', () => {
     vi.mocked(useLemmaActions).mockReturnValue({
       addLemmaToDeck: vi.fn(),
       markLemmaKnown: vi.fn(),
@@ -78,8 +78,7 @@ describe('LemmaCard', () => {
     });
     renderWithClient(<LemmaCard data={sample} lemmaUuid="lemma-1" />);
     expect(screen.getByText('gå')).toBeInTheDocument();
-    // POS badge now renders English uppercase via posLabel (verb → VERB).
-    expect(screen.getByText('VERB')).toBeInTheDocument();
+    expect(screen.getByText('Verb')).toBeInTheDocument();
     expect(screen.getByText('go')).toBeInTheDocument();
   });
 

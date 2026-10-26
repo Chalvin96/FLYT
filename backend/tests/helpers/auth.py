@@ -7,5 +7,5 @@ from flyt.core.config import settings
 
 async def authenticate(client: AsyncClient, user: User) -> None:
     auth = AuthService()
-    token = auth.create_access_token(data={"sub": str(user.uuid)})
+    token = auth.create_access_token(user=user)
     client.cookies.set(settings.ACCESS_COOKIE_NAME, token)

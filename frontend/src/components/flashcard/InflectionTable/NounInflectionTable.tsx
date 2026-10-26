@@ -1,32 +1,30 @@
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+  Text,
+} from '@flyt/ui';
+
 import type { WordFormRead } from '@/types/api';
 
 import {
-  buildDesktopClassName,
-  buildMobileClassName,
   dataCellCls,
   dividerCls,
-  headerCellCls,
-  panelCls,
-  sectionLabelCls,
-  tdCls,
-  tdMutedCls,
-  thCls,
   type InflectionLayout,
 } from './inflectionStyles';
 import {
+  InflectionMobileRow,
+  InflectionSectionLabel,
+  InflectionSurface,
+} from './InflectionSurface';
+import {
   buildNounTableModel,
+  formatInflectionLabel,
   getGenderArticle,
   getNounForm,
   getNounPluralSpan,
-  shortenInflectionLabel,
   translateGenderNo,
 } from './utils';
 
@@ -40,181 +38,188 @@ export function NounInflectionTable({
   const { data, sortedGenders } = buildNounTableModel(wordForms);
 
   return (
-    <div className="w-full type-caption">
-      <div className={buildDesktopClassName(layout)}>
-        <div className={panelCls}>
-          <Table className="min-w-max border-collapse">
-            <TableHeader className="[&_tr]:border-0">
-              <TableRow className="border-0 hover:bg-transparent">
-                {sortedGenders.length > 1 && (
-                  <TableHead className={thCls} rowSpan={2} />
-                )}
-                <TableHead colSpan={2} className={thCls}>
-                  entall
-                </TableHead>
-                <TableHead colSpan={2} className={thCls}>
-                  flertall
-                </TableHead>
-              </TableRow>
-              <TableRow className="border-0 hover:bg-transparent">
-                <TableHead className={thCls}>
-                  {shortenInflectionLabel('ubestemt form')}
-                </TableHead>
-                <TableHead className={thCls}>bestemt form</TableHead>
-                <TableHead className={thCls}>
-                  {shortenInflectionLabel('ubestemt form')}
-                </TableHead>
-                <TableHead className={thCls}>bestemt form</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedGenders.map((gender, idx) => {
-                const pluralIndSpan = getNounPluralSpan(
-                  data,
-                  sortedGenders,
-                  idx,
-                  'Indefinite',
-                );
-                const pluralDefSpan = getNounPluralSpan(
-                  data,
-                  sortedGenders,
-                  idx,
-                  'Definite',
-                );
-                const article = getGenderArticle(gender);
-                return (
-                  <TableRow
-                    key={gender}
-                    className="border-0 hover:bg-transparent"
-                  >
-                    {sortedGenders.length > 1 && (
-                      <TableCell className={`${thCls} text-left`}>
-                        {translateGenderNo(gender)}
-                      </TableCell>
-                    )}
-                    <TableCell className={tdCls}>
-                      <span className={tdMutedCls}>{article}</span>
-                      {getNounForm(data, gender, 'Singular', 'Indefinite')}
+    <InflectionSurface
+      layout={layout}
+      desktop={
+        <>
+          <TableHeader>
+            <TableRow>
+              {sortedGenders.length > 1 && <TableHead rowSpan={2} />}
+              <TableHead colSpan={2}>Entall</TableHead>
+              <TableHead colSpan={2}>Flertall</TableHead>
+            </TableRow>
+            <TableRow>
+              <TableHead>{formatInflectionLabel('Ubestemt form')}</TableHead>
+              <TableHead>Bestemt form</TableHead>
+              <TableHead>{formatInflectionLabel('Ubestemt form')}</TableHead>
+              <TableHead>Bestemt form</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sortedGenders.map((gender, idx) => {
+              const pluralIndSpan = getNounPluralSpan(
+                data,
+                sortedGenders,
+                idx,
+                'Indefinite',
+              );
+              const pluralDefSpan = getNounPluralSpan(
+                data,
+                sortedGenders,
+                idx,
+                'Definite',
+              );
+              const article = getGenderArticle(gender);
+              return (
+                <TableRow key={gender}>
+                  {sortedGenders.length > 1 && (
+                    <TableHead align="start" scope="row">
+                      {translateGenderNo(gender)}
+                    </TableHead>
+                  )}
+                  <TableCell>
+                    <Text as="span" size="small" tone="subtle">
+                      <span className="italic">{article}</span>
+                    </Text>
+                    {getNounForm(data, gender, 'Singular', 'Indefinite')}
+                  </TableCell>
+                  <TableCell>
+                    {getNounForm(data, gender, 'Singular', 'Definite')}
+                  </TableCell>
+                  {pluralIndSpan > 0 && (
+                    <TableCell rowSpan={pluralIndSpan}>
+                      {getNounForm(data, gender, 'Plural', 'Indefinite')}
                     </TableCell>
-                    <TableCell className={tdCls}>
-                      {getNounForm(data, gender, 'Singular', 'Definite')}
+                  )}
+                  {pluralDefSpan > 0 && (
+                    <TableCell rowSpan={pluralDefSpan}>
+                      {getNounForm(data, gender, 'Plural', 'Definite')}
                     </TableCell>
-                    {pluralIndSpan > 0 && (
-                      <TableCell className={tdCls} rowSpan={pluralIndSpan}>
-                        {getNounForm(data, gender, 'Plural', 'Indefinite')}
-                      </TableCell>
-                    )}
-                    {pluralDefSpan > 0 && (
-                      <TableCell className={tdCls} rowSpan={pluralDefSpan}>
-                        {getNounForm(data, gender, 'Plural', 'Definite')}
-                      </TableCell>
-                    )}
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
-      <div
-        data-testid="inflection-mobile"
-        className={buildMobileClassName(layout)}
-      >
-        {sortedGenders.length > 1 && (
-          <div className="flex border-b border-border bg-secondary-10">
-            <div className="w-32 shrink-0 p-2" />
-            <div className="flex min-w-0 flex-1">
-              {sortedGenders.map((g) => (
-                <div
-                  key={g}
-                  className="type-label-xs min-w-0 flex-1 truncate border-l border-border px-3 py-2 text-center text-secondary-80 first:border-l-0"
-                  title={translateGenderNo(g)}
-                >
-                  {translateGenderNo(g)}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        <div className={`${sectionLabelCls} border-b border-border`}>
-          entall
-        </div>
-        <div className={dividerCls}>
-          {(['Indefinite', 'Definite'] as const).map((def) => (
-            <div key={def} className="flex">
-              <div className={headerCellCls}>
-                {shortenInflectionLabel(
-                  def === 'Indefinite' ? 'ubestemt form' : 'bestemt form',
-                )}
-              </div>
+                  )}
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </>
+      }
+      mobile={
+        <>
+          {sortedGenders.length > 1 && (
+            <div className="flex border-b border-default bg-neutral-subtle">
+              <div className="w-32 shrink-0 p-2" />
               <div className="flex min-w-0 flex-1">
-                {sortedGenders.map((g, idx) => (
+                {sortedGenders.map((g) => (
                   <div
                     key={g}
-                    className={`${dataCellCls}${idx > 0 ? ' border-l border-border' : ''}`}
+                    className="min-w-0 flex-1 border-l border-default px-3 py-2 text-center first:border-l-0"
+                    title={translateGenderNo(g)}
                   >
-                    {def === 'Indefinite' && (
-                      <span className="mr-1 type-caption-sm italic text-muted-foreground">
-                        {getGenderArticle(g)}
+                    <Text as="div" role="eyebrow" tone="subtle">
+                      <span className="block truncate">
+                        {translateGenderNo(g)}
                       </span>
-                    )}
-                    {getNounForm(data, g, 'Singular', def)}
+                    </Text>
                   </div>
                 ))}
               </div>
             </div>
-          ))}
-        </div>
-        <div className={`${sectionLabelCls} border-y border-border`}>
-          flertall
-        </div>
-        <div className={dividerCls}>
-          {(['Indefinite', 'Definite'] as const).map((def) => {
-            const cells: { gender: string; form: string; span: number }[] = [];
-            let i = 0;
-            while (i < sortedGenders.length) {
-              const currentForm = getNounForm(
-                data,
-                sortedGenders[i],
-                'Plural',
-                def,
-              );
-              let span = 1;
-              for (let j = i + 1; j < sortedGenders.length; j++) {
-                if (
-                  getNounForm(data, sortedGenders[j], 'Plural', def) ===
-                  currentForm
-                )
-                  span++;
-                else break;
-              }
-              cells.push({ gender: sortedGenders[i], form: currentForm, span });
-              i += span;
-            }
-            return (
-              <div key={def} className="flex">
-                <div className={headerCellCls}>
-                  {shortenInflectionLabel(
-                    def === 'Indefinite' ? 'ubestemt form' : 'bestemt form',
-                  )}
-                </div>
+          )}
+          <InflectionSectionLabel>Entall</InflectionSectionLabel>
+          <div className={dividerCls}>
+            {(['Indefinite', 'Definite'] as const).map((def) => (
+              <InflectionMobileRow
+                key={def}
+                label={formatInflectionLabel(
+                  def === 'Indefinite' ? 'Ubestemt form' : 'Bestemt form',
+                )}
+              >
                 <div className="flex min-w-0 flex-1">
-                  {cells.map((cell, cellIdx) => (
+                  {sortedGenders.map((g, idx) => (
                     <div
-                      key={`${cell.gender}-${cellIdx}`}
-                      className={`${dataCellCls}${cellIdx > 0 ? ' border-l border-border' : ''}`}
-                      style={{ flex: `${cell.span} 1 0` }}
+                      key={g}
+                      className={`${dataCellCls}${idx > 0 ? ' border-l border-default' : ''}`}
                     >
-                      {cell.form}
+                      {def === 'Indefinite' && (
+                        <Text as="span" size="small" tone="subtle">
+                          <span className="mr-1 italic">
+                            {getGenderArticle(g)}
+                          </span>
+                        </Text>
+                      )}
+                      <Text
+                        as="span"
+                        size="medium"
+                        tone="default"
+                        weight="semibold"
+                      >
+                        {getNounForm(data, g, 'Singular', def)}
+                      </Text>
                     </div>
                   ))}
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
+              </InflectionMobileRow>
+            ))}
+          </div>
+          <InflectionSectionLabel border="y">Flertall</InflectionSectionLabel>
+          <div className={dividerCls}>
+            {(['Indefinite', 'Definite'] as const).map((def) => {
+              const cells: { gender: string; form: string; span: number }[] =
+                [];
+              let i = 0;
+              while (i < sortedGenders.length) {
+                const currentForm = getNounForm(
+                  data,
+                  sortedGenders[i],
+                  'Plural',
+                  def,
+                );
+                let span = 1;
+                for (let j = i + 1; j < sortedGenders.length; j++) {
+                  if (
+                    getNounForm(data, sortedGenders[j], 'Plural', def) ===
+                    currentForm
+                  )
+                    span++;
+                  else break;
+                }
+                cells.push({
+                  gender: sortedGenders[i],
+                  form: currentForm,
+                  span,
+                });
+                i += span;
+              }
+              return (
+                <InflectionMobileRow
+                  key={def}
+                  label={formatInflectionLabel(
+                    def === 'Indefinite' ? 'Ubestemt form' : 'Bestemt form',
+                  )}
+                >
+                  <div className="flex min-w-0 flex-1">
+                    {cells.map((cell, cellIdx) => (
+                      <div
+                        key={`${cell.gender}-${cellIdx}`}
+                        className={`${dataCellCls}${cellIdx > 0 ? ' border-l border-default' : ''}`}
+                        style={{ flex: `${cell.span} 1 0` }}
+                      >
+                        <Text
+                          as="span"
+                          size="medium"
+                          tone="default"
+                          weight="semibold"
+                        >
+                          {cell.form}
+                        </Text>
+                      </div>
+                    ))}
+                  </div>
+                </InflectionMobileRow>
+              );
+            })}
+          </div>
+        </>
+      }
+    />
   );
 }

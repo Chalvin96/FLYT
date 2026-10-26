@@ -8,6 +8,7 @@ import { useLogout, useMe, useUpdateMe } from '@/hooks/auth/queries';
 import { AccountProfileCard } from './AccountProfileCard';
 import { DangerZone } from './DangerZone';
 import { DeleteAccountModal } from './DeleteAccountModal';
+import { useAccountAnchorFocus } from './useAccountAnchorFocus';
 
 export function AccountPage() {
   const { data: user } = useMe();
@@ -15,6 +16,7 @@ export function AccountPage() {
   const updateMe = useUpdateMe();
   const navigate = useNavigate();
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  useAccountAnchorFocus();
 
   async function handleSignOut() {
     await logout();
@@ -22,7 +24,7 @@ export function AccountPage() {
   }
 
   return (
-    <div className="container-max mx-auto flex w-full max-w-2xl flex-col gap-4 pb-4">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 pb-4">
       <AccountProfileCard
         isSigningOut={isPending}
         onSignOut={() => void handleSignOut()}

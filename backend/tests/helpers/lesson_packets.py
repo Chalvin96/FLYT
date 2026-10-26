@@ -102,7 +102,6 @@ def exercise_for(operation: str) -> dict[str, Any]:
                 {"item_id": "b", "text": "jobbet", "bucket_id": "preteritum"},
             ],
         },
-        "speak": {"target": "Jeg jobber i dag."},
         "write": {
             "response_language": "no",
             "min_words": 5,

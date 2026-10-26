@@ -1,3 +1,4 @@
+import { Button, Text } from '@flyt/ui';
 import { BookMarked, BookOpenText, Quote, Sparkles, X } from 'lucide-react';
 
 import { Marker, MarkerContent } from '@/components/chatbot/ui/marker';
@@ -32,7 +33,7 @@ export function ContextPill({
   return (
     <div
       className={cn(
-        'inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full border border-border bg-secondary-5 py-0.5 pl-2',
+        'inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full border border-default bg-neutral py-0.5 pl-2',
         onRemove ? 'pr-0.5' : 'pr-2.5',
       )}
       data-context-kind={context.kind}
@@ -40,22 +41,25 @@ export function ContextPill({
       title={`${contextKindLabel[context.kind]} · ${context.label}${context.detail ? ` · ${context.detail}` : ''}`}
     >
       <ContextIcon kind={context.kind} />
-      <p className="min-w-0 truncate type-caption-sm font-medium text-foreground">
-        <span className="sr-only">{contextKindLabel[context.kind]}: </span>
-        {context.label}
-        {context.detail ? (
-          <span className="sr-only"> · {context.detail}</span>
-        ) : null}
-      </p>
+      <div className="min-w-0 truncate">
+        <Text as="p" size="small" weight="semibold" tone="default">
+          <span className="sr-only">{contextKindLabel[context.kind]}: </span>
+          {context.label}
+          {context.detail ? (
+            <span className="sr-only"> · {context.detail}</span>
+          ) : null}
+        </Text>
+      </div>
       {onRemove ? (
-        <button
+        <Button
           aria-label="Remove context"
-          className="relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-secondary-80 transition-colors hover:bg-secondary-20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring after:absolute after:-inset-2 after:content-['']"
           onClick={() => onRemove(context)}
-          type="button"
+          shape="pill"
+          size="icon-sm"
+          variant="ghost"
         >
-          <X className="icon-xs" aria-hidden="true" />
-        </button>
+          <X aria-hidden="true" />
+        </Button>
       ) : null}
     </div>
   );
@@ -74,7 +78,7 @@ function ContextIcon({ kind }: { kind: FlytChatbotContextKind }) {
   return (
     <Icon
       aria-hidden="true"
-      className="icon-xs shrink-0 text-primary-70"
+      className="icon-xs shrink-0 text-icon-brand"
       strokeWidth={1.8}
     />
   );

@@ -24,7 +24,7 @@ const judgeExercise: Extract<Exercise, { operation: 'judge' }> = {
 };
 
 const meta = {
-  title: 'Flashcard/FlashCardJudge',
+  title: 'Features/Flashcard/FlashCardJudge',
   component: FlashCardJudge,
   tags: ['autodocs'],
   decorators: [
@@ -38,7 +38,7 @@ const meta = {
     ),
   ],
   parameters: { layout: 'fullscreen' },
-  args: { className: 'flex-1', desktopExpanded: true },
+  args: { allowRetry: false, layout: 'fill', desktopExpanded: true },
   argTypes: {
     exercise: { control: 'object' },
     onFinished: { action: 'onFinished' },
@@ -92,5 +92,15 @@ export const ResultWrongWithCorrection: Story = {
     await expect(
       canvas.getByText(/ikke comes before the finite verb/i),
     ).toBeInTheDocument();
+  },
+};
+
+export const InLesson: Story = {
+  args: { allowRetry: true, exercise: judgeExercise, desktopExpanded: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole('button', { name: /reveal answer/i }),
+    ).toBeVisible();
   },
 };

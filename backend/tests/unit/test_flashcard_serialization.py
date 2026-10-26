@@ -1,6 +1,5 @@
 from flyt.apps.flashcards.models import FlashCard as FlashCardModel
 from flyt.apps.flashcards.models import CardType
-from flyt.apps.flashcards.models import LESSON_REVIEW_AUDIO_KEY
 from flyt.apps.flashcards.schemas import FlashCardOperation
 from flyt.apps.flashcards.schemas import serialize_flashcard
 
@@ -32,7 +31,7 @@ def test_serialize_flashcard_given_v4_operation_card_expect_canonical_payload():
     assert serialized.payload == payload
 
 
-def test_serialize_flashcard_given_write_card_expect_private_prompt_removed_and_audio_resolved():
+def test_serialize_flashcard_given_write_card_expect_private_prompt_removed():
     payload = {
         "kind": "exercise",
         "id": "ex-write",
@@ -45,13 +44,6 @@ def test_serialize_flashcard_given_write_card_expect_private_prompt_removed_and_
             "judge_prompt": "Private instruction.",
             "criteria": [{"id": "c1", "instruction": "Use present tense."}],
         },
-        LESSON_REVIEW_AUDIO_KEY: {
-            "id": "audio-write",
-            "url": "https://media.example.test/write.wav",
-            "path": "audio/lessons/lesson-speak/audio-write.wav",
-            "mime": "audio/wav",
-            "status": "synthesized",
-        },
     }
     card = FlashCardModel(
         id=322,
@@ -63,7 +55,4 @@ def test_serialize_flashcard_given_write_card_expect_private_prompt_removed_and_
     serialized = serialize_flashcard(card)
 
     assert isinstance(serialized, FlashCardOperation)
-    assert LESSON_REVIEW_AUDIO_KEY not in serialized.payload
     assert "judge_prompt" not in serialized.payload["payload"]
-    assert serialized.audio is not None
-    assert serialized.audio.url == "https://media.example.test/write.wav"

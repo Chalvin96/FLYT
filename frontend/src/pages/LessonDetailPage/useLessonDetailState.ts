@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 
 import {
   useCompleteLesson,
@@ -9,6 +9,23 @@ import { deriveLessonPages } from '@/lib/lessonPages';
 import { type LessonDetailRead, type LessonProgressRead } from '@/types/api';
 
 type LessonPage = ReturnType<typeof deriveLessonPages>[number];
+
+export const LESSON_COMPLETION_DESTINATIONS = {
+  review: 'review',
+  home: 'home',
+} as const;
+
+export type LessonCompletionDestination =
+  (typeof LESSON_COMPLETION_DESTINATIONS)[keyof typeof LESSON_COMPLETION_DESTINATIONS];
+
+export const LESSON_COMPLETION_STATUSES = {
+  pending: 'pending',
+  saved: 'saved',
+  error: 'error',
+} as const;
+
+export type LessonCompletionStatus =
+  (typeof LESSON_COMPLETION_STATUSES)[keyof typeof LESSON_COMPLETION_STATUSES];
 
 function deriveInitialPageIndex(
   pages: LessonPage[],
@@ -43,7 +60,7 @@ export type LessonDetailActions = {
 
 type UseLessonDetailStateArgs = {
   lesson: LessonDetailRead;
-  onExit?: () => void;
+  onExit?: (destination: LessonCompletionDestination) => void;
   actions?: LessonDetailActions;
 };
 
@@ -68,9 +85,12 @@ export function useLessonDetailState({
   const [started, setStarted] = useState(() =>
     Boolean(lesson.progress && !lesson.progress.completed_at),
   );
-  const [completionSaved, setCompletionSaved] = useState(() =>
-    Boolean(lesson.progress?.completed_at),
-  );
+  const [completionStatus, setCompletionStatus] =
+    useState<LessonCompletionStatus>(() =>
+      lesson.progress?.completed_at
+        ? LESSON_COMPLETION_STATUSES.saved
+        : LESSON_COMPLETION_STATUSES.pending,
+    );
   const completed = useMemo(() => new Set(completedIds), [completedIds]);
   const [pageIndex, setPageIndex] = useState(initialPageIndex);
   const pageIndexRef = useRef(initialPageIndex);
@@ -115,7 +135,7 @@ export function useLessonDetailState({
     pageIndexRef.current = 0;
     setPageIndex(0);
     setMaxReachedIndex(0);
-    setCompletionSaved(false);
+    setCompletionStatus(LESSON_COMPLETION_STATUSES.pending);
     setStarted(true);
   }
 
@@ -156,21 +176,39 @@ export function useLessonDetailState({
   }
 
   async function persistCompletion(): Promise<boolean> {
-    if (completeLessonMutation.isPending || completionSaved) {
-      return completionSaved;
+    if (
+      completeLessonMutation.isPending ||
+      completionStatus === LESSON_COMPLETION_STATUSES.saved
+    ) {
+      return completionStatus === LESSON_COMPLETION_STATUSES.saved;
     }
+    setCompletionStatus(LESSON_COMPLETION_STATUSES.pending);
     try {
       await completeLesson();
-      setCompletionSaved(true);
+      setCompletionStatus(LESSON_COMPLETION_STATUSES.saved);
       return true;
     } catch {
+      setCompletionStatus(LESSON_COMPLETION_STATUSES.error);
       return false;
     }
   }
 
-  async function handleLessonComplete() {
+  const saveCompletionOnEntry = useEffectEvent(() => {
+    void persistCompletion();
+  });
+
+  useEffect(() => {
+    if (isComplete) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      saveCompletionOnEntry();
+    }
+  }, [isComplete]);
+
+  async function handleLessonComplete(
+    destination: LessonCompletionDestination,
+  ) {
     if (await persistCompletion()) {
-      onExit?.();
+      onExit?.(destination);
     }
   }
 
@@ -178,11 +216,11 @@ export function useLessonDetailState({
     advance,
     completed,
     completedExerciseCount,
+    completionStatus,
     exercisePageCount: exercisePages.length,
     handleExerciseFinished,
     handleLessonComplete,
     handleStartLesson,
-    persistCompletion,
     hasStarted,
     isComplete,
     isSubmitting,
@@ -190,6 +228,7 @@ export function useLessonDetailState({
     pages,
     progressCurrent,
     progressPercent,
+    retryCompletion: persistCompletion,
     goToPage,
     pageIndex,
   };

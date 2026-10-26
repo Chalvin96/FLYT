@@ -1,14 +1,12 @@
-import { Button } from "@flyt/ui";
+import type { RefObject } from "react";
+import { Button, Text } from "@flyt/ui";
 
-import { SentenceView } from "./SentenceView";
+import { SentenceView, type SentenceViewHandle } from "./SentenceView";
+import { LookupError } from "./PopupError";
 import type { LemmaContext } from "../lib/messages";
-import type { WordLookup } from "./usePopupWordLookup";
+import type { TokenIdentity, WordLookup } from "./usePopupWordLookup";
+import type { PopupFailure } from "./buildPopupError";
 
-/**
- * Sentence-translation surface plus the inline status of the most recent
- * word tap: loading, failure (retry), no-entry (search), and the way back
- * from an opened word result.
- */
 export function SelectionPanels({
   hasWordResult,
   onBackToTranslation,
@@ -16,79 +14,93 @@ export function SelectionPanels({
   onSearchWord,
   selection,
   text,
+  visible,
   wordLookup,
+  sentenceRef,
+  onTranslationError,
 }: {
   hasWordResult: boolean;
   onBackToTranslation: () => void;
-  onResolveWord: (word: string) => void;
+  onResolveWord: (word: string, occurrence?: number) => void;
   onSearchWord: (word: string) => void;
   selection: LemmaContext;
   text?: string;
+  visible: boolean;
   wordLookup: WordLookup;
+  sentenceRef: RefObject<SentenceViewHandle | null>;
+  onTranslationError: (failure: PopupFailure | null) => void;
 }) {
+  const activeToken: TokenIdentity | undefined =
+    wordLookup.kind === "idle" ? undefined : wordLookup.token;
+
   return (
-    <>
+    <div hidden={!visible}>
       <SentenceView
-        activeWord={wordLookup.kind === "idle" ? undefined : wordLookup.word}
-        onResolveWord={onResolveWord}
+        activeToken={activeToken}
+        onResolveWord={(word, occurrence) => {
+          if (
+            hasWordResult &&
+            activeToken?.word === word &&
+            activeToken.occurrence === occurrence
+          ) {
+            onBackToTranslation();
+          } else {
+            onResolveWord(word, occurrence);
+          }
+        }}
+        ref={sentenceRef}
         selection={selection}
         text={text}
+        onTranslationError={onTranslationError}
+        separateActions
       />
-      <WordLookupStatus
-        onResolveWord={onResolveWord}
-        onSearchWord={onSearchWord}
-        wordLookup={wordLookup}
-      />
-      {hasWordResult ? (
-        <Button
-          className="flyt-back-to-translation"
-          onClick={onBackToTranslation}
-          size="sm"
-          variant="ghost"
-        >
-          Back to translation
-        </Button>
-      ) : null}
-    </>
+      {visible && (
+        <WordLookupStatus onSearchWord={onSearchWord} wordLookup={wordLookup} />
+      )}
+    </div>
   );
 }
 
 function WordLookupStatus({
-  onResolveWord,
   onSearchWord,
   wordLookup,
 }: {
-  onResolveWord: (word: string) => void;
   onSearchWord: (word: string) => void;
   wordLookup: WordLookup;
 }) {
   if (wordLookup.kind === "loading") {
     return (
-      <p className="flyt-word-lookup-status" role="status">
-        Looking up &quot;{wordLookup.word}&quot;…
+      <div role="status" className="mx-3.5 mt-2.5">
+        <Text as="p" size="small" tone="subtle">
+          Looking up &quot;{wordLookup.token.word}&quot;…
+        </Text>
+      </div>
+    );
+  }
+  if (wordLookup.kind === "resolved") {
+    return (
+      <p className="sr-only" role="status">
+        Showing the entry for &quot;{wordLookup.token.word}&quot;.
       </p>
     );
   }
   if (wordLookup.kind === "error") {
     return (
-      <div className="flyt-word-lookup-error" role="alert">
-        <span>Could not find &quot;{wordLookup.word}&quot;.</span>
-        <Button
-          onClick={() => onResolveWord(wordLookup.word)}
-          size="sm"
-          variant="outline"
-        >
-          Retry
-        </Button>
-      </div>
+      <LookupError failure={wordLookup.failure} word={wordLookup.token.word} />
     );
   }
   if (wordLookup.kind === "notFound") {
     return (
-      <div className="flyt-word-lookup-empty" role="status">
-        <span>No dictionary entry for &quot;{wordLookup.word}&quot;.</span>
+      <div
+        role="status"
+        className="mx-3.5 mt-2.5 flex items-center justify-between gap-2"
+      >
+        <Text as="span" size="small" tone="subtle">
+          No dictionary entry for &quot;{wordLookup.token.word}&quot;.
+        </Text>
         <Button
-          onClick={() => onSearchWord(wordLookup.word)}
+          aria-label={`Search for "${wordLookup.token.word}"`}
+          onClick={() => onSearchWord(wordLookup.token.word)}
           size="sm"
           variant="outline"
         >

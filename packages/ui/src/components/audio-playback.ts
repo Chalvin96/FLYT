@@ -10,6 +10,8 @@ type ActivePlayback = {
   audio: HTMLAudioElement;
   src: string;
   owner?: AudioPlaybackOwner;
+  paused: boolean;
+  playAttempt: number;
   callbacks: AudioPlaybackCallbacks;
   onEnded: () => void;
   onError: () => void;
@@ -32,6 +34,19 @@ export class AudioPlaybackController {
     return Boolean(
       src &&
       this.active?.src === src &&
+      !this.active.paused &&
+      (owner === undefined || this.active.owner === owner),
+    );
+  }
+
+  isPaused(
+    src: string | null | undefined,
+    owner?: AudioPlaybackOwner,
+  ): boolean {
+    return Boolean(
+      src &&
+      this.active?.src === src &&
+      this.active.paused &&
       (owner === undefined || this.active.owner === owner),
     );
   }
@@ -50,6 +65,8 @@ export class AudioPlaybackController {
       audio,
       src,
       owner,
+      paused: false,
+      playAttempt: 0,
       callbacks,
       onEnded: () => this.finish(active, 'ended'),
       onError: () => this.finish(active, 'error'),
@@ -59,13 +76,43 @@ export class AudioPlaybackController {
     audio.addEventListener('error', active.onError);
     this.notify();
 
-    try {
-      const playback = audio.play();
-      playback?.catch(active.onError);
-    } catch {
-      active.onError();
-    }
+    this.startPlayback(active);
     return true;
+  }
+
+  pause(): void {
+    const active = this.active;
+    if (!active || active.paused) return;
+    active.playAttempt += 1;
+    active.audio.pause();
+    active.paused = true;
+    this.notify();
+  }
+
+  resume(src: string, owner?: AudioPlaybackOwner): boolean {
+    const active = this.active;
+    if (!active || !this.isPaused(src, owner)) return false;
+    active.paused = false;
+    this.notify();
+
+    this.startPlayback(active);
+    return true;
+  }
+
+  private startPlayback(active: ActivePlayback): void {
+    const attempt = ++active.playAttempt;
+    const onError = () => {
+      if (this.active === active && active.playAttempt === attempt) {
+        active.onError();
+      }
+    };
+
+    try {
+      const playback = active.audio.play();
+      playback?.catch(onError);
+    } catch {
+      onError();
+    }
   }
 
   stop(): void {

@@ -2,7 +2,9 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RouterProvider } from '@tanstack/react-router';
 
+import { createStoryRouter } from '@/test/router';
 import type { LessonDetailRead } from '@/types/api';
 import type {
   Exercise,
@@ -76,22 +78,40 @@ function makeActions() {
   };
 }
 
-function renderSession(actions: LessonDetailActions) {
+const unsupportedExercise = {
+  ...writeExercise,
+  operation: 'speak',
+} as unknown as Exercise;
+
+const unsupportedLesson: LessonDetailRead = {
+  ...lesson,
+  packet: { ...packet, exercises: [unsupportedExercise] },
+};
+
+function renderSession(
+  actions: LessonDetailActions,
+  sessionLesson: LessonDetailRead = lesson,
+) {
   const queryClient = new QueryClient();
-  return render(
+  const router = createStoryRouter(
     <QueryClientProvider client={queryClient}>
       <LessonDetailSession
-        lesson={lesson}
+        lesson={sessionLesson}
         userId={7}
         actions={actions}
         judgeWrite={vi.fn().mockResolvedValue(judgement)}
       />
     </QueryClientProvider>,
+    ['/lesson/42'],
+    ['/lesson/$id', '/lesson'],
   );
+  return render(<RouterProvider router={router} />);
 }
 
 async function submitWriteResponse(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: /start lesson/i }));
+  await user.click(
+    await screen.findByRole('button', { name: /start lesson/i }),
+  );
   await user.type(screen.getByRole('textbox'), response);
   await user.click(screen.getByRole('button', { name: /^check$/i }));
   await user.click(await screen.findByRole('button', { name: /^continue$/i }));
@@ -139,5 +159,24 @@ describe('LessonDetailSession', () => {
     await vi.waitFor(() => {
       expect(globalThis.localStorage.getItem(draftKey)).toBeNull();
     });
+  });
+
+  it('test_unsupported_exercise_given_continue_expect_exercise_recorded_and_lesson_finished', async () => {
+    const user = userEvent.setup();
+    const actions = makeActions();
+    actions.completeLessonExercise.mockResolvedValue({
+      completed_exercise_ids: ['exercise-1'],
+      completed_at: null,
+    });
+
+    renderSession(actions, unsupportedLesson);
+
+    await user.click(
+      await screen.findByRole('button', { name: /start lesson/i }),
+    );
+    await user.click(screen.getByRole('button', { name: /^continue$/i }));
+
+    expect(await screen.findByText('Lesson complete!')).toBeInTheDocument();
+    expect(actions.completeLessonExercise).toHaveBeenCalledWith('exercise-1');
   });
 });

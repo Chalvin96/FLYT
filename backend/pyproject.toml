@@ -7,9 +7,9 @@ name = "flyt"
 dynamic = ["version"]
 requires-python = ">=3.12"
 dependencies = [
-  "fastapi>=0.128.0",
+  "fastapi>=0.159.1",
   "uvicorn[standard]>=0.40.0",
-  "sqlalchemy>=2.0.45",
+  "sqlalchemy[asyncio]>=2.0.45",
   "psycopg[binary]>=3.2.0",
   "alembic>=1.18.1",
   "fsrs>=6.3.0",
@@ -32,7 +32,6 @@ dependencies = [
   "asgi-correlation-id>=1.4.0",
   "python-json-logger>=4.0.0",
   "prometheus-fastapi-instrumentator>=7.0.0",
-  "sentry-sdk[fastapi]>=2.0.0",
   "cryptography>=49.0.0",
   "aiocache[redis]>=0.12.3",
   "limits>=5.8.0",
@@ -147,6 +146,7 @@ select = [
   "F",
   "B",
   "S",
+  "TID251",
   "ASYNC",
   "DTZ",
   "FAST",
@@ -168,10 +168,12 @@ ignore = ["RUF105", "RUF201"]
 [tool.ruff.lint.per-file-ignores]
 "alembic/env.py" = ["E402", "F401"]
 "alembic/versions/*.py" = ["PLR0915", "UP"]
+"flyt/libs/utils/date.py" = ["TID251"]
 "flyt/core/config.py" = ["S105"]
 "flyt/core/db.py" = ["ASYNC119"]
 "flyt/apps/users/deps.py" = ["RUF029"]
 "scripts/dev_seed_reading.py" = ["RUF001"]
+"scripts/seed_reading_scale.py" = ["S311"]
 "tests/**/*.py" = ["DTZ001", "PLR0914", "RUF029", "S101"]
 "tests/integration/users/test_account_deletion.py" = ["S106"]
 "tests/scripts/test_ordbokene_importer_pronunciation.py" = ["RUF001"]
@@ -185,6 +187,13 @@ max-args = 9
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Depends"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"datetime.datetime.now".msg = "Use flyt.libs.utils.date.now or now_aware."
+"datetime.datetime.utcnow".msg = "Use flyt.libs.utils.date.now_aware."
+"datetime.datetime.today".msg = "Use flyt.libs.utils.date.now_aware."
+"datetime.date.today".msg = "Use flyt.libs.utils.date.now."
+"time.localtime".msg = "Use the UTC clock."
 
 [tool.ruff.lint.isort]
 force-single-line = true
@@ -201,7 +210,7 @@ files = ["flyt", "scripts"]
 [dependency-groups]
 dev = [
   "pip-audit==2.10.1",
-  "ruff==0.16.7",
+  "ruff==0.17.2",
   "pytest>=8.0.0",
   "pytest-anyio>=0.0.0",
   "pytest-cov>=6.0.0",

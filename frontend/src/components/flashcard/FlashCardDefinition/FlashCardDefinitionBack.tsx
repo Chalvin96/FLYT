@@ -3,10 +3,10 @@ import {
   formatGenderSimple,
   getInflectionClassLabel,
 } from '@flyt/lexicon/grammar';
+import { Button, Heading, Text } from '@flyt/ui';
 import { ChevronRight } from 'lucide-react';
 import { memo, useState, type ReactNode, type Ref } from 'react';
 
-import { Button } from '@/components/common/Button/Button';
 import { InflectionTable } from '@/components/flashcard/InflectionTable/InflectionTable';
 import { hasStructuredInflection } from '@/components/flashcard/InflectionTable/utils';
 import { splitTranslation } from '@/lib/translation';
@@ -38,8 +38,6 @@ interface FlashCardDefinitionBackProps {
   headingRef?: Ref<HTMLHeadingElement>;
 }
 
-const sectionLabelClassName = 'type-label-sm text-secondary-80';
-
 function AnswerSection({
   label,
   children,
@@ -49,7 +47,9 @@ function AnswerSection({
 }) {
   return (
     <section>
-      <h3 className={sectionLabelClassName}>{label}</h3>
+      <Heading as="h3" size="xxsmall" tone="subtle">
+        {label}
+      </Heading>
       <div className="mt-2">{children}</div>
     </section>
   );
@@ -59,10 +59,10 @@ function MeaningExample({ example }: { example?: ExamplePair | null }) {
   if (!example?.no) return null;
 
   return (
-    <span className="mt-1.5 block border-l-2 border-secondary-20 pl-2 text-secondary-80">
+    <span className="mt-1.5 block border-l-2 border-default pl-2 text-subtle">
       <span lang="no">{example.no}</span>
       {example.en ? (
-        <span className="mt-0.5 block text-muted-foreground">{example.en}</span>
+        <span className="mt-0.5 block text-subtle">{example.en}</span>
       ) : null}
     </span>
   );
@@ -72,18 +72,15 @@ function renderMeaning(definition: DefinitionRead) {
   const gloss = definition.definition?.trim();
   const showGloss = gloss && gloss !== definition.translation?.trim();
   return (
-    <li
-      className="type-caption leading-snug text-secondary-90"
-      key={definition.uuid}
-    >
+    <Text as="li" key={definition.uuid} size="medium" tone="default">
       {definition.translation}
       {showGloss ? (
-        <span className="mt-0.5 block italic text-muted-foreground" lang="no">
+        <span className="mt-0.5 block italic text-subtle" lang="no">
           {gloss}
         </span>
       ) : null}
       <MeaningExample example={definition.examples_json?.[0]} />
-    </li>
+    </Text>
   );
 }
 
@@ -121,7 +118,6 @@ function DefinitionHeader({
     <LemmaHeader
       audioUrl={audioUrl}
       headingAs="h2"
-      headingClassName="type-display-lg break-words font-display font-medium text-secondary-90"
       intonation={intonation}
       ipa={ipa}
       ipaApproximate={ipaApproximate}
@@ -142,32 +138,25 @@ function DefinitionContextDisclosure({
 }) {
   return (
     <details className="group" data-testid="saved-context-disclosure">
-      <summary
-        className={cn(
-          sectionLabelClassName,
-          'radius-sm flex w-fit cursor-pointer list-none items-center gap-1.5 py-0.5',
-          'transition-colors hover:text-secondary-90',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-          '[&::-webkit-details-marker]:hidden',
-        )}
-      >
-        Saved context
+      <summary className="radius-sm flex w-fit cursor-pointer list-none items-center gap-1.5 py-0.5 transition-colors hover:[&>span]:text-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focused)] focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+        <Heading as="span" size="xxsmall" tone="subtle">
+          Saved context
+        </Heading>
         <ChevronRight
           aria-hidden="true"
           className="icon-xs shrink-0 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none"
         />
       </summary>
-      <figure className="mt-2 border-l-2 border-primary-30 pl-3">
-        <blockquote
-          className="type-caption leading-relaxed text-secondary-90"
-          lang="no"
-        >
+      <figure className="mt-2 border-l-2 border-brand-subtle pl-3">
+        <Text as="blockquote" lang="no" size="medium" tone="default">
           {context.source_sentence}
-        </blockquote>
+        </Text>
         {context.source_title ? (
-          <figcaption className="mt-1 type-caption-sm text-muted-foreground">
-            {context.source_title}
-          </figcaption>
+          <div className="mt-1">
+            <Text as="figcaption" size="small" tone="subtle">
+              {context.source_title}
+            </Text>
+          </div>
         ) : null}
       </figure>
     </details>
@@ -185,21 +174,22 @@ function AnswerBlock({
 }) {
   return (
     <div>
-      <p className="type-title font-bold leading-tight text-foreground @2xl:type-title-lg">
+      <Heading as="div" size="large">
         {translation.primary}
-      </p>
+      </Heading>
       {translation.alternates.length > 0 ? (
-        <p className="mt-1.5 type-caption text-secondary-70">
-          {translation.alternates.join(' · ')}
-        </p>
+        <div className="mt-1.5">
+          <Text as="p" size="medium" tone="subtle">
+            {translation.alternates.join(' · ')}
+          </Text>
+        </div>
       ) : null}
       {gloss ? (
-        <p
-          className="mt-3 type-caption italic leading-snug text-muted-foreground"
-          lang="no"
-        >
-          {gloss}
-        </p>
+        <div className="mt-3 italic">
+          <Text as="p" lang="no" size="medium" tone="subtle">
+            {gloss}
+          </Text>
+        </div>
       ) : null}
       <MeaningExample example={example} />
     </div>
@@ -221,25 +211,24 @@ function DefinitionMeanings({
   return (
     <>
       <ol
-        className={cn(
-          'list-decimal space-y-2 pl-5 marker:text-secondary-40',
-          '@xl:columns-2 @xl:gap-x-8 @xl:space-y-0 @xl:[&>li]:mb-4 @xl:[&>li]:break-inside-avoid',
-        )}
+        className="list-decimal space-y-2 pl-5 marker:text-subtle @xl:columns-2 @xl:gap-x-8 @xl:space-y-0 @xl:[&>li]:mb-4 @xl:[&>li]:break-inside-avoid"
         role="list"
         start={start}
       >
         {visible.map((definition) => renderMeaning(definition))}
       </ol>
       {restMeanings.length > 0 && !showRest ? (
-        <Button
-          className="mt-3 h-auto justify-start whitespace-normal p-0 type-caption font-semibold text-primary-80 underline-offset-4 hover:text-primary-100 hover:underline"
-          onClick={() => setShowRest(true)}
-          type="button"
-          variant="link"
-        >
-          Show {restMeanings.length} more{' '}
-          {restMeanings.length === 1 ? 'meaning' : 'meanings'}
-        </Button>
+        <div className="mt-3">
+          <Button
+            align="start"
+            onClick={() => setShowRest(true)}
+            type="button"
+            variant="link"
+          >
+            Show {restMeanings.length} more{' '}
+            {restMeanings.length === 1 ? 'meaning' : 'meanings'}
+          </Button>
+        </div>
       ) : null}
     </>
   );
@@ -276,9 +265,9 @@ const FlashCardDefinitionBackComponent = ({
   const referenceItems = [
     alternativeForms.length > 0 ? (
       <AnswerSection key="other-forms" label="Other forms">
-        <p className="type-caption text-secondary-90">
+        <Text size="medium" tone="default">
           {alternativeForms.join(' · ')}
-        </p>
+        </Text>
       </AnswerSection>
     ) : null,
     hasStructuredInflection(wordForms, pos) ? (
@@ -310,7 +299,7 @@ const FlashCardDefinitionBackComponent = ({
       />
 
       <div
-        className="scrollbar-stable flex min-h-0 flex-1 flex-col overflow-y-auto pr-1"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto pr-1"
         data-testid="flashcard-answer-body"
       >
         <div
@@ -348,7 +337,7 @@ const FlashCardDefinitionBackComponent = ({
           {hasRail ? (
             <aside
               aria-label="Reference"
-              className="flex min-w-0 flex-col gap-6 @2xl:border-l @2xl:border-secondary-20 @2xl:pl-8"
+              className="flex min-w-0 flex-col gap-6 @2xl:border-l @2xl:border-default @2xl:pl-8"
               data-testid="flashcard-answer-reference"
             >
               {referenceItems}

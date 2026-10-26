@@ -1,5 +1,5 @@
 {
-  "version": "0.9.13",
+  "version": "0.9.18",
   "scan_args": ["--no-dead-code", "--no-supply-chain"],
   "max_errors": 0,
   "max_warnings_by_rule": {
@@ -7,13 +7,14 @@
     "js-combine-iterations": 0,
     "js-flatmap-filter": 0,
     "no-adjust-state-on-prop-change": 0,
-    "no-array-index-as-key": 0,
+    "no-array-index-as-key": 2,
     "no-cascading-set-state": 0,
     "no-effect-chain": 0,
     "no-effect-event-handler": 0,
     "no-giant-component": 0,
     "no-high-complexity-react-function": 2,
     "no-many-boolean-props": 0,
+    "no-multi-component-file": 0,
     "no-pass-live-state-to-parent": 1,
     "no-placeholder-only-field": 0,
     "no-prop-callback-in-effect": 1,

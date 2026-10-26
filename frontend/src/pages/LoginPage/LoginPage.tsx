@@ -1,3 +1,5 @@
+import { Heading, Text } from '@flyt/ui';
+
 import { googleStartUrl } from '@/api/auth';
 import { ErrorMessage } from '@/components/common/ErrorMessage/ErrorMessage';
 
@@ -18,41 +20,45 @@ export function LoginPage({ error, deleted }: LoginPageProps = {}) {
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined;
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-[420px] radius-section bg-white-100 p-8 shadow-raised sm:p-10">
+    <div className="flex min-h-dvh items-center justify-center bg-neutral px-4 py-12">
+      <div className="w-full max-w-[420px] radius-section bg-overlay p-8 shadow-raised sm:p-10">
         <div className="flex items-center gap-2">
-          <span className="size-2.5 rounded-full bg-primary-70" />
-          <span className="font-display type-section font-semibold tracking-tight text-foreground">
+          <span className="size-2.5 rounded-full bg-brand-bold" />
+          <Heading as="span" size="medium" tone="default">
             Flyt
-          </span>
+          </Heading>
         </div>
 
         {deleted && (
           <p
-            className="mt-6 radius-field border border-border bg-secondary-10 p-3 type-caption text-foreground"
+            className="mt-6 radius-field border border-default bg-neutral-subtle p-3"
             role="status"
           >
-            Your account has been deleted.
+            <Text as="span" size="medium" tone="default">
+              Your account has been deleted.
+            </Text>
           </p>
         )}
 
-        <h1 className="mt-8 type-title text-foreground">
-          Start learning Norwegian.
-        </h1>
-        <p className="mt-2 type-body text-muted-foreground">
-          Sign in with Google to begin or continue your Flyt practice.
-        </p>
+        <div className="mt-8">
+          <Heading as="h1" size="large" tone="default">
+            Start learning Norwegian.
+          </Heading>
+        </div>
+        <div className="mt-2">
+          <Text as="p" size="large" tone="subtle">
+            Sign in with Google to begin or continue your Flyt practice.
+          </Text>
+        </div>
 
         {errorMessage && (
-          <ErrorMessage
-            error={errorMessage}
-            title="Sign-in failed"
-            className="mt-4"
-          />
+          <div className="mt-4">
+            <ErrorMessage error={errorMessage} title="Sign-in failed" />
+          </div>
         )}
 
         <a
-          className="mt-7 flex h-11 w-full items-center justify-center gap-3 radius-field border border-border bg-white-100 type-caption font-semibold text-foreground transition-colors hover:bg-secondary-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="mt-7 flex h-11 w-full items-center justify-center gap-3 radius-field border border-default bg-overlay transition-colors hover:bg-neutral-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focused)] focus-visible:ring-offset-2"
           href={googleStartUrl()}
         >
           <svg aria-hidden viewBox="0 0 18 18" className="size-[18px]">
@@ -73,16 +79,20 @@ export function LoginPage({ error, deleted }: LoginPageProps = {}) {
               fill="#EA4335"
             />
           </svg>
-          <span>Sign in with Google</span>
+          <Text as="span" size="medium" weight="semibold" tone="default">
+            Sign in with Google
+          </Text>
         </a>
 
-        <p className="mt-4 text-center type-caption-sm text-muted-foreground">
-          By continuing you agree to the{' '}
-          <a className="underline" href={PRIVACY_POLICY_URL}>
-            Privacy Policy
-          </a>
-          .
-        </p>
+        <div className="mt-4 text-center">
+          <Text as="p" size="small" tone="subtle">
+            By continuing you agree to the{' '}
+            <a className="underline" href={PRIVACY_POLICY_URL}>
+              Privacy Policy
+            </a>
+            .
+          </Text>
+        </div>
       </div>
     </div>
   );

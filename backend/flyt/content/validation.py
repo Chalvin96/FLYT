@@ -4,6 +4,7 @@ import re
 
 from pydantic import ValidationError
 
+from flyt.content.eligibility import group_ids_without_addable_variant
 from flyt.content.exceptions import LessonImportError, LessonPacketError
 from flyt.content.schemas import (
     Block,
@@ -69,6 +70,13 @@ def validate_packet_graph_or_raise(packet: LessonPacket) -> None:
     if errors:
         raise LessonPacketError(
             f"packet {packet.id!r} graph errors: " + "; ".join(errors)
+        )
+
+    empty_group_ids = group_ids_without_addable_variant(packet)
+    if empty_group_ids:
+        raise LessonPacketError(
+            f"packet {packet.id!r} practice groups without an addable "
+            f"exercise: {', '.join(empty_group_ids)}"
         )
 
 

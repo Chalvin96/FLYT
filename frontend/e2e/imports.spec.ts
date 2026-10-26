@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test';
-
+import { expect, test } from './fixtures';
 import { loginAs } from './helpers/auth';
 
 // Long enough to page, short enough to finish inside READY_TIMEOUT_MS.
@@ -31,7 +30,7 @@ test('imports page loads against the real API', async ({ page }) => {
   await expect(page.getByText(/could not load your imports/i)).toHaveCount(0);
 });
 
-test('pasting text creates an import that becomes readable', async ({
+test('test_import_given_untitled_paste_and_inline_rename_expect_default_title_and_saved_reader_title', async ({
   page,
 }) => {
   await loginAs(page, 'importer@example.com');
@@ -42,14 +41,29 @@ test('pasting text creates an import that becomes readable', async ({
     .first()
     .click();
 
-  await page.getByLabel(/^title/i).fill('Byen ved fjorden');
   await page.getByLabel(/^text/i).fill(IMPORT_TEXT);
   await page.getByRole('button', { name: /^import$/i }).click();
 
-  const card = page.getByRole('link', { name: /Byen ved fjorden/i });
-  await expect(card).toBeVisible({ timeout: READY_TIMEOUT_MS });
-
-  await card.click();
+  const defaultTitle = 'Det var en gang en liten by ved fjorden.';
+  await expect(
+    page.getByRole('link', { name: defaultTitle, exact: false }),
+  ).toBeVisible({ timeout: READY_TIMEOUT_MS });
+  await page.getByRole('button', { name: `Rename ${defaultTitle}` }).click();
+  const titleField = page.getByRole('textbox', { name: 'Import title' });
+  await expect(titleField).toBeFocused();
+  await titleField.fill('Byen ved fjorden');
+  const renameResponse = page.waitForResponse(
+    (response) =>
+      /^\/imports\/[^/]+$/.test(new URL(response.url()).pathname) &&
+      response.request().method() === 'PATCH',
+  );
+  await titleField.press('Enter');
+  expect((await renameResponse).ok()).toBe(true);
+  await expect(page.getByRole('textbox', { name: 'Import title' })).toHaveCount(
+    0,
+  );
+  await page.reload();
+  await page.getByRole('link', { name: /Byen ved fjorden/i }).click();
   await expect(page).toHaveURL(/\/reading\/story\//);
   await expect(
     page.getByRole('heading', { name: 'Byen ved fjorden' }),

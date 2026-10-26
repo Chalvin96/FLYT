@@ -2,6 +2,8 @@ from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
 
+from flyt.libs.utils.date import now_aware
+
 
 def calculate_utc_window_start(
     value: datetime | None = None,
@@ -10,7 +12,7 @@ def calculate_utc_window_start(
     if window_hours < 1:
         raise ValueError("window_hours must be positive")
 
-    current = datetime.now(UTC) if value is None else value
+    current = now_aware() if value is None else value
     if current.tzinfo is None:
         current = current.replace(tzinfo=UTC)
     current = current.astimezone(UTC)

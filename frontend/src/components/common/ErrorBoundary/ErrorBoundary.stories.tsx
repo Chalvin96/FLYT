@@ -33,7 +33,7 @@ function RouterDecorator({ children }: { children: React.ReactNode }) {
 }
 
 const meta = {
-  title: 'Common/ErrorBoundary',
+  title: 'Features/Common/ErrorBoundary',
   component: ErrorBoundary,
   parameters: {
     layout: 'fullscreen',

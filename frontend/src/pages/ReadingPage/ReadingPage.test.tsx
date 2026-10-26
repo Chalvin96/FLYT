@@ -55,310 +55,321 @@ function renderPage() {
   );
 }
 
+function story(index: number, isRead = false) {
+  return {
+    uuid: `story-${index}`,
+    title: `En dag i Norge ${index}`,
+    cefrLevel: 'A1',
+    createdAt: '2026-10-07T10:00:00',
+    wordCount: 312,
+    readingMinutes: 3,
+    isRead,
+    completed: isRead,
+  };
+}
+function section(stories = [story(1)], storyCount = stories.length) {
+  return {
+    group: {
+      id: 1,
+      key: 'everyday',
+      order: 1,
+      title: 'Everyday Norwegian',
+      storyCount,
+    },
+    stories,
+  };
+}
+function imported(
+  index: number,
+  status: 'ready' | 'failed' | 'pending' | 'processing' = 'ready',
+) {
+  return {
+    id: `import-${index}`,
+    storyUuid: `imported-${index}`,
+    title: `Min artikkel ${index}`,
+    sourceUrl: null,
+    status,
+    errorCode: null,
+    errorMessage: null,
+    pageCount: 2,
+    wordCount: 410,
+    createdAt: '2026-10-07T10:00:00',
+  };
+}
+
 describe('ReadingPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default: empty imports list so existing tests don't render a shelf.
     listImports.mockResolvedValue({
       items: [],
       nextCursor: null,
-      quota: { used: 0, limit: 10 },
-    });
-    createPasteImport.mockResolvedValue({
-      id: 'new-import',
-      storyUuid: 'story-new',
-      title: 'New import',
-      sourceUrl: null,
-      status: 'pending',
-      errorCode: null,
-      errorMessage: null,
-      pageCount: null,
-      wordCount: 0,
-      createdAt: '2026-07-20T10:00:00Z',
+      quota: { used: 0, limit: 200 },
     });
   });
 
-  it("renders today's story and theme shelves", async () => {
+  it('test_library_given_empty_sections_expect_reading_heading_and_no_empty_shelves', async () => {
     getReadingHome.mockResolvedValue({
-      todaysStory: {
-        uuid: 'story-1',
-        title: 'Morning Coffee',
-        groupTitle: 'Daily Life',
-        cefrLevel: 'A1',
-        preview: 'Hero preview fallback',
-      },
-      sections: [
-        {
-          group: {
-            id: 1,
-            key: 'daily_life',
-            order: 1,
-            storyCount: 2,
-            title: 'Daily Life',
-          },
-          stories: [
-            {
-              uuid: 'story-1',
-              title: 'Morning Coffee',
-              cefrLevel: 'A1',
-              createdAt: '2026-04-11T10:00:00Z',
-              preview: 'A quick preview',
-              wordCount: 245,
-              isRead: false,
-            },
-            {
-              uuid: 'story-2',
-              title: 'On the Tram',
-              cefrLevel: 'A2',
-              createdAt: '2026-04-10T10:00:00Z',
-              preview: 'A short commute turns into a tiny language lesson.',
-              wordCount: 312,
-              isRead: true,
-            },
-          ],
-        },
-        {
-          group: {
-            id: 2,
-            key: 'food_dining',
-            order: 2,
-            storyCount: 1,
-            title: 'Food & Dining',
-          },
-          stories: [
-            {
-              uuid: 'story-3',
-              title: 'At the Bakery',
-              cefrLevel: 'B1',
-              createdAt: '2026-04-09T10:00:00Z',
-              preview: 'Fresh bread, sweet buns, and a quick conversation.',
-              wordCount: 278,
-              isRead: false,
-            },
-          ],
-        },
-      ],
+      todaysStory: null,
+      sections: [section([])],
     });
-
     renderPage();
+    expect(
+      await screen.findByRole('heading', { name: 'No stories available yet' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Reading' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Everyday Norwegian' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Generate a story' }),
+    ).toHaveAttribute('href', '/reading/generate');
+  });
 
-    expect(await screen.findByText("Today's Story")).toBeInTheDocument();
-    expect(screen.getByText('Hero preview fallback')).toBeInTheDocument();
-
+  it('test_library_given_new_learner_and_imported_everyday_group_expect_one_start_here_story', async () => {
+    getReadingHome.mockResolvedValue({
+      todaysStory: null,
+      sections: [section([story(1), story(2)])],
+    });
+    renderPage();
+    expect(await screen.findByText('Start here')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Start reading' })).toHaveLength(
+      1,
+    );
     expect(screen.getByRole('link', { name: 'Start reading' })).toHaveAttribute(
       'href',
       '/reading/story/story-1',
     );
+    expect(screen.queryByText('Continue reading')).not.toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'Daily Life' }),
+      await screen.findByRole('button', { name: 'Import it' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'Food & Dining' }),
-    ).toBeInTheDocument();
-    // story-2 is read but not completed -> "In progress"; unread stories show no chip.
-    expect(screen.getByText('In progress')).toBeInTheDocument();
-    expect(screen.queryByText('NEW')).not.toBeInTheDocument();
-    expect(
-      screen.getAllByRole('link', { name: 'View all' })[0],
-    ).toHaveAttribute('href', '/reading/themes/daily_life');
-    expect(screen.getByRole('link', { name: /On the Tram/i })).toHaveAttribute(
-      'href',
-      '/reading/story/story-2',
-    );
+      screen.queryByRole('heading', { name: 'Your imports' }),
+    ).not.toBeInTheDocument();
   });
 
-  it('shows the empty state when there are no hero or theme stories', async () => {
-    getReadingHome.mockResolvedValue({ todaysStory: null, sections: [] });
-
-    renderPage();
-
-    expect(
-      await screen.findByText('No stories available yet.'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Check back soon!')).toBeInTheDocument();
-  });
-
-  it('shows the empty state when all returned theme sections are empty', async () => {
+  it('test_library_given_mixed_story_lengths_expect_shortest_everyday_a1_starter', async () => {
     getReadingHome.mockResolvedValue({
-      todaysStory: null,
+      todaysStory: { ...story(1), wordCount: 1_300_000 },
       sections: [
+        section([
+          { ...story(1), wordCount: 1_300_000 },
+          { ...story(2), wordCount: 312 },
+          { ...story(3), wordCount: 112, readingMinutes: 2 },
+          { ...story(4), cefrLevel: 'A2', wordCount: 50 },
+        ]),
         {
-          group: {
-            id: 1,
-            key: 'daily_life',
-            order: 1,
-            storyCount: 0,
-            title: 'Daily Life',
-          },
-          stories: [],
-        },
-        {
-          group: {
-            id: 2,
-            key: 'food_dining',
-            order: 2,
-            storyCount: 0,
-            title: 'Food & Dining',
-          },
-          stories: [],
+          ...section([{ ...story(5), wordCount: 10 }]),
+          group: { ...section().group, id: 2, key: 'nature', title: 'Nature' },
         },
       ],
     });
-
     renderPage();
-
     expect(
-      await screen.findByText('No stories available yet.'),
+      await screen.findByRole('link', { name: 'Start reading' }),
+    ).toHaveAttribute('href', '/reading/story/story-3');
+    expect(
+      screen.getByText('2 min · 112 words · Everyday Norwegian'),
     ).toBeInTheDocument();
-    expect(screen.getByText('Check back soon!')).toBeInTheDocument();
   });
 
-  it('shows a retryable error when the home request fails', async () => {
-    getReadingHome.mockRejectedValue(new Error('home failed'));
+  it.each([
+    { isRead: true, completed: false },
+    { isRead: false, completed: true },
+  ])(
+    'test_library_given_read_or_completed_story_expect_no_starter',
+    async (flags) => {
+      getReadingHome.mockResolvedValue({
+        todaysStory: story(1),
+        sections: [section([story(1), { ...story(2), ...flags }])],
+      });
+      renderPage();
+      await screen.findByRole('button', { name: 'Import it' });
+      expect(screen.queryByText('Start here')).not.toBeInTheDocument();
+      expect(screen.queryByText('Continue reading')).not.toBeInTheDocument();
+    },
+  );
 
+  it.each(['ready', 'failed', 'pending', 'processing'] as const)(
+    'test_library_given_existing_import_expect_no_starter',
+    async (status) => {
+      getReadingHome.mockResolvedValue({
+        todaysStory: story(1),
+        sections: [section([story(1)])],
+      });
+      listImports.mockResolvedValue({
+        items: [imported(1, status)],
+        nextCursor: null,
+        quota: { used: 1, limit: 200 },
+      });
+      renderPage();
+      await screen.findByRole('button', { name: 'Your imports' });
+      expect(screen.queryByText('Start here')).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(['pending', 'failed'])(
+    'test_library_given_unconfirmed_imports_expect_no_starter',
+    async (state) => {
+      getReadingHome.mockResolvedValue({
+        todaysStory: story(1),
+        sections: [section([story(1)])],
+      });
+      if (state === 'pending') {
+        listImports.mockImplementation(() => new Promise(() => {}));
+      } else {
+        listImports.mockRejectedValue(new Error('imports failed'));
+      }
+      renderPage();
+      await screen.findByRole('heading', { name: 'En dag i Norge 1' });
+      expect(screen.queryByText('Start here')).not.toBeInTheDocument();
+    },
+  );
+
+  it('test_library_given_no_everyday_a1_story_expect_no_starter', async () => {
+    getReadingHome.mockResolvedValue({
+      todaysStory: story(1),
+      sections: [section([{ ...story(1), cefrLevel: 'A2' }])],
+    });
     renderPage();
+    await screen.findByRole('button', { name: 'Import it' });
+    expect(screen.queryByText('Start here')).not.toBeInTheDocument();
+  });
 
+  it('test_library_given_empty_list_and_full_quota_expect_disabled_import_with_reason', async () => {
+    getReadingHome.mockResolvedValue({
+      todaysStory: null,
+      sections: [section([story(1)])],
+    });
+    listImports.mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      quota: { used: 200, limit: 200 },
+    });
+    renderPage();
+    const importButton = await screen.findByRole('button', {
+      name: 'Import it',
+    });
+    expect(importButton).toBeDisabled();
+    expect(importButton).toHaveAccessibleDescription(
+      'You have 200 imports. Delete one to free a slot.',
+    );
+    expect(screen.queryByText('Start here')).not.toBeInTheDocument();
+  });
+
+  it('test_library_given_deleted_import_expect_no_starter', async () => {
+    getReadingHome.mockResolvedValue({
+      todaysStory: null,
+      sections: [section([story(1)])],
+    });
+    listImports.mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      quota: { used: 1, limit: 200 },
+    });
+    renderPage();
+    await screen.findByRole('button', { name: 'Import it' });
+    expect(screen.queryByText('Start here')).not.toBeInTheDocument();
+  });
+
+  it('test_library_given_full_quota_expect_disabled_import_with_reason_and_no_starter', async () => {
+    getReadingHome.mockResolvedValue({
+      todaysStory: null,
+      sections: [section([story(1), story(2, true)])],
+    });
+    listImports.mockResolvedValue({
+      items: Array.from({ length: 200 }, (_, index) => imported(index)),
+      nextCursor: null,
+      quota: { used: 200, limit: 200 },
+    });
+    renderPage();
+    const importButton = await screen.findByRole('button', {
+      name: 'Import text',
+    });
+    expect(importButton).toBeDisabled();
+    expect(importButton).toHaveAccessibleDescription(
+      'You have 200 imports. Delete one to free a slot.',
+    );
+    expect(
+      screen.getByText('You have 200 imports. Delete one to free a slot.'),
+    ).toBeVisible();
+    expect(screen.queryByText('Start here')).not.toBeInTheDocument();
+  });
+
+  it('test_library_given_one_finished_story_expect_finished_row_without_view_all', async () => {
+    getReadingHome.mockResolvedValue({
+      todaysStory: null,
+      sections: [section([story(1, true)])],
+    });
+    renderPage();
+    expect(await screen.findByText('Finished')).toBeInTheDocument();
+    expect(screen.queryByText('Start here')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: /View all/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("You've read every story Flyt has so far."),
+    ).toBeInTheDocument();
+  });
+
+  it('test_library_given_large_theme_expect_formatted_counted_view_all_and_available_metadata', async () => {
+    getReadingHome.mockResolvedValue({
+      todaysStory: null,
+      sections: [
+        section(
+          Array.from({ length: 6 }, (_, index) => story(index, true)),
+          1208,
+        ),
+      ],
+    });
+    renderPage();
+    expect(
+      await screen.findByRole('link', { name: 'View all 1,208' }),
+    ).toHaveAttribute('href', '/reading/themes/everyday');
+    expect(screen.getAllByText('312 words')).toHaveLength(6);
+    expect(screen.getAllByText('7 Oct')).toHaveLength(6);
+    expect(screen.queryByText(/% known/)).not.toBeInTheDocument();
+  });
+
+  it('test_library_given_failed_imports_expect_one_review_line_and_collapsible_shelf', async () => {
+    const user = userEvent.setup();
+    getReadingHome.mockResolvedValue({ todaysStory: null, sections: [] });
+    listImports.mockResolvedValue({
+      items: [
+        imported(1, 'failed'),
+        imported(2, 'failed'),
+        imported(3),
+        imported(4),
+      ],
+      nextCursor: null,
+      quota: { used: 4, limit: 200 },
+    });
+    renderPage();
+    expect(await screen.findByText('2 imports failed ·')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review' })).toHaveAttribute(
+      'href',
+      '/reading/imports',
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Retry' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'View all 4' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Your imports' }));
+    expect(
+      screen.queryByRole('link', { name: /Min artikkel 3/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('test_library_given_failed_home_request_expect_retry', async () => {
+    getReadingHome.mockRejectedValue(new Error('home failed'));
+    renderPage();
     expect(
       await screen.findByText('Could not load reading.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
-  });
-
-  it('test_reading_home_given_user_has_imports_expect_your_imports_shelf_with_view_all', async () => {
-    // D-005: the "Your imports" shelf sits between the hero and the curated
-    // theme shelves. Header carries + Import text and View all →.
-    getReadingHome.mockResolvedValue({
-      todaysStory: {
-        uuid: 'story-1',
-        title: 'Morning Coffee',
-        groupTitle: 'Daily Life',
-        cefrLevel: 'A1',
-        preview: 'Hero preview',
-      },
-      sections: [],
-    });
-    listImports.mockResolvedValue({
-      items: [
-        {
-          id: 'import-1',
-          storyUuid: 'story-imported',
-          title: 'My imported article',
-          sourceUrl: null,
-          status: 'ready',
-          errorCode: null,
-          errorMessage: null,
-          pageCount: 3,
-          wordCount: 410,
-          createdAt: '2026-07-18T10:00:00Z',
-        },
-      ],
-      nextCursor: null,
-      quota: { used: 1, limit: 10 },
-    });
-
-    renderPage();
-
-    // Renders only after the list loads, so it also clears the shelf skeleton.
-    expect(
-      await screen.findByRole('link', { name: /View all/i }),
-    ).toHaveAttribute('href', '/reading/imports');
-    expect(
-      screen.getByRole('heading', { name: 'Your imports' }),
-    ).toBeInTheDocument();
-    // + Import text entry point.
-    expect(
-      screen.getByRole('button', { name: /Import text/i }),
-    ).toBeInTheDocument();
-    // The ready import renders a tappable link to the reader.
-    expect(
-      screen.getByRole('link', { name: /My imported article/i }),
-    ).toHaveAttribute('href', '/reading/story/story-imported');
-  });
-
-  it('test_reading_home_given_first_time_no_imports_expect_import_text_cta_only', async () => {
-    // First-time empty state on the home: just the + Import text CTA and
-    // a short explainer; no shelf (D-005). Curated sections still render
-    // their own View-all links, so we assert against the imports section
-    // by looking for the import CTA + empty hint, not the absence of links.
-    getReadingHome.mockResolvedValue({
-      todaysStory: null,
-      sections: [
-        {
-          group: {
-            id: 1,
-            key: 'daily_life',
-            order: 1,
-            storyCount: 1,
-            title: 'Daily Life',
-          },
-          stories: [
-            {
-              uuid: 'story-1',
-              title: 'Morning Coffee',
-              cefrLevel: 'A1',
-              createdAt: '2026-04-11T10:00:00Z',
-              preview: 'A quick preview',
-              wordCount: 245,
-              isRead: false,
-            },
-          ],
-        },
-      ],
-    });
-    // Default empty imports list from beforeEach.
-
-    renderPage();
-
-    // ImportHomeShelf's empty hint, which also clears the skeleton.
-    expect(
-      await screen.findByText(
-        /Paste an article, transcript, or notes in Norwegian/i,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { name: 'Your imports' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /Import text/i }),
-    ).toBeInTheDocument();
-    // No ready import card link appears when the user has no imports.
-    expect(
-      screen.queryByRole('link', { name: /Imported article/i }),
-    ).not.toBeInTheDocument();
-  });
-
-  it('test_reading_home_given_import_button_click_expect_paste_sheet_opens', async () => {
-    const user = userEvent.setup();
-    getReadingHome.mockResolvedValue({ todaysStory: null, sections: [] });
-
-    renderPage();
-
-    const importButton = await screen.findByRole('button', {
-      name: /Import text/i,
-    });
-    await user.click(importButton);
-
-    // The paste sheet's textarea becomes visible.
-    expect(
-      await screen.findByPlaceholderText('Paste text here…'),
-    ).toBeInTheDocument();
-  });
-
-  it('test_reading_home_given_imports_fetch_fails_expect_shelf_hidden', async () => {
-    // A failed preview fetch on the home must not break the home; the
-    // curated sections keep rendering. The shelf renders nothing.
-    getReadingHome.mockResolvedValue({ todaysStory: null, sections: [] });
-    listImports.mockRejectedValue(new Error('imports down'));
-
-    renderPage();
-
-    // Wait for the curated empty state so the home has settled.
-    expect(
-      await screen.findByText('No stories available yet.'),
-    ).toBeInTheDocument();
-    // No "Your imports" shelf header (it renders nothing on error).
-    expect(
-      screen.queryByRole('heading', { name: 'Your imports' }),
-    ).not.toBeInTheDocument();
   });
 });

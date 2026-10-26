@@ -1,8 +1,7 @@
+import { Toaster } from '@flyt/ui/sonner';
 import { MotionConfig } from 'motion/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
-
-import { Toaster } from '@/components/ui/sonner';
 
 import { routeTree } from './routeTree.gen';
 

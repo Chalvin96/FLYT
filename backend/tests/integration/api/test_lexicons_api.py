@@ -137,6 +137,7 @@ async def test_search_given_hyphen_expect_lemmas_returned(client: AsyncClient) -
 
 async def test_search_given_lemma_with_word_forms_and_translation_expect_full_payload(
     client: AsyncClient,
+    db: AsyncSession,
 ) -> None:
     lemma = await LemmaFactory.create(
         word="gå", pos="verb", hgno=1, primary_translation="walk"
@@ -148,6 +149,7 @@ async def test_search_given_lemma_with_word_forms_and_translation_expect_full_pa
         translation="walk",
         examples_json=[{"no": "Jeg går hjem.", "en": None}],
     )
+    db.expunge_all()
 
     response = await client.get("/lexicons/search", params={"query": "går"})
     assert response.status_code == HTTPStatus.OK
@@ -241,6 +243,7 @@ async def test_suggestions_given_prefix_match_expect_suggestions_returned(
 
 async def test_suggestions_given_expression_alias_expect_readable_label(
     client: AsyncClient,
+    db: AsyncSession,
 ) -> None:
     lemma = await LemmaFactory.create(
         word="få [stelle|lage] i stand", pos="expression", hgno=1
@@ -263,6 +266,7 @@ async def test_suggestions_given_expression_alias_expect_readable_label(
         normalized_alias="lage i stand",
         ordinal=2,
     )
+    db.expunge_all()
 
     response = await client.get("/lexicons/suggestions", params={"query": "få i"})
 
@@ -440,6 +444,7 @@ async def test_suggestions_given_word_form_match_ranks_above_headword_prefix_mat
 
 async def test_browse_given_canonical_alias_collision_expect_both_owners(
     client: AsyncClient,
+    db: AsyncSession,
 ) -> None:
     canonical = await LemmaFactory.create(word="få i stand", hgno=1)
     expression = await LemmaFactory.create(
@@ -451,6 +456,7 @@ async def test_browse_given_canonical_alias_collision_expect_both_owners(
         normalized_alias="få i stand",
         is_primary=True,
     )
+    db.expunge_all()
 
     response = await client.get("/lexicons/browse", params={"q": "få i stand"})
 
@@ -649,6 +655,7 @@ async def test_resolve_given_expression_alias_expect_display_forms(
 
 async def test_definitions_given_expression_alias_expect_natural_lemma_summary(
     client: AsyncClient,
+    db: AsyncSession,
 ) -> None:
     lemma = await LemmaFactory.create(
         word="få [stelle|lage] i stand", pos="expression", hgno=1
@@ -666,6 +673,7 @@ async def test_definitions_given_expression_alias_expect_natural_lemma_summary(
         ordinal=1,
     )
     await DefinitionFactory.create(lemma=lemma)
+    db.expunge_all()
 
     response = await client.get(f"/lexicons/lemmas/{lemma.uuid}/definitions")
 
@@ -777,6 +785,7 @@ async def test_resolve_given_anonymous_no_auth_required(
 
 async def test_resolve_given_multiple_definitions_expect_all_mapped(
     client: AsyncClient,
+    db: AsyncSession,
 ) -> None:
     lemma = await LemmaFactory.create(word="hus", hgno=1)
     await WordFormFactory.create(form="hus", lemma=lemma)
@@ -784,6 +793,7 @@ async def test_resolve_given_multiple_definitions_expect_all_mapped(
         lemma=lemma, definition="a building", translation="bygning"
     )
     await DefinitionFactory.create(lemma=lemma, definition="a home", translation="hjem")
+    db.expunge_all()
 
     response = await client.get("/lexicons/resolve", params={"word": "hus"})
     assert response.status_code == HTTPStatus.OK
@@ -920,6 +930,7 @@ async def test_definitions_given_resolved_see_also_target_has_uuid(
         relation="see",
         ordinal=0,
     )
+    db.expunge_all()
 
     response = await client.get(f"/lexicons/lemmas/{source.uuid}/definitions")
 
@@ -980,6 +991,7 @@ async def test_definitions_given_no_see_also_returns_empty_list(
 
 async def test_list_my_lemmas_given_learning_and_mastered_expect_correct_counts(
     client: AsyncClient,
+    db: AsyncSession,
 ) -> None:
     user = await UserFactory.create()
     lemma_learning = await LemmaFactory.create(word="gå")
@@ -990,6 +1002,7 @@ async def test_list_my_lemmas_given_learning_and_mastered_expect_correct_counts(
     # lemma_other is not in the user's vocabulary — must be excluded.
     await UserLemmaFactory.create(lemma=lemma_other, is_mastered=False)
     await authenticate(client, user)
+    db.expunge_all()
 
     response = await client.get("/me/lemmas")
 

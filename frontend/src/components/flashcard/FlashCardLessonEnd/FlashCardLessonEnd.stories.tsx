@@ -1,28 +1,30 @@
+import { Button } from '@flyt/ui';
 import type { Meta, StoryObj } from '@storybook/react';
+import { Link, RouterProvider } from '@tanstack/react-router';
+
+import { createStoryRouter } from '@/test/router';
 
 import { FlashCardLessonEnd } from './FlashCardLessonEnd';
 
 const meta = {
-  title: 'Flashcard/FlashCardLessonEnd',
+  title: 'Features/Flashcard/FlashCardLessonEnd',
   component: FlashCardLessonEnd,
   tags: ['autodocs'],
   parameters: {
     docs: {
       description: {
         component: `
-**FlashCardLessonEnd** is shown after all cards in a lesson have been reviewed.
-It does not take a \`card\` prop — it is a purely presentational screen with no card data.
-
-A **Finish** button appears when \`onFinished\` is provided. If omitted the button is hidden,
-which is useful for preview or inline embedding contexts.
+Shown after the learner completes a lesson. The caller supplies the primary
+action label, optional secondary action, and any save or queue error. The
+actions appear when \`onPrimaryAction\` is provided.
         `.trim(),
       },
     },
   },
   argTypes: {
-    onFinished: {
+    onPrimaryAction: {
       description:
-        'Called when the user clicks **Finish**. If omitted, the button is not rendered.',
+        'Called when the user clicks the primary action. Omit to hide the actions.',
       table: { type: { summary: '() => void | undefined' } },
     },
     className: {
@@ -36,17 +38,58 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
+  render: (args) => {
+    const router = createStoryRouter(
+      <FlashCardLessonEnd {...args} />,
+      ['/'],
+      ['/', '/lesson'],
+    );
+    return <RouterProvider router={router} />;
+  },
   args: {
-    onFinished: () => console.log('finished'),
+    onPrimaryAction: () => console.log('primary action'),
+    secondaryAction: (
+      <Button asChild variant="link">
+        <Link to="/lesson">Back to lessons</Link>
+      </Button>
+    ),
   },
 };
+export const ReviewReady: Story = {
+  ...Default,
+  args: {
+    ...Default.args,
+    primaryActionLabel: 'Review 3 cards',
+    completedCount: 5,
+    hasReviewCards: true,
+  },
+};
+
+export const LoadingReview: Story = {
+  ...Default,
+  args: {
+    ...Default.args,
+    primaryActionLabel: 'Loading review…',
+    isSubmitting: true,
+  },
+};
+
+export const QueueError: Story = {
+  ...Default,
+  args: {
+    ...Default.args,
+    primaryActionLabel: 'Try again',
+    errorMessage: 'Could not load your review queue.',
+  },
+};
+
 export const WithoutButton: Story = {
-  name: 'Edge — No Finish Button',
+  name: 'No actions',
   parameters: {
     docs: {
       description: {
         story:
-          'When `onFinished` is omitted the Finish button is not rendered.',
+          'When `onPrimaryAction` is omitted the actions are not rendered.',
       },
     },
   },

@@ -2,11 +2,17 @@
 
 import {
   AudioPlayButton,
+  Glyph,
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  textVariants,
 } from '@flyt/ui';
+import { cn } from '@flyt/ui/lib/utils';
+import type { GlyphSize, TextSize } from '@flyt/ui';
+
+export type PronunciationPresentation = 'default' | 'flashcard';
 
 export interface PronunciationRowProps {
   ipa?: string | null;
@@ -15,10 +21,8 @@ export interface PronunciationRowProps {
   intonation?: string | null;
   audioUrl?: string | null;
   size?: 'sm' | 'md';
-  className?: string;
-  audioClassName?: string;
-  audioPosition?: 'leading' | 'trailing';
-  audioAppearance?: 'default' | 'quiet';
+  /** `flashcard` puts the quiet audio control after the metadata, inset into the band. */
+  presentation?: PronunciationPresentation;
 }
 
 const TONE_META = {
@@ -27,23 +31,52 @@ const TONE_META = {
     ariaLabel: 'Tone 1',
     tooltip:
       'Tone 1 — pitch falls on the stressed syllable. Common in monosyllabic words and singular noun forms.',
-    // Square viewBox: plateau then fall
     path: 'M1,5 L11,5 L15,14',
-    className: 'border-primary-20 bg-primary-10 text-primary-90',
+    className: 'border-brand-subtle bg-brand-subtle text-selected',
   },
   '2': {
     label: 'T2',
     ariaLabel: 'Tone 2',
     tooltip:
       'Tone 2 — pitch rises then falls sharply. The characteristic sing-song melody of Norwegian.',
-    // Square viewBox: rise then fall
     path: 'M1,14 L8,3 L15,14',
-    className: 'border-accent-30 bg-accent-10 text-accent-90',
+    className: 'border-success-subtle bg-success-subtle text-success',
   },
 } as const;
 
+type Tone = keyof typeof TONE_META;
+
+const APPROXIMATE_INDICATOR_LAYOUT: Record<'sm' | 'md', string> = {
+  sm: '-top-1 h-3 w-1.5',
+  md: '-top-1.5 h-3.5 w-2',
+};
+
+const APPROXIMATE_INDICATOR_SIZE: Record<'sm' | 'md', GlyphSize> = {
+  sm: '4xs',
+  md: '2xs',
+};
+
+const PITCH_BADGE_PADDING: Record<'sm' | 'md', string> = {
+  sm: 'py-0',
+  md: 'py-0.5',
+};
+
+const PITCH_ICON_SIZE: Record<'sm' | 'md', string> = {
+  sm: 'icon-xs',
+  md: 'icon-sm',
+};
+
+const PITCH_LABEL_SIZE: Record<'sm' | 'md', GlyphSize> = {
+  sm: '4xs',
+  md: '3xs',
+};
+
+const PRONUNCIATION_IPA_SIZE: Record<'sm' | 'md', TextSize> = {
+  sm: 'xs',
+  md: 'sm',
+};
+
 function ApproximateIndicator({ size }: { size: 'sm' | 'md' }) {
-  const isSm = size === 'sm';
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -52,15 +85,12 @@ function ApproximateIndicator({ size }: { size: 'sm' | 'md' }) {
           aria-label="Pronunciation generated automatically."
           tabIndex={0}
           data-testid="ipa-approximate-marker"
-          className={`relative inline-flex cursor-help items-start justify-center text-secondary-80 after:absolute after:inset-[-8px] after:content-[''] focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${isSm ? '-top-1 h-3 w-1.5 text-[9px]' : '-top-1.5 h-3.5 w-2 text-[11px]'}`}
+          className={`relative inline-flex cursor-help items-start justify-center text-subtle after:absolute after:inset-[-8px] after:content-[''] focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focused)] focus-visible:ring-offset-1 ${APPROXIMATE_INDICATOR_LAYOUT[size]}`}
         >
-          *
+          <Glyph size={APPROXIMATE_INDICATOR_SIZE[size]}>*</Glyph>
         </span>
       </TooltipTrigger>
-      <TooltipContent
-        side="top"
-        className="max-w-[210px] text-center type-caption-sm leading-snug"
-      >
+      <TooltipContent side="top" width="narrow">
         Pronunciation generated automatically.
       </TooltipContent>
     </Tooltip>
@@ -71,11 +101,10 @@ function PitchBadge({
   intonation,
   size,
 }: {
-  intonation: '1' | '2';
+  intonation: Tone;
   size: 'sm' | 'md';
 }) {
   const meta = TONE_META[intonation];
-  const isSm = size === 'sm';
 
   return (
     <Tooltip>
@@ -84,7 +113,7 @@ function PitchBadge({
           role="img"
           aria-label={meta.ariaLabel}
           tabIndex={0}
-          className={`inline-flex shrink-0 cursor-default items-center gap-1 rounded border px-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${isSm ? 'py-0' : 'py-0.5'} ${meta.className}`}
+          className={`inline-flex shrink-0 cursor-default items-center gap-1 rounded-[0.25rem] border px-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focused)] focus-visible:ring-offset-1 ${PITCH_BADGE_PADDING[size]} ${meta.className}`}
         >
           <svg
             viewBox="0 0 16 16"
@@ -93,25 +122,61 @@ function PitchBadge({
             strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
-            className={isSm ? 'icon-xs' : 'icon-sm'}
+            className={PITCH_ICON_SIZE[size]}
             aria-hidden="true"
           >
             <path d={meta.path} />
           </svg>
-          <span
-            className={`font-mono font-semibold leading-none ${isSm ? 'text-[9px]' : 'text-[10px]'}`}
-          >
+          <Glyph font="mono" size={PITCH_LABEL_SIZE[size]} weight="semibold">
             {meta.label}
-          </span>
+          </Glyph>
         </span>
       </TooltipTrigger>
-      <TooltipContent
-        side="top"
-        className="max-w-[220px] text-center type-caption-sm leading-snug"
-      >
+      <TooltipContent side="top" width="narrow">
         {meta.tooltip}
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+function PronunciationAudio({
+  presentation,
+  size,
+  src,
+}: {
+  presentation: PronunciationPresentation;
+  size: 'sm' | 'md';
+  src: string;
+}) {
+  const isFlashcard = presentation === 'flashcard';
+  const button = (
+    <AudioPlayButton
+      presentation={isFlashcard ? 'compact-quiet' : 'compact'}
+      label="Play pronunciation"
+      playingLabel="Playing pronunciation"
+      size={size}
+      src={src}
+    />
+  );
+
+  if (!isFlashcard) return button;
+  return <span className="-m-2 inline-flex">{button}</span>;
+}
+
+function PronunciationIpa({ ipa, size }: { ipa: string; size: 'sm' | 'md' }) {
+  return (
+    <span
+      className={cn(
+        'min-w-0 max-w-full break-words',
+        textVariants({
+          size: PRONUNCIATION_IPA_SIZE[size],
+          font: 'mono',
+          tone: 'subtle',
+        }),
+      )}
+    >
+      /{ipa}/
+    </span>
   );
 }
 
@@ -121,53 +186,28 @@ export function PronunciationRow({
   intonation,
   audioUrl,
   size = 'md',
-  className = '',
-  audioClassName = '',
-  audioPosition = 'leading',
-  audioAppearance = 'default',
+  presentation = 'default',
 }: PronunciationRowProps) {
   if (!ipa && !intonation && !audioUrl) return null;
 
+  const isFlashcard = presentation === 'flashcard';
   const tone = intonation === '1' || intonation === '2' ? intonation : null;
-  const audioLeading = audioUrl && audioPosition === 'leading';
-  const audioTrailing = audioUrl && audioPosition === 'trailing';
+  const audio = audioUrl ? (
+    <PronunciationAudio
+      presentation={presentation}
+      size={size}
+      src={audioUrl}
+    />
+  ) : null;
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div
-        className={`flex min-w-0 flex-wrap items-center gap-2 ${className}`.trim()}
-      >
-        {audioLeading && (
-          <AudioPlayButton
-            src={audioUrl}
-            tone="compact"
-            size={size}
-            label="Play pronunciation"
-            playingLabel="Playing pronunciation"
-            className={audioClassName}
-            compactAppearance={audioAppearance}
-          />
-        )}
-        {ipa && (
-          <span
-            className={`min-w-0 max-w-full break-words font-mono text-secondary-80 ${size === 'sm' ? 'type-caption-sm' : 'type-caption'}`}
-          >
-            /{ipa}/
-          </span>
-        )}
-        {ipa && ipaApproximate && <ApproximateIndicator size={size} />}
-        {tone && <PitchBadge intonation={tone} size={size} />}
-        {audioTrailing && (
-          <AudioPlayButton
-            src={audioUrl}
-            tone="compact"
-            size={size}
-            label="Play pronunciation"
-            playingLabel="Playing pronunciation"
-            className={audioClassName}
-            compactAppearance={audioAppearance}
-          />
-        )}
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        {isFlashcard ? null : audio}
+        {ipa ? <PronunciationIpa ipa={ipa} size={size} /> : null}
+        {ipa && ipaApproximate ? <ApproximateIndicator size={size} /> : null}
+        {tone ? <PitchBadge intonation={tone} size={size} /> : null}
+        {isFlashcard ? audio : null}
       </div>
     </TooltipProvider>
   );

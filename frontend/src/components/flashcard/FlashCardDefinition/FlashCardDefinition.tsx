@@ -1,18 +1,14 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type RefObject,
-} from 'react';
+import { Button } from '@flyt/ui';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 
-import { Button } from '@/components/common/Button/Button';
 import { FlashcardActionFooter } from '@/components/flashcard/FlashcardActionFooter';
 import {
   flashCardFooterClassName,
   flashCardPanelClassName,
 } from '@/components/flashcard/FlashCardFrame';
 import { RatingButtons } from '@/components/flashcard/RatingButtons/RatingButtons';
+import { useExerciseAttempt } from '@/hooks/flashcard/useExerciseAttempt/useExerciseAttempt';
+import type { ExerciseOutcome } from '@/lib/operationResult';
 import { cn } from '@/lib/utils';
 import type {
   DefinitionRead,
@@ -22,18 +18,16 @@ import type {
   WordFormRead,
 } from '@/types/api';
 
+import type { FinishHandler } from '../operationTypes';
 import { buildDefinitionCardView } from './definitionCardView';
 import { FlashCardDefinitionBack } from './FlashCardDefinitionBack';
 import { FlashCardDefinitionFront } from './FlashCardDefinitionFront';
 
-// The definition card fills its container (full width on mobile, as wide as the
-// page allows on desktop) instead of the narrow shared exercise width. The
-// width-agnostic flashCardPanelClassName base is used directly here.
-
 export interface FlashCardDefinitionProps {
   card: FlashCardRenderable;
+  allowRetry: boolean;
   wordForms?: WordFormRead[];
-  onFinished?: (rating: number) => void;
+  onFinished?: FinishHandler<ExerciseOutcome>;
   isSubmitting?: boolean;
   className?: string;
   desktopExpanded?: boolean;
@@ -44,6 +38,7 @@ const EMPTY_WORD_FORMS: WordFormRead[] = [];
 
 export const FlashCardDefinition = ({
   card,
+  allowRetry,
   wordForms = EMPTY_WORD_FORMS,
   onFinished,
   isSubmitting = false,
@@ -52,6 +47,7 @@ export const FlashCardDefinition = ({
 }: FlashCardDefinitionProps) => {
   const context = contextProp ?? card.context ?? null;
   const [isFlipped, setIsFlipped] = useState(false);
+  const { finishRating } = useExerciseAttempt({ allowRetry, onFinished });
   const backHeadingRef = useRef<HTMLHeadingElement>(null);
   const view = buildDefinitionCardView(card, wordForms);
 
@@ -61,21 +57,10 @@ export const FlashCardDefinition = ({
     if (isFlipped) backHeadingRef.current?.focus();
   }, [isFlipped]);
 
-  const handleRate = useCallback(
-    (rating: 1 | 2 | 3 | 4) => {
-      onFinished?.(rating);
-    },
-    [onFinished],
-  );
-
   if (!view) {
     return null;
   }
 
-  // Front and back cross-fade in the same layer. We deliberately avoid a 3D
-  // flip (rotateY/perspective/backface-visibility): a 3D rendering context on an
-  // ancestor of the scrollable definition list traps mouse-wheel scrolling in
-  // some browsers (Firefox). Opacity creates no such context.
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col', className)}>
       <div className="relative flex min-h-0 flex-1">
@@ -115,8 +100,8 @@ export const FlashCardDefinition = ({
               ipaApproximate={view.ipaApproximate}
               isSubmitting={isSubmitting}
               isVerb={view.isVerb}
-              onFinished={onFinished}
-              onRate={handleRate}
+              showRatings={Boolean(onFinished)}
+              onRate={finishRating}
               pos={view.pos}
               primaryTranslation={view.primaryTranslation}
               primaryDisplayForm={view.primaryDisplayForm}
@@ -171,10 +156,9 @@ function DefinitionFrontLayer({
         <div className={flashCardFooterClassName}>
           <FlashcardActionFooter>
             <Button
-              className="w-full"
+              width="full"
               disabled={isFlipped || isSubmitting}
               onClick={onFlip}
-              size="default"
               type="button"
             >
               Check answer
@@ -198,7 +182,7 @@ function DefinitionBackLayer({
   ipaApproximate,
   isSubmitting,
   isVerb,
-  onFinished,
+  showRatings,
   onRate,
   pos,
   primaryTranslation,
@@ -219,7 +203,7 @@ function DefinitionBackLayer({
   ipaApproximate: boolean;
   isSubmitting: boolean;
   isVerb: boolean;
-  onFinished?: (rating: number) => void;
+  showRatings: boolean;
   onRate: (rating: 1 | 2 | 3 | 4) => void;
   pos: LemmaPos | undefined;
   primaryTranslation: string;
@@ -251,7 +235,7 @@ function DefinitionBackLayer({
           headingRef={headingRef}
         />
       </div>
-      {onFinished ? (
+      {showRatings ? (
         <div className={cn(flashCardFooterClassName, 'sticky bottom-0 z-10')}>
           <RatingButtons
             disabled={isSubmitting}

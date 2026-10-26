@@ -1,21 +1,26 @@
 import { useEffect, useRef } from 'react';
 
-export function useReaderPageTransition(settledPageIndex: number | undefined) {
+export function useReaderPageTransition(
+  settledPageIndex: number | undefined,
+  finished = false,
+  onTransition?: (article: HTMLElement | null) => void,
+) {
   const articleRef = useRef<HTMLElement>(null);
-  const settledIndexRef = useRef<number | null>(null);
+  const settledViewRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (settledPageIndex === undefined) return;
-
-    const previousIndex = settledIndexRef.current;
-    settledIndexRef.current = settledPageIndex;
-    if (previousIndex === null || previousIndex === settledPageIndex) return;
-
+    const view = `${settledPageIndex}:${finished}`;
+    const previous = settledViewRef.current;
+    settledViewRef.current = view;
+    if (previous === undefined || previous === view) return;
     const article = articleRef.current;
+    onTransition?.(article);
     if (!article) return;
     article.focus({ preventScroll: true });
-    article.scrollIntoView({ block: 'start' });
-  }, [settledPageIndex]);
+    const scroller = article.closest('main');
+    if (scroller) scroller.scrollTop = 0;
+  }, [settledPageIndex, finished, onTransition]);
 
   return articleRef;
 }

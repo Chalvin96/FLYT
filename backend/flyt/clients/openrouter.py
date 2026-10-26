@@ -125,6 +125,8 @@ class OpenRouterProvider(ModelProvider):
         }
         if request.max_tokens is not None:
             payload["max_tokens"] = request.max_tokens
+        if request.temperature is not None:
+            payload["temperature"] = request.temperature
 
         headers = {
             "Authorization": f"Bearer {api_key}",

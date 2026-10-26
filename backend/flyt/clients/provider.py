@@ -37,6 +37,7 @@ class GenerationRequest:
     instructions: str
     prompt: str
     max_tokens: int | None = None
+    temperature: float | None = None
 
 
 @dataclass(frozen=True)

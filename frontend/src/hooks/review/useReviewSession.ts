@@ -1,8 +1,10 @@
+import { toast } from 'sonner';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { dashboardKeys } from '@/hooks/dashboard/queries';
 import { reviewKeys, useDueCards, useReviewCard } from '@/hooks/review/queries';
+import type { ExerciseOutcome } from '@/lib/operationResult';
 import {
   applyReview,
   buildQueue,
@@ -13,109 +15,123 @@ import {
 } from '@/lib/sessionQueue';
 import type { ReviewSubmissionBody, UserCard } from '@/types/api';
 
-type SessionStatus = 'card' | 'done' | 'error';
+import { getReviewErrorToastMessage } from './reviewSessionErrors';
 
-interface UseReviewSessionResult {
-  isLoading: boolean;
-  isError: boolean;
-  error: unknown;
-  isRetrying: boolean;
-  retry: () => Promise<unknown>;
-  currentCard: UserCard | undefined;
-  status: SessionStatus;
-  counts: QueueCounts;
-  isSubmitting: boolean;
-  presentationSeq: number;
-  currentCardAhead: boolean;
-  submitReview: (args: {
-    submission: ReviewSubmissionBody;
-  }) => Promise<{ accepted: boolean }>;
+type SessionSummary = {
+  reviewedCount: number;
+  accuracy: number | null;
+};
+
+export type ReviewSessionState =
+  | { kind: 'loading' }
+  | {
+      kind: 'error';
+      message: string;
+      isRetrying: boolean;
+      retry: () => Promise<unknown>;
+    }
+  | { kind: 'empty' }
+  | {
+      kind: 'complete';
+      counts: QueueCounts;
+      summary: SessionSummary;
+    }
+  | {
+      kind: 'card';
+      card: UserCard;
+      presentationKey: string;
+      ahead: boolean;
+      counts: QueueCounts;
+      summary: SessionSummary;
+      isSubmitting: boolean;
+      submitOutcome: (outcome: ExerciseOutcome) => Promise<boolean>;
+    };
+
+function submissionFromOutcome(
+  outcome: ExerciseOutcome,
+  reviewVersion: number,
+): ReviewSubmissionBody {
+  return outcome.kind === 'graded'
+    ? {
+        outcome: 'graded',
+        rating: outcome.rating,
+        review_version: reviewVersion,
+      }
+    : { outcome: outcome.outcome, review_version: reviewVersion };
 }
 
-export function useReviewSession(
-  mode: 'quick' | 'full',
-): UseReviewSessionResult {
+export function useReviewSession(mode: 'quick' | 'full'): ReviewSessionState {
   const queryClient = useQueryClient();
-  const { data, error, isError, isFetching, isPending, refetch } = useDueCards(
+  const { data, error, isError, isFetching, refetch } = useDueCards(
     mode,
     true,
     {
-      refetchOnMount: true,
+      refetchOnMount: 'always',
       refetchOnReconnect: false,
       refetchOnWindowFocus: false,
     },
   );
   const { reviewCard } = useReviewCard();
 
-  const [queue, setQueue] = useState<SessionQueue | undefined>(undefined);
+  const [queue, setQueue] = useState<SessionQueue>();
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [lastShownUserCardId, setLastShownUserCardId] = useState<number>();
+  const [reviewedCount, setReviewedCount] = useState(0);
+  const [gradedCount, setGradedCount] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
+  const [presentationSeq, setPresentationSeq] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const inFlightRef = useRef(false);
 
   if (queue === undefined && data !== undefined && !isFetching) {
     setQueue(buildQueue(data));
   }
 
-  const [nowMs, setNowMs] = useState(() => Date.now());
-
-  const [lastShownUserCardId, setLastShownUserCardId] = useState<
-    number | undefined
-  >(undefined);
-
-  const inFlightRef = useRef(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [presentationSeq, setPresentationSeq] = useState(0);
-
   const next =
-    queue !== undefined
-      ? showNext(queue, nowMs, lastShownUserCardId)
-      : undefined;
-
+    queue === undefined
+      ? undefined
+      : showNext(queue, nowMs, lastShownUserCardId);
   const currentCard = next?.kind === 'card' ? next.card : undefined;
-  const status: SessionStatus =
-    isError && queue === undefined ? 'error' : (next?.kind ?? 'done');
-  const currentCardAhead = next?.kind === 'card' ? next.ahead : false;
-  const currentCounts =
-    queue !== undefined
-      ? countQueue(queue)
-      : { new: 0, learning: 0, review: 0 };
 
-  const submitReview = useCallback(
-    async ({
-      submission,
-    }: {
-      submission: ReviewSubmissionBody;
-    }): Promise<{ accepted: boolean }> => {
-      if (inFlightRef.current) return { accepted: false };
-      const card = currentCard;
-      if (card === undefined) return { accepted: false };
+  const submitOutcome = useCallback(
+    async (outcome: ExerciseOutcome): Promise<boolean> => {
+      if (inFlightRef.current || currentCard === undefined) return false;
 
+      const submission = submissionFromOutcome(
+        outcome,
+        currentCard.review_version,
+      );
       inFlightRef.current = true;
       setIsSubmitting(true);
       try {
-        const res = await reviewCard({
-          userCardId: card.id,
+        const result = await reviewCard({
+          userCardId: currentCard.id,
           submission,
-          cardId: card.card.id,
+          cardId: currentCard.card.id,
         });
 
         const reviewedAt = Date.now();
         setNowMs(reviewedAt);
-        setQueue((q) => {
-          if (q === undefined) return q;
+        setQueue((currentQueue) => {
+          if (currentQueue === undefined) return currentQueue;
           if (submission.outcome !== 'graded') {
-            const next = new Map(q.cards);
-            next.delete(card.id);
-            return { cards: next };
+            const remaining = new Map(currentQueue.cards);
+            remaining.delete(currentCard.id);
+            return { cards: remaining };
           }
-          return applyReview(
-            q,
-            card.id,
-            res.card_state,
-            Date.parse(res.due_at),
-            reviewedAt,
-          );
+          return applyReview(currentQueue, currentCard.id, result, reviewedAt);
         });
-        setLastShownUserCardId(card.id);
-        setPresentationSeq((n) => n + 1);
-        return { accepted: true };
+        setLastShownUserCardId(currentCard.id);
+        setPresentationSeq((sequence) => sequence + 1);
+        setReviewedCount((count) => count + 1);
+        if (outcome.kind === 'graded') {
+          setGradedCount((count) => count + 1);
+          if (outcome.correct) setCorrectCount((count) => count + 1);
+        }
+        return true;
+      } catch (error) {
+        toast.error(getReviewErrorToastMessage(error));
+        return false;
       } finally {
         inFlightRef.current = false;
         setIsSubmitting(false);
@@ -127,7 +143,10 @@ export function useReviewSession(
   useEffect(
     () => () => {
       void Promise.all([
-        queryClient.invalidateQueries({ queryKey: reviewKeys.dueCards.all }),
+        queryClient.invalidateQueries({
+          queryKey: reviewKeys.dueCards.all,
+          refetchType: 'none',
+        }),
         queryClient.invalidateQueries({ queryKey: reviewKeys.decks.all }),
         queryClient.invalidateQueries({ queryKey: dashboardKeys.stats }),
       ]);
@@ -135,18 +154,43 @@ export function useReviewSession(
     [queryClient],
   );
 
+  if (isError && queue === undefined) {
+    return {
+      kind: 'error',
+      message: getReviewErrorToastMessage(error),
+      isRetrying: isFetching,
+      retry: refetch,
+    };
+  }
+
+  if (queue === undefined || next === undefined) return { kind: 'loading' };
+
+  const counts = countQueue(queue);
+  const summary = {
+    reviewedCount,
+    accuracy:
+      gradedCount > 0 ? Math.round((correctCount / gradedCount) * 100) : null,
+  };
+
+  if (next.kind === 'done') {
+    if (reviewedCount === 0 && queue.cards.size === 0) {
+      return { kind: 'empty' };
+    }
+    return {
+      kind: 'complete',
+      counts,
+      summary,
+    };
+  }
+
   return {
-    isLoading: isPending && queue === undefined,
-    isError: isError && queue === undefined,
-    error,
-    isRetrying: isFetching && !isPending,
-    retry: refetch,
-    currentCard,
-    status,
-    counts: currentCounts,
+    kind: 'card',
+    card: next.card,
+    presentationKey: `${next.card.id}-${presentationSeq}`,
+    ahead: next.ahead,
+    counts,
+    summary,
     isSubmitting,
-    presentationSeq,
-    currentCardAhead,
-    submitReview,
+    submitOutcome,
   };
 }

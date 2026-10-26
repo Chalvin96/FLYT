@@ -59,8 +59,8 @@ def test_evaluation_request_given_generic_case_expect_private_policy_and_respons
     request = build_evaluation_request(_evaluation_case("Jeg står opp klokken sju."))
 
     assert "Assess the learner response." in request.instructions
-    assert "c1: Use present tense." in request.prompt
-    assert "Jeg står opp klokken sju." in request.prompt
+    assert "c1: Use present tense." in request.instructions
+    assert request.prompt == "Jeg står opp klokken sju."
 
 
 def test_parse_criterion_verdicts_given_complete_json_expect_criterion_results() -> (

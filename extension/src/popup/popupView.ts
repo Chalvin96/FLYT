@@ -1,7 +1,14 @@
 import type { LemmaContext } from "../lib/messages";
 import type { ResolveResponse } from "../lib/resolve-types";
 import type { PopupState } from "./Popup";
+import type { WordLookup } from "./usePopupWordLookup";
 export type VisiblePopupState = Exclude<PopupState, { kind: "hidden" }>;
+
+export type SelectionFallback = {
+  originalState: PopupState;
+  sessionId: number;
+  word: string;
+};
 
 export type Override =
   | { kind: "none" }
@@ -11,16 +18,28 @@ export type Override =
 export type View =
   | { kind: "loading"; word: string }
   | { kind: "result"; res: ResolveResponse }
-  | { kind: "selection"; selection: LemmaContext }
+  | { kind: "selection"; selection: LemmaContext; text?: string }
   | { kind: "signIn" }
-  | { kind: "error" }
+  | Extract<VisiblePopupState, { kind: "error" }>
   | { kind: "search"; query: string };
 
-/**
- * The override the user drove from inside the popup (search / picked
- * result) wins over the state the extension pushed in.
- */
-export function deriveView(override: Override, state: VisiblePopupState): View {
+export function deriveView(
+  override: Override,
+  state: VisiblePopupState,
+  wordLookup: WordLookup,
+): View {
+  if (state.kind !== "selection" || override.kind === "search") {
+    if (wordLookup.kind === "loading") {
+      return { kind: "loading", word: wordLookup.token.word };
+    }
+    if (wordLookup.kind === "error") {
+      return {
+        kind: "error",
+        ...wordLookup.failure,
+        word: wordLookup.token.word,
+      };
+    }
+  }
   if (override.kind === "search") {
     return { kind: "search", query: override.query };
   }
@@ -33,17 +52,46 @@ export function deriveView(override: Override, state: VisiblePopupState): View {
     case "loading":
       return { kind: "loading", word: state.word };
     case "selection":
-      return { kind: "selection", selection: state.selection };
+      return state;
     case "signIn":
       return { kind: "signIn" };
     case "error":
-      return { kind: "error" };
+      return state;
     default:
       return { kind: "search", query: "" };
   }
 }
 
-/** Remounts the body when the underlying lookup target changes. */
+export function derivePopupState(
+  state: PopupState,
+  sessionId: number,
+  fallback: SelectionFallback | null,
+): PopupState {
+  if (
+    !fallback ||
+    fallback.originalState !== state ||
+    fallback.sessionId !== sessionId
+  ) {
+    return state;
+  }
+  return {
+    kind: "selection",
+    selection: findResultContext(state) ?? { source_sentence: fallback.word },
+    text: fallback.word,
+  };
+}
+
+export function findResultContext(state: PopupState): LemmaContext | undefined {
+  if (state.kind === "selection") return state.selection;
+  if (
+    state.kind === "result" ||
+    state.kind === "loading" ||
+    state.kind === "error"
+  )
+    return state.context;
+  return undefined;
+}
+
 export function buildLookupKey(state: VisiblePopupState): string {
   switch (state.kind) {
     case "loading":
@@ -52,6 +100,8 @@ export function buildLookupKey(state: VisiblePopupState): string {
       return state.res.query;
     case "selection":
       return state.selection.source_sentence;
+    case "error":
+      return `error:${state.word ?? ""}:${state.error ?? "unknown"}`;
     default:
       return "__" + state.kind + "__";
   }

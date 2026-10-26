@@ -1,9 +1,5 @@
 import type { ImportItem } from '@/types/api';
-
-const IMPORT_PUBLISHED_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-});
+import { parseUtcTimestamp } from '@/utils/date';
 
 export type ImportCardStatus = 'processing' | 'ready' | 'failed';
 
@@ -19,13 +15,6 @@ export const IMPORT_STATUS_LABELS: Record<ImportCardStatus, string> = {
   failed: 'Failed',
 };
 
-export const IMPORT_STATUS_CHIP_CLASS_NAMES: Record<ImportCardStatus, string> =
-  {
-    processing: 'border-warning-30 bg-warning-10 text-warning-100',
-    ready: 'border-secondary-40 bg-secondary-10 text-secondary-100',
-    failed: 'border-destructive-40 bg-destructive-10 text-destructive-100',
-  };
-
 export function getImportCoverLabel(item: ImportItem): string {
   if (item.sourceUrl) {
     try {
@@ -38,21 +27,11 @@ export function getImportCoverLabel(item: ImportItem): string {
   return 'Pasted';
 }
 
-export function formatImportShortDate(isoDate: string): string {
-  return IMPORT_PUBLISHED_DATE_FORMATTER.format(new Date(isoDate));
-}
-
-export function formatImportWordCount(wordCount: number): string {
-  const label = wordCount === 1 ? 'word' : 'words';
-  return `${wordCount.toLocaleString()} ${label}`;
-}
-
-/** Status filter values shown in the UI (one chip per label, plus "All"). */
 export const IMPORT_FILTER_VALUES = [
   'all',
-  'ready',
-  'processing',
   'failed',
+  'processing',
+  'ready',
 ] as const;
 
 export type ImportFilterValue = (typeof IMPORT_FILTER_VALUES)[number];
@@ -63,6 +42,20 @@ export const IMPORT_FILTER_LABELS: Record<ImportFilterValue, string> = {
   processing: 'Processing',
   failed: 'Failed',
 };
+
+export function groupImports(items: ImportItem[]) {
+  const sorted = [...items].sort(
+    (left, right) =>
+      parseUtcTimestamp(right.createdAt) - parseUtcTimestamp(left.createdAt),
+  );
+  return {
+    failed: sorted.filter((item) => item.status === 'failed'),
+    processing: sorted.filter(
+      (item) => getImportCardStatus(item) === 'processing',
+    ),
+    ready: sorted.filter((item) => item.status === 'ready'),
+  };
+}
 
 export function normalizeImportText(text: string): string {
   let normalized = text.normalize('NFC');

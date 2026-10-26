@@ -10,6 +10,7 @@ export type LemmaContext = {
 
 export const LEMMA_CONTEXT_MAX_SENTENCE_LENGTH = 2000;
 export const LEMMA_CONTEXT_MAX_TITLE_LENGTH = 300;
+export const TRANSLATE_MAX_TEXT_LENGTH = 2000;
 
 function truncateCodePoints(value: string, maxLength: number): string {
   return Array.from(value).slice(0, maxLength).join('');
@@ -96,12 +97,14 @@ export type MsgResult =
   | {
       ok: false;
       error:
+        | 'permission'
         | 'unauthorized'
         | 'too-large'
         | 'invalid-page'
         | 'quota-reached'
         | 'network'
         | 'unknown';
+      message?: string;
     };
 
 // chrome.runtime.sendMessage's generics default to `any` - an unpinned call site isn't
@@ -111,7 +114,6 @@ export function sendMessage(msg: Msg): Promise<MsgResult> {
   return chrome.runtime.sendMessage<Msg, MsgResult>(msg);
 }
 
-// Service-worker → content-script commands (fire-and-forget, no response).
 export const TAB_CMD = {
   SHOW_FOR: 'showFor',
   SHOW_TRANSLATION: 'showTranslation',
@@ -125,8 +127,14 @@ export type TabCommand =
   | { kind: typeof TAB_CMD.RUN_IMPORT }
   | { kind: typeof TAB_CMD.PING };
 
-// Typed, and swallows the rejection Chrome raises when the target tab has no
-// content-script receiver (restricted pages, tabs older than the install).
-export function sendTabCommand(tabId: number, cmd: TabCommand): void {
-  void chrome.tabs.sendMessage(tabId, cmd).catch(() => {});
+export async function sendTabCommand(
+  tabId: number,
+  cmd: TabCommand,
+): Promise<{ delivered: boolean }> {
+  try {
+    await chrome.tabs.sendMessage(tabId, cmd);
+    return { delivered: true };
+  } catch {
+    return { delivered: false };
+  }
 }

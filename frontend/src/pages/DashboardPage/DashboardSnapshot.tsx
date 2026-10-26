@@ -1,12 +1,14 @@
-import { Flame } from 'lucide-react';
-import { m } from 'motion/react';
-
 import {
+  Heading,
+  Text,
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@flyt/ui';
+import { Flame } from 'lucide-react';
+import { m } from 'motion/react';
+
 import { formatNumber } from '@/lib/utils';
 
 import { cellClass, DAY_LABELS, fadeUp, getCellLevel } from './constants';
@@ -38,14 +40,16 @@ export function DashboardSnapshot({ practiceSnapshot, streak }: Props) {
   return (
     <m.section variants={fadeUp}>
       <TooltipProvider delayDuration={150}>
-        <div className="shadow-soft radius-section border border-border bg-card p-4">
+        <div className="shadow-soft radius-section border border-default bg-raised p-4">
           <div className="flex items-center justify-between gap-3">
-            <p className="type-body font-semibold text-foreground">
+            <Heading as="div" size="small" tone="default">
               Practice snapshot
-            </p>
-            <div className="type-caption flex shrink-0 items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 font-medium text-secondary-90">
+            </Heading>
+            <div className="flex shrink-0 items-center gap-2 rounded-full border border-default bg-neutral-subtle px-3 py-1 text-default">
               <Flame className="icon-sm" strokeWidth={2} />
-              <span>{formatNumber(streak)} day streak</span>
+              <Text as="span" size="medium" weight="semibold">
+                {formatNumber(streak)} day streak
+              </Text>
             </div>
           </div>
 
@@ -57,17 +61,21 @@ export function DashboardSnapshot({ practiceSnapshot, streak }: Props) {
                   {DAY_LABELS.map((day) => (
                     <span
                       key={day.long}
-                      className="type-label-xs w-6 shrink-0 text-center font-medium text-muted-foreground lg:w-8"
+                      className="w-6 shrink-0 text-center lg:w-8"
                     >
-                      {day.short}
+                      <Heading as="span" size="xxsmall" tone="subtle">
+                        {day.short}
+                      </Heading>
                     </span>
                   ))}
                 </div>
 
                 {weekRows.map(({ label, values }) => (
                   <div key={label} className="flex items-center gap-1">
-                    <span className="type-label-xs w-14 shrink-0 whitespace-nowrap pr-2 text-right font-medium text-muted-foreground">
-                      {label}
+                    <span className="w-14 shrink-0 whitespace-nowrap pr-2 text-right">
+                      <Heading as="span" size="xxsmall" tone="subtle">
+                        {label}
+                      </Heading>
                     </span>
                     {values.map((value, di) => {
                       const dayLabel = DAY_LABELS[di]?.long ?? '';
@@ -76,7 +84,7 @@ export function DashboardSnapshot({ practiceSnapshot, streak }: Props) {
                         <Tooltip key={di}>
                           <TooltipTrigger asChild>
                             <div
-                              className={`size-6 shrink-0 cursor-default rounded lg:size-8 ${cellClass(getCellLevel(value))}`}
+                              className={`size-6 shrink-0 cursor-default rounded-sm lg:size-8 ${cellClass(getCellLevel(value))}`}
                               aria-label={`${label}, ${dayLabel}: ${reviewText}`}
                             />
                           </TooltipTrigger>
@@ -90,47 +98,57 @@ export function DashboardSnapshot({ practiceSnapshot, streak }: Props) {
                 ))}
 
                 <div className="mt-1 flex items-center gap-1 pl-14">
-                  <span className="type-caption mr-1 text-muted-foreground">
-                    Less
+                  <span className="mr-1">
+                    <Text as="span" size="medium" tone="subtle">
+                      Less
+                    </Text>
                   </span>
                   {[0, 1, 2, 3, 4, 5].map((level) => (
                     <span
                       key={level}
-                      className={`size-3 shrink-0 rounded ${cellClass(level)}`}
+                      className={`size-3 shrink-0 rounded-sm ${cellClass(level)}`}
                     />
                   ))}
-                  <span className="type-caption ml-1 text-muted-foreground">
-                    More
+                  <span className="ml-1">
+                    <Text as="span" size="medium" tone="subtle">
+                      More
+                    </Text>
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="h-px w-full bg-border" />
+            <div className="h-px w-full bg-neutral-pressed" />
 
             <div className="flex flex-row justify-around gap-3">
               <div>
-                <p className="type-stat font-bold text-foreground">
+                <Heading as="div" size="large" tone="default">
                   {formatNumber(totalReviews)}
-                </p>
-                <p className="type-label mt-1 text-muted-foreground">
-                  Total reviews
+                </Heading>
+                <p className="mt-1">
+                  <Heading as="span" size="xxsmall" tone="subtle">
+                    Total reviews
+                  </Heading>
                 </p>
               </div>
               <div>
-                <p className="type-stat font-bold text-foreground">
+                <Heading as="div" size="large" tone="default">
                   {formatNumber(streak)}
-                </p>
-                <p className="type-label mt-1 text-muted-foreground">
-                  Day streak
+                </Heading>
+                <p className="mt-1">
+                  <Heading as="span" size="xxsmall" tone="subtle">
+                    Day streak
+                  </Heading>
                 </p>
               </div>
               <div>
-                <p className="type-stat font-bold text-foreground">
+                <Heading as="div" size="large" tone="default">
                   {formatNumber(peak)}
-                </p>
-                <p className="type-label mt-1 text-muted-foreground">
-                  Max daily
+                </Heading>
+                <p className="mt-1">
+                  <Heading as="span" size="xxsmall" tone="subtle">
+                    Max daily
+                  </Heading>
                 </p>
               </div>
             </div>

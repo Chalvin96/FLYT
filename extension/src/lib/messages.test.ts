@@ -11,25 +11,25 @@ import {
 afterEach(() => vi.restoreAllMocks());
 
 describe('sendTabCommand', () => {
-  it('test_tab_command_given_receiver_expect_message_sent', () => {
+  it('test_tab_command_given_receiver_expect_delivered', async () => {
     const sendMessage = vi
       .spyOn(chrome.tabs, 'sendMessage')
       .mockResolvedValue(undefined as never);
-    sendTabCommand(7, { kind: TAB_CMD.RUN_IMPORT });
+    await expect(
+      sendTabCommand(7, { kind: TAB_CMD.RUN_IMPORT }),
+    ).resolves.toEqual({ delivered: true });
     expect(sendMessage).toHaveBeenCalledWith(7, { kind: 'runImport' });
   });
 
-  it('test_tab_command_given_no_receiver_expect_rejection_swallowed', async () => {
-    // Chrome rejects when the tab has no content-script receiver (chrome://,
-    // web store, tabs older than the install). Must not surface as unhandled.
+  it('test_tab_command_given_no_receiver_expect_not_delivered', async () => {
     vi.spyOn(chrome.tabs, 'sendMessage').mockRejectedValue(
-      new Error('Could not establish connection.') as never,
+      new Error(
+        'Could not establish connection. Receiving end does not exist.',
+      ),
     );
-    expect(() =>
+    await expect(
       sendTabCommand(7, { kind: TAB_CMD.SHOW_FOR, word: 'ord' }),
-    ).not.toThrow();
-    // Let the swallowed rejection settle without an unhandled-rejection error.
-    await Promise.resolve();
+    ).resolves.toEqual({ delivered: false });
   });
 });
 

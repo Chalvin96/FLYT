@@ -20,10 +20,15 @@ class InvalidReviewRatingError(FlashcardError):
         super().__init__(message, "INVALID_REVIEW_RATING")
 
 
+class StaleReviewError(FlashcardError):
+    def __init__(self, message: str = "Review version is stale"):
+        super().__init__(message, "REVIEW_STALE")
+
+
 class InvalidReviewOutcomeError(FlashcardError):
     def __init__(
         self,
-        message: str = "Only speak and write exercises can finish without a grade",
+        message: str = "Only write exercises can finish without a grade",
     ):
         super().__init__(message, "INVALID_REVIEW_OUTCOME")
 

@@ -5,8 +5,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Exercise } from '@/types/lesson-contracts';
 
 import { OperationShell } from './OperationShell';
+import type { ExerciseAttemptView } from './operationShellView';
 
 const useReducedMotionMock = vi.fn(() => false);
+
+const NON_ZERO_TRANSLATE = /translate3d\(-?[^0]/;
 
 vi.mock('motion/react', async () => {
   const actual =
@@ -38,13 +41,8 @@ function makeExercise(): ChooseExercise {
 }
 
 function Shell({
-  retry,
-  result = null,
+  attempt = { kind: 'single', result: null },
   canCheck = true,
-  fillWorkSurface = false,
-  promptAsInstruction = false,
-  ownsResultFeedback = false,
-  statusFirstOnMobile = false,
   statusHint,
   pending = false,
   pendingLabel,
@@ -53,13 +51,8 @@ function Shell({
   onContinue = vi.fn(),
   children = <p data-testid="body">Body</p>,
 }: {
-  retry?: Parameters<typeof OperationShell>[0]['retry'];
-  result?: Parameters<typeof OperationShell>[0]['result'];
+  attempt?: ExerciseAttemptView;
   canCheck?: boolean;
-  fillWorkSurface?: boolean;
-  promptAsInstruction?: boolean;
-  ownsResultFeedback?: boolean;
-  statusFirstOnMobile?: boolean;
   statusHint?: string;
   pending?: boolean;
   pendingLabel?: string;
@@ -70,14 +63,9 @@ function Shell({
 }) {
   return (
     <OperationShell
+      attempt={attempt}
       exercise={exercise}
-      retry={retry}
-      result={result}
       canCheck={canCheck}
-      fillWorkSurface={fillWorkSurface}
-      promptAsInstruction={promptAsInstruction}
-      ownsResultFeedback={ownsResultFeedback}
-      statusFirstOnMobile={statusFirstOnMobile}
       statusHint={statusHint}
       pending={pending}
       pendingLabel={pendingLabel}
@@ -93,7 +81,7 @@ describe('OperationShell — non-retry path', () => {
   it('renders a Check button that calls onCheck when canCheck is true', async () => {
     const user = userEvent.setup();
     const onCheck = vi.fn();
-    render(<Shell onCheck={onCheck} result={null} canCheck />);
+    render(<Shell onCheck={onCheck} canCheck />);
 
     const checkButton = screen.getByRole('button', { name: /check/i });
     expect(checkButton).not.toBeDisabled();
@@ -109,7 +97,12 @@ describe('OperationShell — non-retry path', () => {
   it('renders Continue and calls onContinue after a result is set (correct)', async () => {
     const user = userEvent.setup();
     const onContinue = vi.fn();
-    render(<Shell result={{ correct: true }} onContinue={onContinue} />);
+    render(
+      <Shell
+        attempt={{ kind: 'single', result: { correct: true } }}
+        onContinue={onContinue}
+      />,
+    );
 
     await user.click(screen.getByRole('button', { name: /continue/i }));
     expect(onContinue).toHaveBeenCalledTimes(1);
@@ -117,27 +110,25 @@ describe('OperationShell — non-retry path', () => {
   });
 
   it('renders the wrong banner text when result is incorrect', () => {
-    render(<Shell result={{ correct: false }} />);
+    render(<Shell attempt={{ kind: 'single', result: { correct: false } }} />);
     expect(screen.getByText(/not quite/i)).toBeInTheDocument();
   });
 
   it('never renders a button whose label/onClick flips between Check and Continue', () => {
-    // The non-retry footer must render Check and Continue as distinct button
-    // instances so a fast second click or held Enter cannot fall through from
-    // Check to Continue on the same element.
-    const { rerender } = render(<Shell result={null} canCheck />);
+    const { rerender } = render(<Shell canCheck />);
 
-    // Pre-result: Check exists, Continue does not.
     expect(screen.getByRole('button', { name: /check/i })).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /continue/i }),
     ).not.toBeInTheDocument();
 
-    // Simulate the parent setting a result after Check.
-    rerender(<Shell result={{ correct: true }} canCheck />);
+    rerender(
+      <Shell
+        attempt={{ kind: 'single', result: { correct: true } }}
+        canCheck
+      />,
+    );
 
-    // Post-result: Continue exists, Check does not. They are never the same
-    // element.
     expect(
       screen.getByRole('button', { name: /continue/i }),
     ).toBeInTheDocument();
@@ -152,7 +143,9 @@ describe('OperationShell — retry path', () => {
     it('shows Check (disabled when canCheck=false) with no Reveal button in working phase', () => {
       render(
         <Shell
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'working',
             shakeKey: 0,
             canReveal: false,
@@ -171,7 +164,9 @@ describe('OperationShell — retry path', () => {
     it('shows Check (enabled) when canCheck is true', () => {
       render(
         <Shell
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'working',
             shakeKey: 0,
             canReveal: false,
@@ -184,11 +179,11 @@ describe('OperationShell — retry path', () => {
     });
 
     it('shows "Adjust your answer to try again." in wrong phase with canCheck=false', () => {
-      // After a wrong check with a filled board, canCheck is false (dirty
-      // gate) but the generic "Select an answer" would be misleading.
       render(
         <Shell
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'wrong',
             shakeKey: 1,
             canReveal: false,
@@ -205,7 +200,9 @@ describe('OperationShell — retry path', () => {
     it('shows "Ready to check" in working phase with canCheck=true', () => {
       render(
         <Shell
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'working',
             shakeKey: 0,
             canReveal: false,
@@ -223,7 +220,9 @@ describe('OperationShell — retry path', () => {
       const onReveal = vi.fn();
       render(
         <Shell
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'wrong',
             shakeKey: 1,
             canReveal: true,
@@ -242,7 +241,9 @@ describe('OperationShell — retry path', () => {
       const onReveal = vi.fn();
       render(
         <Shell
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'wrong',
             shakeKey: 1,
             canReveal: true,
@@ -259,7 +260,9 @@ describe('OperationShell — retry path', () => {
       render(
         <OperationShell
           exercise={makeExercise()}
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'wrong',
             shakeKey: 1,
             canReveal: false,
@@ -279,7 +282,9 @@ describe('OperationShell — retry path', () => {
     it('shows exactly one alert (sr-only live region) in wrong phase; visible banner has no role', () => {
       render(
         <Shell
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'wrong',
             shakeKey: 1,
             canReveal: false,
@@ -287,9 +292,6 @@ describe('OperationShell — retry path', () => {
           }}
         />,
       );
-      // Exactly one role="alert": the sr-only live region keyed on shakeKey.
-      // The visible banner inside the shaking motion.div is a plain styled
-      // div (no role/aria-live) so SRs do not double announce.
       const alerts = screen.getAllByRole('alert');
       expect(alerts).toHaveLength(1);
       expect(alerts[0]).toHaveClass('sr-only');
@@ -297,10 +299,9 @@ describe('OperationShell — retry path', () => {
         /incorrect — adjust your answer and try again./i,
       );
 
-      // The visible banner is still rendered but carries no role.
       const visibleBanner = screen
         .getAllByText(/incorrect — adjust your answer and try again./i)
-        .find((el) => !el.classList.contains('sr-only'));
+        .find((el) => !el.hasAttribute('role'));
       expect(visibleBanner).toBeDefined();
       expect(visibleBanner).not.toHaveAttribute('role');
       expect(visibleBanner).not.toHaveAttribute('aria-live');
@@ -309,7 +310,9 @@ describe('OperationShell — retry path', () => {
     it('does not show an alert in the working phase', () => {
       render(
         <Shell
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'working',
             shakeKey: 0,
             canReveal: false,
@@ -327,7 +330,9 @@ describe('OperationShell — retry path', () => {
       const onContinue = vi.fn();
       render(
         <Shell
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'solved',
             shakeKey: 0,
             canReveal: false,
@@ -345,7 +350,9 @@ describe('OperationShell — retry path', () => {
     it('shows the solved "Correct" banner in solved phase', () => {
       render(
         <Shell
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'solved',
             shakeKey: 0,
             canReveal: false,
@@ -360,7 +367,9 @@ describe('OperationShell — retry path', () => {
     it('shows Continue in revealed phase and the revealed banner', () => {
       render(
         <Shell
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'revealed',
             shakeKey: 1,
             canReveal: false,
@@ -377,7 +386,9 @@ describe('OperationShell — retry path', () => {
     it('does not render Reveal answer in terminal phases', () => {
       render(
         <Shell
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'revealed',
             shakeKey: 1,
             canReveal: true,
@@ -395,7 +406,9 @@ describe('OperationShell — retry path', () => {
     it('moves focus to Continue when entering a terminal phase', () => {
       render(
         <Shell
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'solved',
             shakeKey: 0,
             canReveal: false,
@@ -409,7 +422,9 @@ describe('OperationShell — retry path', () => {
     it('does not steal focus in the working phase', () => {
       render(
         <Shell
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'working',
             shakeKey: 0,
             canReveal: false,
@@ -427,7 +442,9 @@ describe('OperationShell — retry path', () => {
       try {
         render(
           <Shell
-            retry={{
+            attempt={{
+              kind: 'retry',
+              result: null,
               phase: 'wrong',
               shakeKey: 1,
               canReveal: false,
@@ -436,7 +453,6 @@ describe('OperationShell — retry path', () => {
           />,
         );
 
-        // sr-only alert still present for SR users.
         const alerts = screen.getAllByRole('alert');
         expect(alerts).toHaveLength(1);
         expect(alerts[0]).toHaveClass('sr-only');
@@ -444,15 +460,14 @@ describe('OperationShell — retry path', () => {
           /incorrect — adjust your answer and try again./i,
         );
 
-        // The visible banner's parent (motion.div) should not carry a shake.
         const visibleBanner = screen
           .getAllByText(/incorrect — adjust your answer and try again./i)
-          .find((el) => !el.classList.contains('sr-only'));
+          .find((el) => !el.hasAttribute('role'));
         expect(visibleBanner).toBeDefined();
         const wrapper = screen.getByTestId('work-surface');
         expect(wrapper).toBeInTheDocument();
         const style = wrapper.getAttribute('style') ?? '';
-        expect(style).not.toMatch(/translate3d\(-?[^0]/);
+        expect(style).not.toMatch(NON_ZERO_TRANSLATE);
       } finally {
         useReducedMotionMock.mockReturnValue(false);
       }
@@ -462,7 +477,9 @@ describe('OperationShell — retry path', () => {
       useReducedMotionMock.mockReturnValue(false);
       render(
         <Shell
-          retry={{
+          attempt={{
+            kind: 'retry',
+            result: null,
             phase: 'wrong',
             shakeKey: 1,
             canReveal: false,
@@ -471,7 +488,6 @@ describe('OperationShell — retry path', () => {
         />,
       );
 
-      // Exactly one role="alert" (sr-only live region); visible banner has no role.
       const alerts = screen.getAllByRole('alert');
       expect(alerts).toHaveLength(1);
       expect(alerts[0]).toHaveClass('sr-only');
@@ -487,7 +503,9 @@ describe('OperationShell — retry path', () => {
           return (
             <OperationShell
               exercise={makeExercise()}
-              retry={{
+              attempt={{
+                kind: 'retry',
+                result: null,
                 phase: 'wrong',
                 shakeKey,
                 canReveal: false,
@@ -507,9 +525,6 @@ describe('OperationShell — retry path', () => {
         child.focus();
         expect(child).toHaveFocus();
 
-        // Simulate a new wrong check — shakeKey changes. For reduced-motion
-        // users the work-surface key is stable, so the subtree is NOT
-        // remounted and focus is preserved.
         rerender(<ShellWithFocusable shakeKey={2} />);
         expect(child).toHaveFocus();
       } finally {
@@ -517,14 +532,16 @@ describe('OperationShell — retry path', () => {
       }
     });
 
-    it('remounts the work surface on a new wrong check for non-reduced-motion users (focus is lost)', () => {
+    it('test_work_surface_given_repeated_wrong_check_expect_focus_preserved', () => {
       useReducedMotionMock.mockReturnValue(false);
       try {
         function ShellWithFocusable({ shakeKey }: { shakeKey: number }) {
           return (
             <OperationShell
               exercise={makeExercise()}
-              retry={{
+              attempt={{
+                kind: 'retry',
+                result: null,
                 phase: 'wrong',
                 shakeKey,
                 canReveal: false,
@@ -544,10 +561,8 @@ describe('OperationShell — retry path', () => {
         child.focus();
         expect(child).toHaveFocus();
 
-        // shakeKey changes → motion.div key changes → subtree remounts.
-        // The original `child` reference is detached; focus is lost.
         rerender(<ShellWithFocusable shakeKey={2} />);
-        expect(child).not.toHaveFocus();
+        expect(child).toHaveFocus();
       } finally {
         useReducedMotionMock.mockReturnValue(false);
       }
@@ -556,83 +571,13 @@ describe('OperationShell — retry path', () => {
 });
 
 describe('OperationShell — shared exercise UI normalization', () => {
-  it('test_operation_header_given_render_expect_explicit_mb4_boundary_without_stacked_gap', () => {
-    render(<Shell />);
-
-    expect(screen.getByTestId('operation-header')).toHaveClass('mb-4');
-    expect(screen.getByTestId('operation-body').className).not.toMatch(
-      /(?:^|\s)gap-[\d.]+/,
-    );
-  });
-
-  it('test_work_surface_given_render_expect_retained_p5_sm_p6_vertical_padding', () => {
-    render(<Shell />);
-
-    expect(screen.getByTestId('work-surface')).toHaveClass('p-5', 'sm:p-6');
-  });
-
-  it('test_work_surface_given_default_expect_centred_content_with_reserved_banner_slot', () => {
+  it('test_work_surface_given_default_expect_top_aligned_on_phones_with_reserved_banner_slot', () => {
     render(<Shell />);
 
     const surface = screen.getByTestId('work-surface');
     const reservedSlot = within(surface).getByTestId('operation-banner');
 
-    expect(surface).toHaveClass('justify-center');
-    expect(reservedSlot).toHaveClass('invisible');
     expect(reservedSlot).toHaveAttribute('aria-hidden', 'true');
-  });
-
-  it('test_work_surface_given_fill_work_surface_expect_stretched_content_without_reserved_banner', () => {
-    render(<Shell fillWorkSurface />);
-
-    const surface = screen.getByTestId('work-surface');
-
-    expect(surface).not.toHaveClass('justify-center');
-    expect(
-      within(surface).queryByTestId('operation-banner'),
-    ).not.toBeInTheDocument();
-  });
-
-  it('test_work_surface_given_fill_work_surface_and_result_expect_banner_still_rendered', () => {
-    render(<Shell fillWorkSurface result={{ correct: false }} />);
-
-    const banner = screen.getByText(/not quite/i);
-
-    expect(banner).toHaveAttribute('role', 'status');
-    expect(banner).not.toHaveClass('invisible');
-  });
-
-  it('test_operation_header_given_prompt_as_instruction_expect_operation_label_over_prompt_paragraph', () => {
-    render(<Shell promptAsInstruction />);
-
-    const prompt = screen.getByTestId('exercise-prompt');
-
-    expect(prompt.tagName).toBe('P');
-    expect(prompt).toHaveAttribute('id', 'exercise-prompt-ex-1');
-    expect(screen.getByText(/^choose$/i)).toBeInTheDocument();
-    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: /pick one/i }),
-    ).not.toBeInTheDocument();
-  });
-
-  it('test_result_feedback_given_retry_owned_verdict_expect_no_shell_banner', () => {
-    render(
-      <Shell
-        ownsResultFeedback
-        fillWorkSurface
-        retry={{
-          phase: 'solved',
-          shakeKey: 0,
-          canReveal: false,
-          onReveal: vi.fn(),
-        }}
-        result={{ correct: true }}
-      />,
-    );
-
-    expect(screen.queryByTestId('operation-banner')).not.toBeInTheDocument();
-    expect(screen.queryByText('Correct')).not.toBeInTheDocument();
   });
 
   it('test_pending_check_given_render_expect_disabled_button_and_live_status', () => {
@@ -652,85 +597,14 @@ describe('OperationShell — shared exercise UI normalization', () => {
     );
   });
 
-  it('test_result_feedback_given_operation_owned_verdict_expect_no_shell_banner_or_generic_status', () => {
-    render(
-      <Shell
-        ownsResultFeedback
-        fillWorkSurface
-        result={{ correct: true }}
-        statusHint="Continue when you are ready"
-      />,
-    );
-
-    expect(screen.queryByTestId('operation-banner')).not.toBeInTheDocument();
-    expect(screen.queryByText('Correct')).not.toBeInTheDocument();
-    expect(screen.getByTestId('flashcard-action-status')).toHaveTextContent(
-      'Continue when you are ready',
-    );
-  });
-
-  it('test_footer_given_status_first_on_mobile_expect_status_before_actions', () => {
-    render(<Shell statusFirstOnMobile statusHint="Write a response" />);
-
-    const footer = screen.getByTestId('flashcard-footer');
-
-    expect(footer).toHaveClass('flex-col');
-    expect(footer).not.toHaveClass('flex-col-reverse');
-  });
-
-  it('test_instruction_prompt_given_long_task_expect_small_screen_disclosure', async () => {
-    const user = userEvent.setup();
-    const longPrompt = {
-      ...makeExercise(),
-      prompt: [
-        {
-          kind: 'text' as const,
-          value:
-            'Write two Norwegian ordering sentences. Replace the coffee and cinnamon bun with two different café items taught in this lesson. Use the same two items in both sentences: first use «Jeg vil gjerne ha», then use «Kan jeg få».',
-        },
-      ],
-    };
-    render(<Shell promptAsInstruction exercise={longPrompt} />);
-
-    const prompt = screen.getByTestId('exercise-prompt');
-    const disclosure = screen.getByRole('button', { name: /show full task/i });
-
-    expect(prompt).toHaveClass('line-clamp-3', 'sm:line-clamp-none');
-    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
-    expect(disclosure).toHaveAttribute('aria-controls', prompt.id);
-
-    await user.click(disclosure);
-
-    expect(prompt).not.toHaveClass('line-clamp-3');
-    expect(screen.getByRole('button', { name: /show less/i })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    );
-  });
-
-  it('test_instruction_prompt_given_short_task_expect_no_disclosure', () => {
-    render(<Shell promptAsInstruction />);
-
-    expect(screen.getByTestId('exercise-prompt')).not.toHaveClass(
-      'line-clamp-3',
-    );
-    expect(
-      screen.queryByRole('button', { name: /show full task/i }),
-    ).not.toBeInTheDocument();
-  });
-
   it('test_shared_banner_given_correct_result_expect_subtle_accent_treatment', () => {
-    render(<Shell result={{ correct: true }} />);
+    render(<Shell attempt={{ kind: 'single', result: { correct: true } }} />);
 
     const banner = screen.getByText(/^correct$/i);
-    expect(banner).toHaveClass(
-      'border-accent-20',
-      'bg-accent-0',
-      'text-accent-90',
-    );
-    expect(banner).toHaveAttribute('role', 'status');
-    expect(screen.getByTestId('flashcard-action-status')).toHaveClass(
-      'text-accent-80',
+    expect(banner).toBeInTheDocument();
+    expect(screen.getByTestId('operation-banner')).toHaveAttribute(
+      'role',
+      'status',
     );
     expect(screen.getByTestId('flashcard-action-status')).not.toHaveAttribute(
       'aria-live',
@@ -738,41 +612,53 @@ describe('OperationShell — shared exercise UI normalization', () => {
   });
 
   it('test_shared_banner_given_incorrect_result_expect_subtle_destructive_treatment', () => {
-    render(<Shell result={{ correct: false }} />);
+    render(<Shell attempt={{ kind: 'single', result: { correct: false } }} />);
 
     const banner = screen.getByText(/not quite/i);
-    expect(banner).toHaveClass(
-      'border-destructive-20',
-      'bg-destructive-0',
-      'text-destructive-80',
-    );
-    expect(banner).toHaveAttribute('role', 'status');
-    expect(screen.getByTestId('flashcard-action-status')).toHaveClass(
-      'text-destructive',
+    expect(banner).toBeInTheDocument();
+    expect(screen.getByTestId('operation-banner')).toHaveAttribute(
+      'role',
+      'status',
     );
   });
+});
 
-  it('test_retry_wrong_banner_given_wrong_phase_expect_subtle_destructive_treatment', () => {
-    render(
-      <Shell
-        retry={{
-          phase: 'wrong',
-          shakeKey: 1,
-          canReveal: false,
-          onReveal: vi.fn(),
-        }}
-        canCheck={false}
-      />,
-    );
+describe('OperationShell — dialogue stimulus', () => {
+  function withDialogueStimulus(): ChooseExercise {
+    return {
+      ...makeExercise(),
+      stimulus: [
+        {
+          kind: 'dialogue',
+          turns: [
+            {
+              speaker: 'Mina',
+              text: [{ kind: 'text', value: '«Du skulle ha kjøpt brød.»' }],
+            },
+          ],
+        },
+      ],
+    };
+  }
 
-    const visibleBanner = screen
-      .getAllByText(/incorrect — adjust your answer and try again./i)
-      .find((el) => !el.classList.contains('sr-only'));
-    expect(visibleBanner).toBeDefined();
-    expect(visibleBanner).toHaveClass(
-      'border-destructive-20',
-      'bg-destructive-0',
-      'text-destructive-80',
+  it('test_operation_shell_given_dialogue_stimulus_expect_rendered_before_prompt', () => {
+    render(<Shell exercise={withDialogueStimulus()} />);
+
+    const stimulus = screen.getByTestId('exercise-stimulus');
+    const prompt = screen.getByTestId('exercise-prompt');
+    expect(stimulus).toHaveTextContent('Mina');
+    expect(
+      stimulus.compareDocumentPosition(prompt) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('test_operation_shell_given_omitted_stimulus_expect_no_stimulus_region', () => {
+    render(<Shell />);
+
+    expect(screen.queryByTestId('exercise-stimulus')).not.toBeInTheDocument();
+    expect(screen.getByTestId('exercise-prompt')).toHaveTextContent(
+      'Pick one.',
     );
   });
 });

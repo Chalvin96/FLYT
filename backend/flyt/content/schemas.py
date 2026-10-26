@@ -25,7 +25,9 @@ from pydantic import field_validator
 from pydantic import model_validator
 
 
-K_LESSON_PACKET_SCHEMA_VERSION: Literal["4.0"] = "4.0"
+LessonPacketVersion = Literal["4.0", "4.1"]
+K_LESSON_PACKET_SCHEMA_VERSION: LessonPacketVersion = "4.1"
+K_SUPPORTED_LESSON_PACKET_SCHEMA_VERSIONS = frozenset({"4.0", "4.1"})
 K_LESSON_LANGUAGE: Literal["nb-NO"] = "nb-NO"
 K_LESSON_TRANSLATION_LANGUAGE: Literal["en"] = "en"
 
@@ -33,6 +35,7 @@ LessonKind = Literal[
     "grammar", "phraseology", "communicative", "pronunciation", "writing"
 ]
 SectionRole = Literal["orient", "model", "contrast", "recap"]
+ExampleTeachingRole = Literal["model", "incorrect", "caution"]
 CefrLevel = Literal["A1", "A2", "B1", "B2", "C1", "C2"]
 AudioStatus = Literal["synthesized"]
 Operation = Literal[
@@ -43,7 +46,6 @@ Operation = Literal[
     "judge",
     "find_fix",
     "categorize",
-    "speak",
     "write",
 ]
 
@@ -147,6 +149,7 @@ class ExampleBlock(_Wire):
     id: str
     no: Spans
     en: Spans
+    teaching_role: ExampleTeachingRole = "model"
     audio_id: str | None = None
 
 
@@ -154,6 +157,7 @@ class ExampleItem(_Wire):
     id: str
     no: Spans
     en: Spans
+    teaching_role: ExampleTeachingRole = "model"
     audio_id: str | None = None
 
 
@@ -411,17 +415,6 @@ class CategorizePayload(_Wire):
         return self
 
 
-class SpeakPayload(_Wire):
-    target: str = Field(min_length=1)
-
-    @field_validator("target")
-    @classmethod
-    def target_not_blank(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("speak target must contain non-whitespace text")
-        return value
-
-
 class WriteCriterion(_Wire):
     id: str = Field(min_length=1)
     instruction: str = Field(min_length=1)
@@ -450,6 +443,36 @@ class WritePayload(_Wire):
         return self
 
 
+# ── Exercise stimulus ────────────────────────────────────────────────────
+
+
+class DialogueTurn(_Wire):
+    speaker: str = Field(min_length=1)
+    text: Spans = Field(min_length=1)
+
+    @field_validator("speaker")
+    @classmethod
+    def speaker_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("dialogue speaker must contain non-whitespace text")
+        return value
+
+    @field_validator("text")
+    @classmethod
+    def text_not_blank(cls, value: Spans) -> Spans:
+        if not "".join(span.value for span in value).strip():
+            raise ValueError("dialogue turn text must contain non-whitespace text")
+        return value
+
+
+class StimulusBlock(_Wire):
+    kind: Literal["dialogue"]
+    turns: list[DialogueTurn] = Field(min_length=1)
+
+
+Stimulus = Annotated[StimulusBlock, Field(discriminator="kind")]
+
+
 # ── Exercises ────────────────────────────────────────────────────────────
 
 
@@ -460,6 +483,7 @@ class _ExerciseBase(_Wire):
     prompt: Spans
     explanation: Spans | None
     audio_id: str | None = None
+    stimulus: list[Stimulus] | None = None
 
 
 class ChooseExercise(_ExerciseBase):
@@ -497,11 +521,6 @@ class CategorizeExercise(_ExerciseBase):
     payload: CategorizePayload
 
 
-class SpeakExercise(_ExerciseBase):
-    operation: Literal["speak"]
-    payload: SpeakPayload
-
-
 class WriteExercise(_ExerciseBase):
     operation: Literal["write"]
     payload: WritePayload
@@ -515,7 +534,6 @@ ExercisePacket = Annotated[
     | JudgeExercise
     | FindFixExercise
     | CategorizeExercise
-    | SpeakExercise
     | WriteExercise,
     Field(discriminator="operation"),
 ]
@@ -615,9 +633,9 @@ class Media(_Wire):
 
 
 class LessonPacket(_Wire):
-    schema_version: Literal["4.0"] = K_LESSON_PACKET_SCHEMA_VERSION
+    schema_version: LessonPacketVersion = K_LESSON_PACKET_SCHEMA_VERSION
     id: str
-    kind: LessonKind
+    kind: LessonKind | None = None
     language: Literal["nb-NO"] = K_LESSON_LANGUAGE
     title: str
     cefr_level: CefrLevel

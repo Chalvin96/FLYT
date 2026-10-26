@@ -5,16 +5,18 @@ import {
   redirect,
   useNavigate,
   useRouter,
+  type ErrorComponentProps,
 } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 
-import { ErrorBoundary } from '@/components/common/ErrorBoundary/ErrorBoundary';
 import { parseReaderPage } from '@/components/reading/utils';
 import {
   readingKeys,
   readingStoryPageQueryOptions,
 } from '@/hooks/reading/queries';
 import { getApiErrorCode } from '@/lib/apiError';
+import { StoryReaderError } from '@/pages/ReadingPage/StoryReaderError';
+import { StoryReaderPending } from '@/pages/ReadingPage/StoryReaderLoading';
 import { StoryReaderPage } from '@/pages/ReadingPage/StoryReaderPage';
 import { IMPORT_ERROR_CODES, type ReadingStoryPageResponse } from '@/types/api';
 
@@ -93,7 +95,6 @@ function ReadingStoryRouteComponent() {
     [navigate, page, queryClient, router, uuid],
   );
 
-  // Remount when the story changes so resume state cannot leak across stories.
   return (
     <StoryReaderPage
       key={uuid}
@@ -102,6 +103,13 @@ function ReadingStoryRouteComponent() {
       onResolvedPage={onResolvedPage}
       storyUuid={uuid}
     />
+  );
+}
+
+function StoryReaderRouteError({ reset }: ErrorComponentProps) {
+  const router = useRouter();
+  return (
+    <StoryReaderError onRetry={() => void router.invalidate().then(reset)} />
   );
 }
 
@@ -153,12 +161,8 @@ export const Route = createFileRoute('/_reader/reading/story/$uuid')({
     }
   },
   component: ReadingStoryRouteComponent,
-  errorComponent: ({ error, reset }) => (
-    <ErrorBoundary
-      error={error}
-      reset={reset}
-      homeTo="/home"
-      title="Story failed"
-    />
-  ),
+  pendingComponent: StoryReaderPending,
+  pendingMs: 0,
+  pendingMinMs: 0,
+  errorComponent: StoryReaderRouteError,
 });

@@ -1,28 +1,37 @@
+import { Heading, Text } from '@flyt/ui';
 import { Link } from '@tanstack/react-router';
 
 export function LandingFooter() {
   return (
-    <footer className="bg-secondary-100 text-secondary-20">
+    <footer className="bg-inverse text-inverse-subtle">
       <div className="shell-px py-10">
         <div className="container-max mx-auto flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <Link className="flex items-center gap-2 text-white-100" to="/">
-            <span className="size-3 rounded-full bg-primary-70" />
-            <span className="font-display type-title font-semibold">Flyt</span>
+          <Link className="flex items-center gap-2 text-inverse" to="/">
+            <span className="size-3 rounded-full bg-brand-bold" />
+            <Heading as="span" size="large">
+              Flyt
+            </Heading>
           </Link>
-          <nav className="flex flex-wrap gap-x-6 gap-y-2 type-caption text-secondary-40">
-            <Link className="hover:text-secondary-20" to="/about">
-              About
+          <nav className="flex flex-wrap gap-x-6 gap-y-2 text-inverse-subtle/65">
+            <Link className="hover:text-inverse" to="/about">
+              <Text as="span" size="medium">
+                About
+              </Text>
             </Link>
-            <a className="hover:text-secondary-20" href="/about#privacy">
-              Privacy
+            <a className="hover:text-inverse" href="/about#privacy">
+              <Text as="span" size="medium">
+                Privacy
+              </Text>
             </a>
-            <a className="hover:text-secondary-20" href="/about#contact">
-              Contact
+            <a className="hover:text-inverse" href="/about#contact">
+              <Text as="span" size="medium">
+                Contact
+              </Text>
             </a>
           </nav>
-          <p className="type-caption text-secondary-40">
-            © {new Date().getFullYear()} Flyt
-          </p>
+          <Text size="medium" tone="inverse-subtle">
+            © {new Date().getUTCFullYear()} Flyt
+          </Text>
         </div>
       </div>
     </footer>

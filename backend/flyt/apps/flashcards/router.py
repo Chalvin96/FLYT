@@ -9,7 +9,6 @@ from fastapi import Query
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flyt.apps.flashcards.constants import K_MY_CARDS_DEFAULT_PAGE_SIZE
 from flyt.apps.flashcards.constants import K_REVIEW_MODE_FULL
 from flyt.apps.flashcards.constants import ReviewMode
 from flyt.apps.flashcards.deps import get_flashcard_card_service
@@ -21,10 +20,12 @@ from flyt.apps.flashcards.exceptions import DeckNotFoundError
 from flyt.apps.flashcards.exceptions import InvalidReviewOutcomeError
 from flyt.apps.flashcards.exceptions import InvalidReviewRatingError
 from flyt.apps.flashcards.exceptions import LemmaNotDeckableError
+from flyt.apps.flashcards.exceptions import StaleReviewError
 from flyt.apps.flashcards.schemas import AddMoreNewResponse
 from flyt.apps.flashcards.schemas import DeckSummaryItem
 from flyt.apps.flashcards.schemas import LemmaContextCreate
 from flyt.apps.flashcards.schemas import MyCardItem
+from flyt.apps.flashcards.schemas import MyCardsQuery
 from flyt.apps.flashcards.schemas import MyCardsResponse
 from flyt.apps.flashcards.schemas import MyCardsSummary
 from flyt.apps.flashcards.schemas import ReviewResult
@@ -36,10 +37,12 @@ from flyt.apps.flashcards.review_service import FlashcardReviewService
 from flyt.apps.flashcards.user_cards_service import MyCardsService
 from flyt.apps.users.deps import get_current_user
 from flyt.apps.users.models import User
+from flyt.core.http import build_error_responses
 from flyt.core.db import get_async_db
 from flyt.core.exceptions import ConflictError
 from flyt.core.http import EmptyResponse
 from flyt.core.http import error_response
+from flyt.core.schemas import DatabaseId
 
 logger = logging.getLogger(__name__)
 
@@ -48,40 +51,26 @@ user_cards_router = APIRouter(prefix="/me/cards", tags=["flashcards"])
 user_deck_router = APIRouter(prefix="/me/decks", tags=["flashcards"])
 
 
-@user_cards_router.get("")
+@user_cards_router.get("", responses=build_error_responses(401))
 async def list_my_cards(
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[MyCardsService, Depends(get_my_cards_service)],
-    facet: Annotated[str, Query(pattern="^(all|vocab|grammar)$")] = "all",
-    bucket: Annotated[
-        str | None, Query(pattern="^(not_started|learning|familiar|known|mastered)$")
-    ] = None,
-    started_only: Annotated[bool, Query()] = True,
-    q: Annotated[str | None, Query(max_length=100)] = None,
-    sort: Annotated[str, Query(pattern="^(weakest|recent|alpha)$")] = "weakest",
-    page: Annotated[int, Query(ge=1)] = 1,
-    limit: Annotated[int, Query(ge=1, le=200)] = K_MY_CARDS_DEFAULT_PAGE_SIZE,
+    query: Annotated[MyCardsQuery, Query()],
 ) -> MyCardsResponse:
     logger.info(
-        "[flashcards.list_my_cards] entering with params user_id=%s facet=%s bucket=%s started_only=%s q=%s sort=%s page=%s limit=%s",
+        "[flashcards.list_my_cards] entering with params user_id=%s query=%s",
         current_user.id,
-        facet,
-        bucket,
-        started_only,
-        q,
-        sort,
-        page,
-        limit,
+        query,
     )
     result = await service.list_user_cards(
         user_id=current_user.id,
-        facet=facet,
-        bucket=bucket,
-        started_only=started_only,
-        q=q,
-        sort=sort,
-        page=page,
-        limit=limit,
+        facet=query.facet,
+        bucket=query.bucket,
+        started_only=query.started_only,
+        q=query.q,
+        sort=query.sort,
+        page=query.page,
+        limit=query.limit,
     )
     response = MyCardsResponse(
         cards=[
@@ -116,7 +105,7 @@ async def list_my_cards(
     return response
 
 
-@user_cards_router.get("/due")
+@user_cards_router.get("/due", responses=build_error_responses(401))
 async def issue_due_cards(
     db: Annotated[AsyncSession, Depends(get_async_db)],
     current_user: Annotated[User, Depends(get_current_user)],
@@ -141,9 +130,11 @@ async def issue_due_cards(
     return result
 
 
-@user_cards_router.post("/{user_card_id}/review")
+@user_cards_router.post(
+    "/{user_card_id}/review", responses=build_error_responses(401, 403, 404, 409)
+)
 async def review_card(
-    user_card_id: int,
+    user_card_id: DatabaseId,
     payload: ReviewSubmission,
     db: Annotated[AsyncSession, Depends(get_async_db)],
     current_user: Annotated[User, Depends(get_current_user)],
@@ -162,6 +153,7 @@ async def review_card(
             card_id=payload.card_id,
             outcome=payload.outcome,
             rating=payload.rating,
+            review_version=payload.review_version,
         )
         await db.commit()
         counts = await service.count_due_states(user_id=current_user.id)
@@ -172,6 +164,7 @@ async def review_card(
             status.HTTP_200_OK,
         )
         return ReviewResult(
+            review_version=user_card.review_version,
             new_remaining=counts.new,
             learning_remaining=counts.learning,
             review_remaining=counts.review,
@@ -188,6 +181,18 @@ async def review_card(
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=error_response(error.code, error.message),
+        ) from error
+    except StaleReviewError as error:
+        logger.info(
+            "[flashcards.review_card] exiting with params user_id=%s user_card_id=%s error_code=%s status_code=%s",
+            current_user.id,
+            user_card_id,
+            error.code,
+            status.HTTP_409_CONFLICT,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
             detail=error_response(error.code, error.message),
         ) from error
     except InvalidReviewRatingError as error:
@@ -218,6 +223,7 @@ async def review_card(
 
 @user_cards_router.post(
     "/lemmas/{lemma_uuid}/add-to-deck",
+    responses=build_error_responses(401, 403, 404, 409),
 )
 async def add_lemma_to_deck(
     lemma_uuid: UUID,
@@ -251,7 +257,7 @@ async def add_lemma_to_deck(
         raise
 
 
-@user_deck_router.get("")
+@user_deck_router.get("", responses=build_error_responses(401))
 async def list_decks(
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[FlashcardDeckService, Depends(get_flashcard_deck_service)],
@@ -271,9 +277,11 @@ async def list_decks(
     ]
 
 
-@user_deck_router.post("/{deck_id}/subscribe")
+@user_deck_router.post(
+    "/{deck_id}/subscribe", responses=build_error_responses(401, 403, 404)
+)
 async def subscribe_to_deck(
-    deck_id: int,
+    deck_id: DatabaseId,
     db: Annotated[AsyncSession, Depends(get_async_db)],
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[FlashcardDeckService, Depends(get_flashcard_deck_service)],
@@ -307,9 +315,7 @@ async def subscribe_to_deck(
         ) from error
 
 
-@user_cards_router.post(
-    "/add-more-new",
-)
+@user_cards_router.post("/add-more-new", responses=build_error_responses(401, 403))
 async def add_more_new(
     db: Annotated[AsyncSession, Depends(get_async_db)],
     current_user: Annotated[User, Depends(get_current_user)],

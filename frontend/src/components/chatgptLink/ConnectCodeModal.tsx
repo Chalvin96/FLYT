@@ -1,9 +1,8 @@
+import { Button, Heading, Modal, Text } from '@flyt/ui';
 import { Check, Clock3, Copy, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 
 import type { PendingChatGPTAuthorization } from '@/api/chatgptLink';
-import { Button } from '@/components/common/Button/Button';
-import { Modal } from '@/components/common/Modal/Modal';
 
 import { formatCountdown } from './chatGPTLinkCardFormat';
 
@@ -67,11 +66,19 @@ export function ConnectCodeModal({
             userCode={pending.user_code}
             copied={copied}
           />
-          <ol className="space-y-3 type-caption text-foreground" role="list">
-            <li>1. Open auth.openai.com/device</li>
-            <li>2. Enter the code above</li>
-            <li>3. Approve the request</li>
-            <li>4. Come back here — Flyt finishes on its own</li>
+          <ol className="space-y-3" role="list">
+            <Text as="li" size="medium" tone="default">
+              1. Open auth.openai.com/device
+            </Text>
+            <Text as="li" size="medium" tone="default">
+              2. Enter the code above
+            </Text>
+            <Text as="li" size="medium" tone="default">
+              3. Approve the request
+            </Text>
+            <Text as="li" size="medium" tone="default">
+              4. Come back here — Flyt finishes on its own
+            </Text>
           </ol>
           <ExpiryNotice isLapsed={isLapsed} remaining={remaining} />
         </div>
@@ -90,10 +97,10 @@ function UserCodePanel({
   userCode: string;
 }) {
   return (
-    <div className="radius-field flex items-center justify-between gap-3 border border-primary-30 bg-primary-10 p-4">
-      <strong className="type-lead tracking-wider text-primary-90">
+    <div className="radius-field flex items-center justify-between gap-3 border border-brand-subtle bg-brand-subtle p-4">
+      <Heading as="span" size="medium" tone="selected">
         {userCode}
-      </strong>
+      </Heading>
       <Button
         onClick={() => {
           void navigator.clipboard.writeText(userCode);
@@ -118,13 +125,13 @@ function ExpiryNotice({
   remaining: number;
 }) {
   return (
-    <div className="radius-field flex gap-3 border border-warning/40 bg-warning/10 p-3 type-caption text-foreground">
-      <Clock3 aria-hidden className="icon-sm shrink-0 text-warning-80" />
-      <p>
+    <div className="radius-field flex gap-3 border border-warning-subtle bg-warning-subtle p-3">
+      <Clock3 aria-hidden className="icon-sm shrink-0 text-icon-warning" />
+      <Text as="p" size="medium" tone="default">
         {isLapsed
           ? 'This code has expired. Nothing was lost.'
           : `Expires in ${formatCountdown(remaining)}. If it runs out, start again — nothing is lost.`}
-      </p>
+      </Text>
     </div>
   );
 }

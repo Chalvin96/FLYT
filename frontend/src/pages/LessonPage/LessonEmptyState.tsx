@@ -1,6 +1,5 @@
+import { Card, Heading, Text } from '@flyt/ui';
 import type { ReactNode } from 'react';
-
-import { AppCard } from '@/components/common/AppCard/AppCard';
 
 export function LessonEmptyState({
   title,
@@ -12,15 +11,23 @@ export function LessonEmptyState({
   action?: ReactNode;
 }) {
   return (
-    <AppCard className="mx-auto w-full max-w-md p-6">
-      <p className="type-caption text-muted-foreground">Lessons</p>
-      <h1 className="mt-2 type-title-lg font-semibold text-foreground">
-        {title}
-      </h1>
-      <p className="mt-3 type-caption leading-6 text-muted-foreground">
-        {description}
-      </p>
-      {action ? <div className="mt-4">{action}</div> : null}
-    </AppCard>
+    <div className="mx-auto w-full max-w-md">
+      <Card padding="roomy">
+        <Text size="medium" tone="subtle">
+          Lessons
+        </Text>
+        <div className="mt-2">
+          <Heading as="h1" size="xlarge" tone="default">
+            {title}
+          </Heading>
+        </div>
+        <div className="mt-3">
+          <Text size="medium" tone="subtle">
+            {description}
+          </Text>
+        </div>
+        {action ? <div className="mt-4">{action}</div> : null}
+      </Card>
+    </div>
   );
 }

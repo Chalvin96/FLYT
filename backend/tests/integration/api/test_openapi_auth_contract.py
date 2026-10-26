@@ -19,11 +19,6 @@ from flyt.main import app
             "post",
             id="lessons-additional-responses",
         ),
-        pytest.param(
-            "/speech/transcribe",
-            "post",
-            id="speech-additional-responses",
-        ),
     ],
 )
 def test_openapi_given_authenticated_operation_expect_security_contract(
@@ -36,7 +31,7 @@ def test_openapi_given_authenticated_operation_expect_security_contract(
         {"AccessCookie": []},
         {"BearerToken": []},
     ]
-    assert "401" not in operation["responses"]
+    assert "401" in operation["responses"]
 
 
 @pytest.mark.parametrize(

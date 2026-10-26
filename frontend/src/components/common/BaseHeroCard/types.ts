@@ -1,8 +1,9 @@
 export type HeroChip = {
   label: string;
-  className?: string;
   icon?: React.ReactNode;
 };
+
+export type HeroTone = 'brand' | 'calm' | 'deep' | 'quiet';
 
 export type HeroProgress = {
   current: number;
@@ -12,14 +13,11 @@ export type HeroProgress = {
 };
 
 export interface BaseHeroCardProps {
-  className: string;
+  tone?: HeroTone;
   label: string;
-  labelClass: string;
-  badge: string;
-  badgeClass: string;
+  badge?: string;
   title: string;
-  subtitle: string;
-  subtitleClass: string;
+  subtitle?: string;
   decoration?: React.ReactNode;
   details?: React.ReactNode;
   primaryAction: React.ReactNode;

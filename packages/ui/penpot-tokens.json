@@ -1,0 +1,1073 @@
+{
+  "primitives": {
+    "color": {
+      "primary": {
+        "10": {
+          "$value": "#f0ebff",
+          "$type": "color",
+          "$description": ""
+        },
+        "20": {
+          "$value": "#ebe7ff",
+          "$type": "color",
+          "$description": ""
+        },
+        "30": {
+          "$value": "#d8d0ff",
+          "$type": "color",
+          "$description": ""
+        },
+        "40": {
+          "$value": "#c4b7ff",
+          "$type": "color",
+          "$description": ""
+        },
+        "50": {
+          "$value": "#ad9dff",
+          "$type": "color",
+          "$description": ""
+        },
+        "70": {
+          "$value": "#7a68ee",
+          "$type": "color",
+          "$description": ""
+        },
+        "80": {
+          "$value": "#6a59d9",
+          "$type": "color",
+          "$description": ""
+        },
+        "90": {
+          "$value": "#5a46bc",
+          "$type": "color",
+          "$description": ""
+        },
+        "100": {
+          "$value": "#412f91",
+          "$type": "color",
+          "$description": ""
+        }
+      },
+      "secondary": {
+        "0": {
+          "$value": "#f2fbf9",
+          "$type": "color",
+          "$description": ""
+        },
+        "10": {
+          "$value": "#e7f6f2",
+          "$type": "color",
+          "$description": ""
+        },
+        "20": {
+          "$value": "#c4ead9",
+          "$type": "color",
+          "$description": ""
+        },
+        "30": {
+          "$value": "#aadac8",
+          "$type": "color",
+          "$description": ""
+        },
+        "40": {
+          "$value": "#8bc4b1",
+          "$type": "color",
+          "$description": ""
+        },
+        "50": {
+          "$value": "#78b39f",
+          "$type": "color",
+          "$description": ""
+        },
+        "60": {
+          "$value": "#629da3",
+          "$type": "color",
+          "$description": ""
+        },
+        "70": {
+          "$value": "#47728a",
+          "$type": "color",
+          "$description": ""
+        },
+        "80": {
+          "$value": "#315d75",
+          "$type": "color",
+          "$description": ""
+        },
+        "90": {
+          "$value": "#1e4350",
+          "$type": "color",
+          "$description": ""
+        },
+        "100": {
+          "$value": "#15303a",
+          "$type": "color",
+          "$description": ""
+        }
+      },
+      "accent": {
+        "10": {
+          "$value": "#f0f6d4",
+          "$type": "color",
+          "$description": ""
+        },
+        "20": {
+          "$value": "#e3ecac",
+          "$type": "color",
+          "$description": ""
+        },
+        "50": {
+          "$value": "#b6c547",
+          "$type": "color",
+          "$description": ""
+        },
+        "70": {
+          "$value": "#7b9140",
+          "$type": "color",
+          "$description": ""
+        },
+        "100": {
+          "$value": "#394625",
+          "$type": "color",
+          "$description": ""
+        }
+      },
+      "warning": {
+        "10": {
+          "$value": "#fff4cc",
+          "$type": "color",
+          "$description": ""
+        },
+        "30": {
+          "$value": "#f5c542",
+          "$type": "color",
+          "$description": ""
+        },
+        "60": {
+          "$value": "#b58105",
+          "$type": "color",
+          "$description": ""
+        },
+        "70": {
+          "$value": "#8a6100",
+          "$type": "color",
+          "$description": ""
+        },
+        "100": {
+          "$value": "#3d2b00",
+          "$type": "color",
+          "$description": ""
+        }
+      },
+      "destructive": {
+        "10": {
+          "$value": "#ffe3e2",
+          "$type": "color",
+          "$description": ""
+        },
+        "20": {
+          "$value": "#ffc8c8",
+          "$type": "color",
+          "$description": ""
+        },
+        "30": {
+          "$value": "#ffacae",
+          "$type": "color",
+          "$description": ""
+        },
+        "60": {
+          "$value": "#df515f",
+          "$type": "color",
+          "$description": ""
+        },
+        "70": {
+          "$value": "#c5394b",
+          "$type": "color",
+          "$description": ""
+        },
+        "80": {
+          "$value": "#a02a3a",
+          "$type": "color",
+          "$description": ""
+        },
+        "90": {
+          "$value": "#7a1e2a",
+          "$type": "color",
+          "$description": ""
+        }
+      },
+      "black": {
+        "10": {
+          "$value": "rgba(8, 12, 24, 0.08)",
+          "$type": "color",
+          "$description": ""
+        },
+        "20": {
+          "$value": "rgba(8, 12, 24, 0.12)",
+          "$type": "color",
+          "$description": ""
+        },
+        "30": {
+          "$value": "rgba(8, 12, 24, 0.18)",
+          "$type": "color",
+          "$description": ""
+        },
+        "60": {
+          "$value": "rgba(8, 12, 24, 0.55)",
+          "$type": "color",
+          "$description": ""
+        },
+        "70": {
+          "$value": "rgba(8, 12, 24, 0.7)",
+          "$type": "color",
+          "$description": ""
+        },
+        "80": {
+          "$value": "rgba(8, 12, 24, 0.82)",
+          "$type": "color",
+          "$description": ""
+        }
+      },
+      "white": {
+        "20": {
+          "$value": "rgba(255, 255, 255, 0.12)",
+          "$type": "color",
+          "$description": ""
+        },
+        "80": {
+          "$value": "rgba(255, 255, 255, 0.82)",
+          "$type": "color",
+          "$description": ""
+        },
+        "90": {
+          "$value": "rgba(255, 255, 255, 0.92)",
+          "$type": "color",
+          "$description": ""
+        },
+        "100": {
+          "$value": "#ffffff",
+          "$type": "color",
+          "$description": ""
+        }
+      }
+    },
+    "scale": {
+      "font-size": {
+        "12": {
+          "$value": "12",
+          "$type": "fontSizes",
+          "$description": ""
+        },
+        "13": {
+          "$value": "13",
+          "$type": "fontSizes",
+          "$description": ""
+        },
+        "14": {
+          "$value": "14",
+          "$type": "fontSizes",
+          "$description": ""
+        },
+        "16": {
+          "$value": "16",
+          "$type": "fontSizes",
+          "$description": ""
+        },
+        "20": {
+          "$value": "20",
+          "$type": "fontSizes",
+          "$description": ""
+        },
+        "24": {
+          "$value": "24",
+          "$type": "fontSizes",
+          "$description": ""
+        },
+        "28": {
+          "$value": "28",
+          "$type": "fontSizes",
+          "$description": ""
+        },
+        "32": {
+          "$value": "32",
+          "$type": "fontSizes",
+          "$description": ""
+        }
+      },
+      "font-weight": {
+        "400": {
+          "$value": "400",
+          "$type": "fontWeights",
+          "$description": ""
+        },
+        "600": {
+          "$value": "600",
+          "$type": "fontWeights",
+          "$description": ""
+        },
+        "700": {
+          "$value": "700",
+          "$type": "fontWeights",
+          "$description": ""
+        }
+      },
+      "radius": {
+        "8": {
+          "$value": "8",
+          "$type": "borderRadius",
+          "$description": ""
+        },
+        "10": {
+          "$value": "10",
+          "$type": "borderRadius",
+          "$description": ""
+        },
+        "12": {
+          "$value": "12",
+          "$type": "borderRadius",
+          "$description": ""
+        },
+        "16": {
+          "$value": "16",
+          "$type": "borderRadius",
+          "$description": ""
+        },
+        "20": {
+          "$value": "20",
+          "$type": "borderRadius",
+          "$description": ""
+        },
+        "24": {
+          "$value": "24",
+          "$type": "borderRadius",
+          "$description": ""
+        },
+        "28": {
+          "$value": "28",
+          "$type": "borderRadius",
+          "$description": ""
+        },
+        "9999": {
+          "$value": "9999",
+          "$type": "borderRadius",
+          "$description": ""
+        }
+      }
+    }
+  },
+  "modes/light": {
+    "color": {
+      "background-neutral": {
+        "$value": "{color.secondary.0}",
+        "$type": "color",
+        "$description": "Use when: the page and modal canvas, quiet panels"
+      },
+      "background-neutral-subtle": {
+        "$value": "{color.secondary.10}",
+        "$type": "color",
+        "$description": "Use when: quiet fill: tracks, hover washes, wells, badges, locked answers"
+      },
+      "background-neutral-pressed": {
+        "$value": "{color.secondary.20}",
+        "$type": "color",
+        "$description": "Use when: the active or pressed wash of a neutral control"
+      },
+      "background-neutral-bold": {
+        "$value": "{color.secondary.90}",
+        "$type": "color",
+        "$description": "Use when: a pressed filter chip: dark fill, inverse text"
+      },
+      "background-neutral-bold-hovered": {
+        "$value": "{color.secondary.100}",
+        "$type": "color",
+        "$description": "Use when: the hover of the pressed filter chip"
+      },
+      "background-selected": {
+        "$value": "{color.primary.10}",
+        "$type": "color",
+        "$description": "Use when: the chosen item in a set"
+      },
+      "background-selected-hovered": {
+        "$value": "{color.primary.20}",
+        "$type": "color",
+        "$description": "Use when: the hover of the chosen item in a set"
+      },
+      "background-brand-subtle": {
+        "$value": "{color.primary.10}",
+        "$type": "color",
+        "$description": "Use when: a brand-tinted information surface: well, badge, audio, skeleton"
+      },
+      "background-brand-bold": {
+        "$value": "{color.primary.80}",
+        "$type": "color",
+        "$description": "Use when: the committing action"
+      },
+      "background-brand-bold-hovered": {
+        "$value": "{color.primary.90}",
+        "$type": "color",
+        "$description": "Use when: the hover of the committing action"
+      },
+      "background-brand-bold-pressed": {
+        "$value": "{color.primary.100}",
+        "$type": "color",
+        "$description": "Use when: the active or pressed committing action"
+      },
+      "background-danger": {
+        "$value": "{color.destructive.70}",
+        "$type": "color",
+        "$description": "Use when: a destructive action fill"
+      },
+      "background-danger-hovered": {
+        "$value": "{color.destructive.80}",
+        "$type": "color",
+        "$description": "Use when: the hover of a destructive action"
+      },
+      "background-danger-pressed": {
+        "$value": "{color.destructive.90}",
+        "$type": "color",
+        "$description": "Use when: the active or pressed destructive action"
+      },
+      "background-danger-subtle": {
+        "$value": "{color.destructive.10}",
+        "$type": "color",
+        "$description": "Use when: a quiet danger surface"
+      },
+      "background-danger-subtle-hovered": {
+        "$value": "{color.destructive.20}",
+        "$type": "color",
+        "$description": "Use when: the hover of a quiet danger surface"
+      },
+      "background-warning-subtle": {
+        "$value": "{color.warning.10}",
+        "$type": "color",
+        "$description": "Use when: a quiet caution surface"
+      },
+      "background-success-subtle": {
+        "$value": "{color.secondary.20}",
+        "$type": "color",
+        "$description": "Use when: a quiet success surface"
+      },
+      "background-success": {
+        "$value": "{color.secondary.30}",
+        "$type": "color",
+        "$description": "Use when: a success fill that sits on a success-subtle surface, e.g. the correct-answer marker"
+      },
+      "background-disabled": {
+        "$value": "{color.black.10}",
+        "$type": "color",
+        "$description": "Use when: a disabled control surface; its own surface, not an opacity"
+      },
+      "background-inverse": {
+        "$value": "{color.secondary.100}",
+        "$type": "color",
+        "$description": "Use when: a dark surface such as the footer or an inverse card"
+      },
+      "background-blanket": {
+        "$value": "{color.black.80}",
+        "$type": "color",
+        "$description": "Use when: the scrim behind a modal dialog or sheet"
+      },
+      "surface-raised": {
+        "$value": "{color.white.90}",
+        "$type": "color",
+        "$description": "Use when: a card over the page glow, translucent by intent"
+      },
+      "surface-overlay": {
+        "$value": "{color.white.100}",
+        "$type": "color",
+        "$description": "Use when: an opaque overlay over arbitrary content"
+      },
+      "border-default": {
+        "$value": "{color.secondary.20}",
+        "$type": "color",
+        "$description": "Use when: the resting hairline of a quiet surface"
+      },
+      "border-hovered": {
+        "$value": "{color.secondary.40}",
+        "$type": "color",
+        "$description": "Use when: the hover edge of a subtle tile; the locked-answer edge"
+      },
+      "border-strong": {
+        "$value": "{color.secondary.60}",
+        "$type": "color",
+        "$description": "Use when: the resting edge of an interactive control"
+      },
+      "border-strong-hovered": {
+        "$value": "{color.secondary.70}",
+        "$type": "color",
+        "$description": "Use when: a control edge that stays distinct on neutral and tinted surfaces"
+      },
+      "border-brand-subtle": {
+        "$value": "{color.primary.40}",
+        "$type": "color",
+        "$description": "Use when: the edge of a brand-subtle surface"
+      },
+      "border-selected": {
+        "$value": "{color.primary.70}",
+        "$type": "color",
+        "$description": "Use when: an edge communicating selection"
+      },
+      "border-focused": {
+        "$value": "{color.primary.80}",
+        "$type": "color",
+        "$description": "Use when: the one focus colour"
+      },
+      "border-danger-subtle": {
+        "$value": "{color.destructive.30}",
+        "$type": "color",
+        "$description": "Use when: the quiet edge of a danger-tinted surface"
+      },
+      "border-danger": {
+        "$value": "{color.destructive.60}",
+        "$type": "color",
+        "$description": "Use when: an edge communicating an incorrect or dangerous state"
+      },
+      "border-warning-subtle": {
+        "$value": "{color.warning.30}",
+        "$type": "color",
+        "$description": "Use when: the quiet edge of a caution surface"
+      },
+      "border-warning": {
+        "$value": "{color.warning.60}",
+        "$type": "color",
+        "$description": "Use when: the edge of a caution message"
+      },
+      "border-success-subtle": {
+        "$value": "{color.secondary.50}",
+        "$type": "color",
+        "$description": "Use when: the quiet edge of a success surface"
+      },
+      "border-success": {
+        "$value": "{color.secondary.70}",
+        "$type": "color",
+        "$description": "Use when: an edge communicating correctness"
+      },
+      "border-disabled": {
+        "$value": "{color.black.30}",
+        "$type": "color",
+        "$description": "Use when: a disabled edge"
+      },
+      "border-inverse": {
+        "$value": "{color.white.20}",
+        "$type": "color",
+        "$description": "Use when: an edge on a dark surface"
+      },
+      "text-default": {
+        "$value": "{color.secondary.100}",
+        "$type": "color",
+        "$description": "Use when: default text"
+      },
+      "text-subtle": {
+        "$value": "{color.secondary.70}",
+        "$type": "color",
+        "$description": "Use when: secondary text, placeholders, locked or unavailable labels"
+      },
+      "text-brand": {
+        "$value": "{color.primary.80}",
+        "$type": "color",
+        "$description": "Use when: links and brand eyebrows"
+      },
+      "text-selected": {
+        "$value": "{color.primary.100}",
+        "$type": "color",
+        "$description": "Use when: text on a selected surface"
+      },
+      "text-danger": {
+        "$value": "{color.destructive.90}",
+        "$type": "color",
+        "$description": "Use when: error and incorrect text"
+      },
+      "text-warning": {
+        "$value": "{color.warning.100}",
+        "$type": "color",
+        "$description": "Use when: caution text"
+      },
+      "text-success": {
+        "$value": "{color.secondary.90}",
+        "$type": "color",
+        "$description": "Use when: success text"
+      },
+      "text-inverse": {
+        "$value": "{color.white.100}",
+        "$type": "color",
+        "$description": "Use when: text on brand and danger bold fills and inverse surfaces"
+      },
+      "text-inverse-subtle": {
+        "$value": "{color.white.90}",
+        "$type": "color",
+        "$description": "Use when: muted copy on a saturated plane"
+      },
+      "text-disabled": {
+        "$value": "{color.black.70}",
+        "$type": "color",
+        "$description": "Use when: a disabled label; full contrast on its own surface"
+      },
+      "icon-default": {
+        "$value": "{color.secondary.70}",
+        "$type": "color",
+        "$description": "Use when: a neutral glyph on a subtle well"
+      },
+      "icon-brand": {
+        "$value": "{color.primary.70}",
+        "$type": "color",
+        "$description": "Use when: a brand glyph"
+      },
+      "icon-success": {
+        "$value": "{color.secondary.70}",
+        "$type": "color",
+        "$description": "Use when: a success glyph"
+      },
+      "icon-warning": {
+        "$value": "{color.warning.70}",
+        "$type": "color",
+        "$description": "Use when: a caution glyph"
+      },
+      "icon-danger": {
+        "$value": "{color.destructive.60}",
+        "$type": "color",
+        "$description": "Use when: a danger glyph"
+      },
+      "control-secondary-surface": {
+        "$value": "{color.primary.10}",
+        "$type": "color",
+        "$description": "Use when: the resting fill of a secondary button"
+      },
+      "control-secondary-surface-hover": {
+        "$value": "{color.primary.30}",
+        "$type": "color",
+        "$description": "Use when: the hover fill of a secondary button"
+      },
+      "control-secondary-surface-active": {
+        "$value": "{color.primary.40}",
+        "$type": "color",
+        "$description": "Use when: the pressed fill of a secondary button"
+      },
+      "control-secondary-border": {
+        "$value": "rgba(0, 0, 0, 0)",
+        "$type": "color",
+        "$description": "Use when: the edge of a secondary button"
+      },
+      "control-secondary-text": {
+        "$value": "{color.primary.100}",
+        "$type": "color",
+        "$description": "Use when: the label of a secondary button"
+      },
+      "control-inverse-surface": {
+        "$value": "{color.white.100}",
+        "$type": "color",
+        "$description": "Use when: the resting fill of an action on a dark plane"
+      },
+      "control-inverse-surface-hover": {
+        "$value": "{color.white.90}",
+        "$type": "color",
+        "$description": "Use when: the hover fill of an action on a dark plane"
+      },
+      "control-inverse-surface-active": {
+        "$value": "{color.white.80}",
+        "$type": "color",
+        "$description": "Use when: the pressed fill of an action on a dark plane"
+      },
+      "control-inverse-border": {
+        "$value": "rgba(0, 0, 0, 0)",
+        "$type": "color",
+        "$description": "Use when: the edge of an action on a dark plane"
+      },
+      "control-inverse-text": {
+        "$value": "{color.secondary.100}",
+        "$type": "color",
+        "$description": "Use when: the label of an action on a dark plane"
+      },
+      "shadow-color-1": {
+        "$value": "{color.black.20}",
+        "$type": "color",
+        "$description": "Use when: the ink the elevation shadows are drawn in"
+      },
+      "shadow-color-2": {
+        "$value": "{color.black.30}",
+        "$type": "color",
+        "$description": "Use when: the ink the elevation shadows are drawn in"
+      },
+      "shadow-color-strong": {
+        "$value": "{color.black.60}",
+        "$type": "color",
+        "$description": "Use when: the ink the elevation shadows are drawn in"
+      },
+      "shadow-color-tile-1": {
+        "$value": "rgba(0, 26, 34, 0.12)",
+        "$type": "color",
+        "$description": "Use when: the ink the elevation shadows are drawn in"
+      },
+      "shadow-color-tile-2": {
+        "$value": "rgba(0, 26, 34, 0.14)",
+        "$type": "color",
+        "$description": "Use when: the ink the elevation shadows are drawn in"
+      }
+    }
+  },
+  "semantic": {
+    "spacing": {
+      "0": {
+        "$value": "0",
+        "$type": "spacing",
+        "$description": ""
+      },
+      "1": {
+        "$value": "4",
+        "$type": "spacing",
+        "$description": ""
+      },
+      "2": {
+        "$value": "8",
+        "$type": "spacing",
+        "$description": ""
+      },
+      "3": {
+        "$value": "12",
+        "$type": "spacing",
+        "$description": ""
+      },
+      "4": {
+        "$value": "16",
+        "$type": "spacing",
+        "$description": ""
+      },
+      "5": {
+        "$value": "20",
+        "$type": "spacing",
+        "$description": ""
+      },
+      "6": {
+        "$value": "24",
+        "$type": "spacing",
+        "$description": ""
+      },
+      "8": {
+        "$value": "32",
+        "$type": "spacing",
+        "$description": ""
+      },
+      "10": {
+        "$value": "40",
+        "$type": "spacing",
+        "$description": ""
+      },
+      "12": {
+        "$value": "48",
+        "$type": "spacing",
+        "$description": ""
+      },
+      "16": {
+        "$value": "64",
+        "$type": "spacing",
+        "$description": ""
+      }
+    },
+    "font": {
+      "size": {
+        "text-body-small": {
+          "$value": "{scale.font-size.12}",
+          "$type": "fontSizes",
+          "$description": "Use when: fine print and metadata"
+        },
+        "text-body-medium": {
+          "$value": "{scale.font-size.14}",
+          "$type": "fontSizes",
+          "$description": "Use when: default interface text"
+        },
+        "text-body-large": {
+          "$value": "{scale.font-size.16}",
+          "$type": "fontSizes",
+          "$description": "Use when: long-form reading"
+        },
+        "text-heading-xxlarge": {
+          "$value": "{scale.font-size.32}",
+          "$type": "fontSizes",
+          "$description": "Use when: brand headlines"
+        },
+        "text-heading-xlarge": {
+          "$value": "{scale.font-size.28}",
+          "$type": "fontSizes",
+          "$description": "Use when: page titles that lead a view"
+        },
+        "text-heading-large": {
+          "$value": "{scale.font-size.24}",
+          "$type": "fontSizes",
+          "$description": "Use when: page and form titles"
+        },
+        "text-heading-medium": {
+          "$value": "{scale.font-size.20}",
+          "$type": "fontSizes",
+          "$description": "Use when: titles of dialogs and panels"
+        },
+        "text-heading-small": {
+          "$value": "{scale.font-size.16}",
+          "$type": "fontSizes",
+          "$description": "Use when: titles in small components"
+        },
+        "text-heading-xsmall": {
+          "$value": "{scale.font-size.14}",
+          "$type": "fontSizes",
+          "$description": "Use when: titles where space is tight"
+        },
+        "text-heading-xxsmall": {
+          "$value": "{scale.font-size.13}",
+          "$type": "fontSizes",
+          "$description": "Use when: a short sentence-case label above a section or item"
+        }
+      },
+      "weight": {
+        "body": {
+          "$value": "{scale.font-weight.400}",
+          "$type": "fontWeights",
+          "$description": ""
+        },
+        "heading": {
+          "$value": "{scale.font-weight.700}",
+          "$type": "fontWeights",
+          "$description": ""
+        },
+        "eyebrow": {
+          "$value": "{scale.font-weight.600}",
+          "$type": "fontWeights",
+          "$description": ""
+        }
+      }
+    },
+    "radius": {
+      "sm": {
+        "$value": "{scale.radius.8}",
+        "$type": "borderRadius",
+        "$description": ""
+      },
+      "md": {
+        "$value": "{scale.radius.10}",
+        "$type": "borderRadius",
+        "$description": ""
+      },
+      "2xl": {
+        "$value": "{scale.radius.20}",
+        "$type": "borderRadius",
+        "$description": ""
+      },
+      "3xl": {
+        "$value": "{scale.radius.24}",
+        "$type": "borderRadius",
+        "$description": ""
+      },
+      "4xl": {
+        "$value": "{scale.radius.28}",
+        "$type": "borderRadius",
+        "$description": ""
+      },
+      "field": {
+        "$value": "{scale.radius.12}",
+        "$type": "borderRadius",
+        "$description": ""
+      },
+      "section": {
+        "$value": "{scale.radius.16}",
+        "$type": "borderRadius",
+        "$description": ""
+      },
+      "pill": {
+        "$value": "{scale.radius.9999}",
+        "$type": "borderRadius",
+        "$description": ""
+      }
+    },
+    "size": {
+      "icon": {
+        "xs": {
+          "$value": "12",
+          "$type": "sizing",
+          "$description": ""
+        },
+        "sm": {
+          "$value": "16",
+          "$type": "sizing",
+          "$description": ""
+        },
+        "md": {
+          "$value": "20",
+          "$type": "sizing",
+          "$description": ""
+        },
+        "lg": {
+          "$value": "24",
+          "$type": "sizing",
+          "$description": ""
+        }
+      },
+      "dialog": {
+        "desktop-max-width": {
+          "$value": "560",
+          "$type": "sizing",
+          "$description": ""
+        }
+      }
+    }
+  },
+  "app/light": {
+    "color": {
+      "progress-primary-complete": {
+        "$value": "{color.secondary.40}",
+        "$type": "color",
+        "$description": ""
+      },
+      "progress-primary-current": {
+        "$value": "{color.secondary.30}",
+        "$type": "color",
+        "$description": ""
+      },
+      "progress-locked": {
+        "$value": "rgba(71, 114, 138, 0.55)",
+        "$type": "color",
+        "$description": ""
+      },
+      "progress-secondary-complete": {
+        "$value": "{color.primary.40}",
+        "$type": "color",
+        "$description": ""
+      },
+      "progress-secondary-current": {
+        "$value": "{color.primary.30}",
+        "$type": "color",
+        "$description": ""
+      },
+      "chart-neutral-1": {
+        "$value": "{color.secondary.40}",
+        "$type": "color",
+        "$description": ""
+      },
+      "chart-neutral-2": {
+        "$value": "{color.secondary.60}",
+        "$type": "color",
+        "$description": ""
+      },
+      "chart-neutral-3": {
+        "$value": "{color.secondary.80}",
+        "$type": "color",
+        "$description": ""
+      },
+      "chart-success": {
+        "$value": "{color.secondary.50}",
+        "$type": "color",
+        "$description": ""
+      },
+      "page-grid-line": {
+        "$value": "rgba(21, 48, 58, 0.08)",
+        "$type": "color",
+        "$description": ""
+      },
+      "selection-background": {
+        "$value": "{color.primary.30}",
+        "$type": "color",
+        "$description": ""
+      },
+      "selection-foreground": {
+        "$value": "{color.text-default}",
+        "$type": "color",
+        "$description": ""
+      },
+      "hero-brand-surface": {
+        "$value": "{color.primary.10}",
+        "$type": "color",
+        "$description": ""
+      },
+      "hero-calm-surface": {
+        "$value": "{color.secondary.10}",
+        "$type": "color",
+        "$description": ""
+      },
+      "hero-deep-surface": {
+        "$value": "{color.secondary.20}",
+        "$type": "color",
+        "$description": ""
+      },
+      "hero-text": {
+        "$value": "{color.secondary.100}",
+        "$type": "color",
+        "$description": ""
+      },
+      "hero-muted-text": {
+        "$value": "{color.secondary.80}",
+        "$type": "color",
+        "$description": ""
+      },
+      "hero-badge-surface": {
+        "$value": "{color.white.100}",
+        "$type": "color",
+        "$description": ""
+      },
+      "hero-progress-track": {
+        "$value": "{color.white.100}",
+        "$type": "color",
+        "$description": ""
+      },
+      "hero-quiet-text": {
+        "$value": "{color.secondary.100}",
+        "$type": "color",
+        "$description": ""
+      },
+      "hero-quiet-muted-text": {
+        "$value": "{color.secondary.90}",
+        "$type": "color",
+        "$description": ""
+      },
+      "progress-border": {
+        "$value": "{color.secondary.80}",
+        "$type": "color",
+        "$description": ""
+      },
+      "surface-mat": {
+        "$value": "{color.secondary.10}",
+        "$type": "color",
+        "$description": ""
+      },
+      "shadow-color-mat-1": {
+        "$value": "rgba(255, 255, 255, 0.7)",
+        "$type": "color",
+        "$description": ""
+      },
+      "shadow-color-mat-2": {
+        "$value": "rgba(11, 24, 28, 0.05)",
+        "$type": "color",
+        "$description": ""
+      },
+      "shadow-color-mat-3": {
+        "$value": "rgba(0, 26, 34, 0.22)",
+        "$type": "color",
+        "$description": ""
+      },
+      "shadow-color-lift": {
+        "$value": "rgba(18, 17, 48, 0.3)",
+        "$type": "color",
+        "$description": ""
+      },
+      "shadow-color-commit": {
+        "$value": "rgba(39, 24, 96, 0.4)",
+        "$type": "color",
+        "$description": ""
+      }
+    }
+  },
+  "$themes": [
+    {
+      "name": "Light",
+      "group": "Colour scheme",
+      "description": "",
+      "isSource": false,
+      "selectedTokenSets": {
+        "primitives": "enabled",
+        "modes/light": "enabled",
+        "semantic": "enabled",
+        "app/light": "enabled"
+      }
+    }
+  ],
+  "$metadata": {
+    "tokenSetOrder": ["primitives", "modes/light", "semantic", "app/light"],
+    "activeThemes": ["Colour scheme/Light"],
+    "activeSets": ["primitives", "modes/light", "semantic", "app/light"]
+  }
+}

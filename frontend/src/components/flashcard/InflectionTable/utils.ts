@@ -1,14 +1,11 @@
 import { getGenderFromTags, getOtherTags } from '@flyt/lexicon/grammar';
 
+import { sentenceCaseLabel } from '@/lib/utils';
 import type { LemmaPos, WordFormRead } from '@/types/api';
 
 export type NormalizedPos =
   'noun' | 'adjective' | 'verb' | 'adverb' | undefined;
 
-// Inflection labels are kept full-length by default; only labels that grow past
-// a comfortable width collapse to standard Norwegian abbreviations. Short labels
-// (presens, positiv, bestemt form, …) render verbatim; long composites
-// (presens perfektum, flertall / bestemt form, hankjønn / hunkjønn, …) shorten.
 const MAX_INFLECTION_LABEL_LENGTH = 12;
 
 const INFLECTION_ABBR: Record<string, string> = {
@@ -30,13 +27,16 @@ const INFLECTION_ABBR: Record<string, string> = {
   form: '',
 };
 
-export function shortenInflectionLabel(label: string): string {
-  if (label.length <= MAX_INFLECTION_LABEL_LENGTH) return label;
-  return label
-    .split(' ')
-    .map((word) => (word in INFLECTION_ABBR ? INFLECTION_ABBR[word] : word))
-    .filter((word) => word.length > 0)
-    .join(' ');
+export function formatInflectionLabel(label: string): string {
+  if (label.length <= MAX_INFLECTION_LABEL_LENGTH)
+    return sentenceCaseLabel(label);
+  return sentenceCaseLabel(
+    label
+      .split(' ')
+      .map((word) => INFLECTION_ABBR[word.toLowerCase()] ?? word)
+      .filter((word) => word.length > 0)
+      .join(' '),
+  );
 }
 
 const DEGREE_TAGS = new Set(['Pos', 'Cmp', 'Sup']);
@@ -180,13 +180,13 @@ export function translateGender(gender: string): string {
 export function translateGenderNo(gender: string): string {
   switch (gender) {
     case 'Masc':
-      return 'hankjønn';
+      return 'Hankjønn';
     case 'Fem':
-      return 'hunkjønn';
+      return 'Hunkjønn';
     case 'Neuter':
-      return 'intetkjønn';
+      return 'Intetkjønn';
     default:
-      return gender;
+      return sentenceCaseLabel(gender);
   }
 }
 

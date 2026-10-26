@@ -1,18 +1,28 @@
+import { Button, Text, textVariants } from '@flyt/ui';
 import { ArrowUp } from 'lucide-react';
 import { useId } from 'react';
-import type { FormEvent, ReactNode, RefObject } from 'react';
+import type { FormEvent, KeyboardEvent, ReactNode, RefObject } from 'react';
 
-import { Button } from '@/components/common/Button/Button';
+import { CHATBOT_MODEL_IDS } from '@/api/chatbot';
+import type { AccountPageAnchor } from '@/components/nav/accountNavigation';
+import { useIsDesktop } from '@/hooks/ui/useIsDesktop';
 import { cn } from '@/lib/utils';
 
 import { hasAttachedSource } from './chatbotContext';
 import { ContextPill } from './FlytChatbotContextElements';
 import { ModelPills } from './FlytChatbotModelPicker';
-import type { FlytChatbotContext, FlytChatbotModel } from './types';
+import type {
+  ChatbotAvailabilityStatus,
+  FlytChatbotContext,
+  FlytChatbotModel,
+} from './types';
 
 const CHATBOT_MESSAGE_MAX_CHARACTERS = 4_000;
+const IME_COMPOSING_KEY_CODE = 229;
+
 export function ChatbotComposer({
   activeModel,
+  availabilityStatus,
   composerState,
   context,
   draft,
@@ -23,10 +33,13 @@ export function ChatbotComposer({
   onContextRemove,
   onDraftChange,
   onModelChange,
+  onOpenAccountSettings,
+  onRetryAvailability,
   onSubmit,
   textareaRef,
 }: {
   activeModel: FlytChatbotModel | null;
+  availabilityStatus: ChatbotAvailabilityStatus;
   composerState: {
     canSend: boolean;
     loading: boolean;
@@ -41,22 +54,35 @@ export function ChatbotComposer({
   onContextRemove?: (context: FlytChatbotContext) => void;
   onDraftChange: (draft: string) => void;
   onModelChange: (model: FlytChatbotModel) => void;
+  onOpenAccountSettings?: (anchor: AccountPageAnchor) => void;
+  onRetryAvailability?: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
 }) {
   const textareaId = useId();
+  const isDesktop = useIsDesktop();
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      event.nativeEvent.isComposing ||
+      event.keyCode === IME_COMPOSING_KEY_CODE
+    )
+      return;
+    if (event.key !== 'Enter') return;
+    if (!isDesktop || event.shiftKey) return;
+
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  };
 
   return (
     <form
       aria-label="Ask the chatbot"
-      className="group/composer min-w-0 border-t border-border/70 bg-card px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4"
+      className="group/composer min-w-0 border-t border-default/70 bg-raised px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4"
       onSubmit={onSubmit}
     >
       <div
-        className={cn(
-          'relative radius-field border border-secondary-60 bg-background transition-colors',
-          'focus-within:border-primary-70 focus-within:ring-2 focus-within:ring-primary-20',
-        )}
+        className="relative radius-field border border-strong bg-neutral focus-within:border-selected focus-within:ring-2 focus-within:ring-[var(--border-focused)]"
         data-testid="chatbot-input-well"
       >
         {context ? (
@@ -71,15 +97,10 @@ export function ChatbotComposer({
           <textarea
             ref={textareaRef}
             id={textareaId}
-            className="max-h-[120px] min-h-11 w-full resize-none field-sizing-content bg-transparent type-caption leading-6 text-foreground outline-none placeholder:text-muted-foreground"
+            className={`max-h-[120px] min-h-11 w-full resize-none field-sizing-content bg-transparent outline-none placeholder:text-subtle ${textVariants({ size: 'medium', tone: 'default' })}`}
             disabled={composerState.loading}
             onChange={(event) => onDraftChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                event.currentTarget.form?.requestSubmit();
-              }
-            }}
+            onKeyDown={handleKeyDown}
             placeholder={
               hasAttachedSource(context)
                 ? 'Ask about this context…'
@@ -90,41 +111,57 @@ export function ChatbotComposer({
             value={draft}
           />
         </div>
-        <Button
-          aria-label="Send message"
-          className="absolute bottom-1.5 right-1.5 size-11 bg-primary-80 p-0 hover:bg-primary-90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
-          disabled={!composerState.canSend}
-          type="submit"
-        >
-          <ArrowUp className="icon-sm" strokeWidth={2.2} />
-        </Button>
+        <span className="absolute right-1.5 bottom-1.5">
+          <Button
+            aria-label="Send message"
+            disabled={!composerState.canSend}
+            size="icon"
+            type="submit"
+          >
+            <ArrowUp strokeWidth={2.2} />
+          </Button>
+        </span>
       </div>
       <ModelPills
         activeModel={activeModel}
+        availabilityStatus={availabilityStatus}
         isModelUsable={isModelUsable}
         modelActions={modelActions}
         modelReasons={modelReasons}
         onModelChange={onModelChange}
+        onOpenAccountSettings={onOpenAccountSettings}
+        onRetryAvailability={onRetryAvailability}
       />
-      {activeModel === 'flyt' && flytRemainingPercent !== null ? (
-        <p
-          className="mt-1.5 type-caption-sm text-muted-foreground"
-          data-testid="chatbot-flyt-usage"
-        >
-          {flytRemainingPercent}% left
-        </p>
+      {activeModel === CHATBOT_MODEL_IDS.FLYT &&
+      flytRemainingPercent !== null ? (
+        <div className="mt-1.5">
+          <Text
+            as="p"
+            data-testid="chatbot-flyt-usage"
+            size="small"
+            tone="subtle"
+          >
+            {flytRemainingPercent}% left
+          </Text>
+        </div>
       ) : null}
       {composerState.availabilityNotice ? (
-        <p
-          className="mt-1.5 type-caption-sm font-medium text-warning-90"
-          data-testid="chatbot-availability-notice"
-        >
-          {composerState.availabilityNotice}
-        </p>
+        <div className="mt-1.5 text-warning">
+          <Text as="p" data-testid="chatbot-availability-notice" size="small">
+            {composerState.availabilityNotice}
+          </Text>
+        </div>
       ) : null}
-      <p className="mt-1.5 hidden text-right type-caption-sm text-muted-foreground md:group-has-[textarea:focus]/composer:block">
-        Shift + Enter for a new line
-      </p>
+      <div className="mt-1.5 hidden min-h-4 text-right lg:block">
+        <Text
+          as="p"
+          data-testid="chatbot-composer-hint"
+          size="small"
+          tone="subtle"
+        >
+          Enter to send · Shift + Enter for a new line
+        </Text>
+      </div>
     </form>
   );
 }
@@ -139,15 +176,15 @@ export function IconButton({
   onClick?: () => void;
 }) {
   return (
-    <button
+    <Button
       aria-label={label}
-      className="flex size-11 cursor-pointer items-center justify-center rounded-full text-secondary-80 transition-colors hover:bg-secondary-10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       onClick={onClick}
+      shape="pill"
+      size="icon"
       type="button"
+      variant="ghost"
     >
-      <span aria-hidden="true" className="[&_svg]:icon-sm">
-        {children}
-      </span>
-    </button>
+      <span aria-hidden="true">{children}</span>
+    </Button>
   );
 }

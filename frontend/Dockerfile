@@ -1,10 +1,10 @@
 FROM node:24-slim AS builder
 
-RUN corepack enable && corepack prepare pnpm@12.3.4 --activate
+RUN corepack enable && corepack prepare pnpm@12.14.0 --activate
 
 WORKDIR /repo
 
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
 COPY scripts/check_pnpm_version.mjs scripts/check_pnpm_version.mjs
 COPY packages/ui/package.json packages/ui/package.json
 COPY packages/lexicon/package.json packages/lexicon/package.json
@@ -22,9 +22,10 @@ ARG FLYT_RELEASE=dev
 RUN FLYT_API_URL=$FLYT_API_URL FLYT_SENTRY_DSN=$FLYT_SENTRY_DSN FLYT_RELEASE=$FLYT_RELEASE pnpm --filter frontend build
 
 # Unprivileged nginx: runs as uid 101, listens on 8080.
-FROM nginxinc/nginx-unprivileged:alpine
+FROM nginxinc/nginx-unprivileged:alpine AS runtime
 
 USER root
+RUN apk upgrade --no-cache
 COPY --from=builder --chown=101:101 /repo/frontend/dist /usr/share/nginx/html
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 RUN chmod 644 /etc/nginx/conf.d/default.conf

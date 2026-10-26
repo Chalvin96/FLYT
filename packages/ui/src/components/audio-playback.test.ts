@@ -1,6 +1,10 @@
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { createElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AudioPlaybackController } from './audio-playback';
+import { AudioPlayButton } from './audio-play-button';
 
 class FakeAudio {
   static instances: FakeAudio[] = [];
@@ -77,4 +81,66 @@ describe('AudioPlaybackController', () => {
     );
     expect(onError).toHaveBeenCalledOnce();
   });
+
+  it('test_audio_playback_given_pending_play_rejects_after_pause_expect_recording_can_resume', async () => {
+    vi.stubGlobal('Audio', FakeAudio as unknown as typeof Audio);
+    const controller = new AudioPlaybackController();
+    const src = 'https://media.example.test/one.wav';
+    controller.play(src);
+    const recording = FakeAudio.instances[0]!;
+    let rejectPendingPlay: (reason: Error) => void = () => undefined;
+    recording.play.mockImplementationOnce(
+      () =>
+        new Promise<void>((_, reject) => {
+          rejectPendingPlay = reject;
+        }),
+    );
+
+    controller.pause();
+    controller.resume(src);
+    controller.pause();
+    rejectPendingPlay(new Error('Playback interrupted by pause'));
+    await Promise.resolve();
+
+    expect(controller.isPaused(src)).toBe(true);
+    expect(controller.resume(src)).toBe(true);
+    expect(FakeAudio.instances).toHaveLength(1);
+    expect(recording.play).toHaveBeenCalledTimes(3);
+    expect(controller.isPlaying(src)).toBe(true);
+  });
+});
+
+describe('AudioPlayButton', () => {
+  it.each(['inline', 'compact', 'compact-quiet'] as const)(
+    'test_audio_play_button_given_hover_and_playback_expect_selected_text_on_selected_tint',
+    async (presentation) => {
+      vi.stubGlobal('Audio', FakeAudio);
+      const user = userEvent.setup();
+      render(
+        createElement(AudioPlayButton, {
+          presentation,
+          src: 'https://media.example.test/one.wav',
+        }),
+      );
+
+      const button = screen.getByRole('button', { name: 'Play audio' });
+      const indicator =
+        presentation === 'inline' ? button : button.firstElementChild;
+      expect(indicator).toHaveClass(
+        presentation === 'inline'
+          ? 'hover:text-selected'
+          : 'group-hover:text-selected',
+      );
+
+      await user.click(button);
+
+      expect(button).toHaveAttribute('data-state', 'playing');
+      expect(indicator).toHaveClass('bg-selected', 'text-selected');
+      expect(indicator).not.toHaveClass('text-brand');
+
+      await user.click(button);
+
+      expect(button).toHaveAttribute('data-state', 'idle');
+    },
+  );
 });

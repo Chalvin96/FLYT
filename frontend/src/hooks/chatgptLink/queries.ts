@@ -22,6 +22,7 @@ export function useChatGPTLink() {
   return useQuery({
     queryKey: chatGPTLinkKeys.state,
     queryFn: getChatGPTLink,
+    retry: false,
   });
 }
 

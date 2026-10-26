@@ -1,31 +1,21 @@
 import type { ReactNode } from 'react';
 
-import type { CheckablePhase } from '@/hooks/flashcard/useCheckableExercise/useCheckableExercise';
+import type { AttemptPhase } from '@/hooks/flashcard/useExerciseAttempt/useExerciseAttempt';
 import type { OperationResult } from '@/lib/operationResult';
 import type { Spans } from '@/types/lesson-contracts';
 
-/**
- * Re-exported as a type alias so the canonical phase union lives in one
- * place (`useCheckableExercise`) and the hook, the shell, and the shell's
- * view model share it.
- */
-export type RetryPhase = CheckablePhase;
+import type { BannerVerdict, StatusVerdict } from './answerVerdict';
 
-export interface RetryConfig {
-  /** Current phase of the no-fail retry state machine. */
-  phase: RetryPhase;
-  /** Increments on every wrong check to retrigger the shake animation. */
-  shakeKey: number;
-  /** True when Reveal is allowed (>= 1 wrong check, not terminal). */
-  canReveal: boolean;
-  /** Called when the learner clicks "Reveal answer". */
-  onReveal: () => void;
-}
-
-/** Which terminal/feedback banner the shell shows. At most one is visible. */
-export type BannerKind = 'wrong' | 'revealed' | 'solved' | 'incorrect';
-
-export type StatusTone = 'accent' | 'destructive' | 'muted';
+export type ExerciseAttemptView =
+  | { kind: 'single'; result: OperationResult | null }
+  | {
+      kind: 'retry';
+      phase: AttemptPhase;
+      result: OperationResult | null;
+      shakeKey: number;
+      canReveal: boolean;
+      onReveal: () => void;
+    };
 
 export type FooterView =
   | { kind: 'pending'; label: string }
@@ -40,42 +30,32 @@ export type FooterView =
     };
 
 interface FooterViewInput {
+  attempt: ExerciseAttemptView;
   canCheck: boolean;
-  effectiveResult: OperationResult | null;
   isSubmitting?: boolean;
-  isTerminal: boolean;
   onCheck: () => void;
   onContinue?: () => void;
   pending: boolean;
   pendingLabel: string;
-  retry?: RetryConfig;
-  retryActive: boolean;
 }
 
 export function buildFooterView(input: FooterViewInput): FooterView {
   const {
+    attempt,
     canCheck,
-    effectiveResult,
     isSubmitting,
-    isTerminal,
     onCheck,
     onContinue,
     pending,
     pendingLabel,
-    retry,
-    retryActive,
   } = input;
 
   if (pending) {
     return { kind: 'pending', label: pendingLabel };
   }
 
-  // Non-retry path: Check and Continue are ALWAYS separate button
-  // instances. This eliminates the fall-through where a fast second
-  // click or held Enter on the old single swapping button would skip
-  // the card. No timer / disable-window is needed.
-  if (!retryActive) {
-    if (effectiveResult) {
+  if (attempt.kind === 'single') {
+    if (attempt.result) {
       return {
         kind: 'continue',
         disabled: Boolean(isSubmitting) || !onContinue,
@@ -89,7 +69,7 @@ export function buildFooterView(input: FooterViewInput): FooterView {
     };
   }
 
-  if (isTerminal) {
+  if (isTerminal(attempt)) {
     return {
       kind: 'continue',
       disabled: Boolean(isSubmitting) || !onContinue,
@@ -97,28 +77,27 @@ export function buildFooterView(input: FooterViewInput): FooterView {
     };
   }
 
-  // working / wrong: Check + optional Reveal answer.
   return {
     kind: 'retryCheck',
     disabled: !canCheck || Boolean(isSubmitting),
-    canReveal: Boolean(retry?.canReveal),
+    canReveal: attempt.canReveal,
     onCheck,
-    onReveal: retry?.onReveal ?? (() => {}),
+    onReveal: attempt.onReveal,
   };
 }
 
-/**
- * Derive a short contextual status string for the action bar's left side.
- * - Before Check: prompts the next action ("Select an answer" / custom
- *   progress hint from statusHint / "Ready to check").
- * - After Check: an action cue that stays distinct from the result banner
- *   text ("Correct" / "Not quite") so both remain independently queryable.
- */
-export function footerStatus(
+function isTerminal(attempt: ExerciseAttemptView): boolean {
+  return (
+    attempt.kind === 'retry' &&
+    (attempt.phase === 'solved' || attempt.phase === 'revealed')
+  );
+}
+
+function footerStatus(
   result: OperationResult | null,
   canCheck: boolean,
   statusHint: string | undefined,
-  retryPhase: RetryPhase | undefined,
+  attempt: ExerciseAttemptView,
   ownsResultFeedback: boolean,
 ) {
   if (result) {
@@ -126,118 +105,99 @@ export function footerStatus(
     return result.correct ? 'Nice work' : 'Review the answer';
   }
   if (canCheck) return 'Ready to check';
-  // In a retry-wrong state the board is already filled but Check is gated
-  // on a board change (dirty). The generic "Select an answer" is misleading
-  // because nothing is missing — guide the learner to change their answer.
-  if (retryPhase === 'wrong') {
+  if (attempt.kind === 'retry' && attempt.phase === 'wrong') {
     return 'Adjust your answer to try again.';
   }
   return statusHint ?? 'Select an answer';
 }
 
 interface BannerViewInput {
+  attempt: ExerciseAttemptView;
   effectiveResult: OperationResult | null;
   ownsResultFeedback: boolean;
-  retryActive: boolean;
-  retryPhase: RetryPhase | undefined;
 }
 
-export function buildBannerKind({
+function buildBannerVerdict({
+  attempt,
   effectiveResult,
   ownsResultFeedback,
-  retryActive,
-  retryPhase,
-}: BannerViewInput): BannerKind | null {
-  if (retryActive) {
-    if (retryPhase === 'wrong') return 'wrong';
-    if (retryPhase === 'revealed' && !ownsResultFeedback) return 'revealed';
-    if (retryPhase === 'solved' && !ownsResultFeedback) return 'solved';
+}: BannerViewInput): BannerVerdict | null {
+  if (attempt.kind === 'retry') {
+    if (attempt.phase === 'wrong') return 'wrong-flash';
+    if (attempt.phase === 'revealed' && !ownsResultFeedback) return 'revealed';
+    if (attempt.phase === 'solved' && !ownsResultFeedback) return 'correct';
     return null;
   }
   if (ownsResultFeedback || !effectiveResult) {
     return null;
   }
-  return effectiveResult.correct ? 'solved' : 'incorrect';
+  return effectiveResult.correct ? 'correct' : 'incorrect';
 }
 
-export function buildStatusTone(
+function buildStatusVerdict(
   effectiveResult: OperationResult | null,
-  bannerKind: BannerKind | null,
+  bannerVerdict: BannerVerdict | null,
   canCheck: boolean,
-): StatusTone {
+): StatusVerdict {
   if (effectiveResult) {
-    return effectiveResult.correct ? 'accent' : 'destructive';
+    return effectiveResult.correct ? 'correct' : 'incorrect';
   }
-  if (bannerKind === 'wrong' && !canCheck) {
-    return 'destructive';
+  if (bannerVerdict === 'wrong-flash' && !canCheck) {
+    return 'incorrect';
   }
-  return 'muted';
+  return 'idle';
 }
 
 export interface OperationShellView {
-  effectiveResult: OperationResult | null;
-  bannerKind: BannerKind | null;
+  showContinue: boolean;
+  bannerVerdict: BannerVerdict | null;
   hasBanner: boolean;
   status: string;
-  statusTone: StatusTone;
+  statusVerdict: StatusVerdict;
   ariaLive: 'polite' | undefined;
   resultHint: ReactNode;
   showExplanation: boolean;
 }
 
 interface ShellViewInput {
+  attempt: ExerciseAttemptView;
   canCheck: boolean;
   ownsResultFeedback: boolean;
   pendingLabel: string;
   pending: boolean;
-  result: OperationResult | null;
-  retryActive: boolean;
-  retryPhase: RetryPhase | undefined;
-  isTerminal: boolean;
   statusHint: string | undefined;
   wrongHint: ReactNode;
   explanation: Spans | null;
 }
 
-/**
- * Single derivation of everything the shell renders from its result/retry
- * state: effective result, banner kind, footer status text and tone, live
- * region behavior, and the explanation slot.
- */
 export function buildOperationShellView(
   input: ShellViewInput,
 ): OperationShellView {
   const {
+    attempt,
     canCheck,
     explanation,
-    isTerminal,
     ownsResultFeedback,
     pending,
     pendingLabel,
-    result,
-    retryActive,
-    retryPhase,
     statusHint,
     wrongHint,
   } = input;
 
-  const effectiveResult: OperationResult | null = retryActive
-    ? isTerminal
-      ? (result ?? null)
-      : null
-    : (result ?? null);
+  const effectiveResult =
+    attempt.kind === 'retry' && !isTerminal(attempt) ? null : attempt.result;
 
-  const bannerKind = buildBannerKind({
+  const bannerVerdict = buildBannerVerdict({
+    attempt,
     effectiveResult,
     ownsResultFeedback,
-    retryActive,
-    retryPhase,
   });
-  const hasBanner = bannerKind !== null;
+  const hasBanner = bannerVerdict !== null;
 
   return {
-    effectiveResult,
-    bannerKind,
+    showContinue:
+      attempt.kind === 'retry' ? isTerminal(attempt) : effectiveResult !== null,
+    bannerVerdict,
     hasBanner,
     status: pending
       ? pendingLabel
@@ -245,40 +205,35 @@ export function buildOperationShellView(
           effectiveResult,
           canCheck,
           statusHint,
-          retryPhase,
+          attempt,
           ownsResultFeedback,
         ),
-    statusTone: buildStatusTone(effectiveResult, bannerKind, canCheck),
+    statusVerdict: buildStatusVerdict(effectiveResult, bannerVerdict, canCheck),
     ariaLive: hasBanner ? undefined : 'polite',
     resultHint:
-      !retryActive && effectiveResult && !effectiveResult.correct
+      attempt.kind === 'single' && effectiveResult && !effectiveResult.correct
         ? wrongHint
         : null,
     showExplanation: hasVisibleExplanation(
       explanation,
-      bannerKind,
-      retryActive,
+      bannerVerdict,
+      attempt,
       effectiveResult,
     ),
   };
 }
 
-/**
- * The authored explanation is terminal feedback: it stays out of the
- * answerable view and appears once, below the operation-specific result.
- * A wrong retry phase is not terminal — the learner is still working.
- */
-export function hasVisibleExplanation(
+function hasVisibleExplanation(
   explanation: Spans | null,
-  bannerKind: BannerKind | null,
-  retryActive: boolean,
+  bannerVerdict: BannerVerdict | null,
+  attempt: ExerciseAttemptView,
   effectiveResult: OperationResult | null,
 ): boolean {
   if (!explanation) {
     return false;
   }
-  if (bannerKind === 'solved' || bannerKind === 'revealed') {
+  if (bannerVerdict === 'correct' || bannerVerdict === 'revealed') {
     return true;
   }
-  return !retryActive && effectiveResult !== null;
+  return attempt.kind === 'single' && effectiveResult !== null;
 }

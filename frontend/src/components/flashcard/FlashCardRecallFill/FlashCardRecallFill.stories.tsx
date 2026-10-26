@@ -32,7 +32,7 @@ const recallFillExercise: Extract<Exercise, { operation: 'recall_fill' }> = {
 };
 
 const meta = {
-  title: 'Flashcard/FlashCardRecallFill',
+  title: 'Features/Flashcard/FlashCardRecallFill',
   component: FlashCardRecallFill,
   tags: ['autodocs'],
   decorators: [
@@ -46,7 +46,7 @@ const meta = {
     ),
   ],
   parameters: { layout: 'fullscreen' },
-  args: { className: 'flex-1', desktopExpanded: true },
+  args: { allowRetry: false, layout: 'fill', desktopExpanded: true },
   argTypes: {
     exercise: { control: 'object' },
     onFinished: { action: 'onFinished' },
@@ -101,7 +101,21 @@ export const ResultWrong: Story = {
     ).not.toBeInTheDocument();
     await userEvent.click(canvas.getByRole('button', { name: /check/i }));
     await expect(canvas.getByText(/not quite/i)).toBeInTheDocument();
-    await expect(slot).toHaveAttribute('data-state', 'wrong');
+    await expect(slot).toHaveAttribute('data-state', 'incorrect');
     await expect(canvas.getByText(/takes the -t ending/i)).toBeInTheDocument();
+  },
+};
+
+export const InLesson: Story = {
+  args: {
+    allowRetry: true,
+    exercise: recallFillExercise,
+    desktopExpanded: true,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole('button', { name: /reveal answer/i }),
+    ).toBeVisible();
   },
 };

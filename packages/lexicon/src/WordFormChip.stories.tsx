@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { WordFormChip } from './WordFormChip';
 
 const meta = {
-  title: 'Lexicon/WordFormChip',
+  title: 'Features/Lexicon/WordFormChip',
   component: WordFormChip,
   tags: ['autodocs'],
   argTypes: {

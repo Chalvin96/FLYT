@@ -15,7 +15,7 @@ const baseLink: ChatGPTLink = {
 };
 
 const meta = {
-  title: 'ChatGPT link/ChatGPTLinkCard',
+  title: 'Features/ChatGPT link/ChatGPTLinkCard',
   component: ChatGPTLinkCard,
   args: {
     link: baseLink,

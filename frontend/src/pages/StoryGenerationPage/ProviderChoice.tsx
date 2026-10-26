@@ -1,8 +1,7 @@
-import { Badge } from '@flyt/ui';
+import { Badge, ChoiceTile, Text } from '@flyt/ui';
 import { LockKeyhole } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 
-import { cn } from '@/lib/utils';
 import type { StoryGenerationProvider } from '@/types/api';
 
 import { PROVIDER_COPY } from './constants';
@@ -14,10 +13,12 @@ import {
 export function ProviderChoice({
   provider,
   selected,
+  tabStop,
   onSelect,
 }: {
   provider: StoryGenerationProvider;
   selected: boolean;
+  tabStop: boolean;
   onSelect: () => void;
 }) {
   const copy = PROVIDER_COPY[provider.name] ?? {
@@ -28,47 +29,45 @@ export function ProviderChoice({
 
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        role="radio"
-        aria-checked={selected}
-        aria-disabled={!provider.available}
-        tabIndex={selected ? 0 : -1}
-        onClick={() => {
-          if (provider.available) onSelect();
-        }}
-        className={cn(
-          'flex w-full flex-col gap-1 radius-field border px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          selected
-            ? 'border-primary-70 bg-primary-10 shadow-inset'
-            : 'border-border bg-white-100 hover:border-secondary-30 hover:bg-secondary-10',
-          !provider.available &&
-            'cursor-not-allowed border-secondary-20 bg-secondary-10/60 opacity-80 hover:border-secondary-20 hover:bg-secondary-10/60',
-        )}
+      <ChoiceTile
+        layout="row"
+        onClick={onSelect}
+        selected={selected}
+        tabIndex={tabStop ? 0 : -1}
+        unavailable={!provider.available}
       >
         <span className="flex items-center justify-between gap-3">
-          <span className="type-body font-semibold text-foreground">
+          <Text as="span" size="large" weight="semibold" tone="default">
             {copy.label}
-          </span>
+          </Text>
           <ProviderUsageBadge provider={provider} />
         </span>
-        <span className="type-caption text-muted-foreground">
+        <Text
+          as="span"
+          size="medium"
+          tone={selected && provider.available ? 'default' : 'subtle'}
+        >
           {provider.available ? copy.description : availabilityMessage}
-        </span>
-      </button>
+        </Text>
+      </ChoiceTile>
       {!provider.available &&
       (provider.action === 'link_account' ||
         provider.action === 'relink_account') ? (
-        <p className="pl-3 type-caption-sm text-muted-foreground">
-          {provider.action === 'relink_account' ? 'Reconnect' : 'Connect'} it in{' '}
-          <Link
-            to="/account"
-            className="font-semibold text-primary-80 underline-offset-2 hover:underline"
-          >
-            Account settings
-          </Link>
-          .
-        </p>
+        <div className="pl-3">
+          <Text as="p" size="small" tone="subtle">
+            {provider.action === 'relink_account' ? 'Reconnect' : 'Connect'} it
+            in{' '}
+            <Link
+              to="/account"
+              className="text-brand underline-offset-2 hover:underline"
+            >
+              <Text as="span" weight="semibold">
+                Account settings
+              </Text>
+            </Link>
+            .
+          </Text>
+        </div>
       ) : null}
     </div>
   );
@@ -81,10 +80,7 @@ export function ProviderUsageBadge({
 }) {
   if (!provider.available) {
     return (
-      <Badge
-        variant="outline"
-        className="shrink-0 border-warning-30 bg-warning-10 type-caption-sm text-warning-80"
-      >
+      <Badge tone="neutral">
         <LockKeyhole className="mr-1 icon-xs" aria-hidden />
         Locked
       </Badge>
@@ -96,12 +92,5 @@ export function ProviderUsageBadge({
     return null;
   }
 
-  return (
-    <Badge
-      variant="outline"
-      className="shrink-0 border-primary-30 bg-primary-10 type-caption-sm text-primary-90"
-    >
-      {usageLabel}
-    </Badge>
-  );
+  return <Badge tone="brand">{usageLabel}</Badge>;
 }

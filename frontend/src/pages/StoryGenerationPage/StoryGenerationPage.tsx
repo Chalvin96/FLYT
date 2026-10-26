@@ -1,9 +1,14 @@
-import { Sparkles } from 'lucide-react';
-import { useRef, useState, type FormEvent, type RefObject } from 'react';
+import { Button, Card, Heading, Text } from '@flyt/ui';
+import { Pencil, Sparkles } from 'lucide-react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type RefObject,
+} from 'react';
 import { useNavigate } from '@tanstack/react-router';
 
-import { AppCard } from '@/components/common/AppCard/AppCard';
-import { Button } from '@/components/common/Button/Button';
 import { ErrorMessage } from '@/components/common/ErrorMessage/ErrorMessage';
 import {
   useCreateStoryGeneration,
@@ -11,9 +16,14 @@ import {
   useImportCurrentStoryGeneration,
   useStoryGenerationSurface,
 } from '@/hooks/storyGeneration/queries';
+import { useIsDesktop } from '@/hooks/ui/useIsDesktop';
 import { getApiErrorMessage } from '@/lib/apiError';
 
-import { STORY_GENERATION_TOPIC_MAX_CHARACTERS } from './constants';
+import {
+  ANCHOR_COPY,
+  PROVIDER_COPY,
+  STORY_GENERATION_TOPIC_MAX_CHARACTERS,
+} from './constants';
 import { getRequestRefusal } from './format';
 import { GenerationStatusSurface } from './GenerationStatusSurface';
 import {
@@ -56,8 +66,14 @@ export function StoryGenerationPage({
     onImported: handleImportSuccess,
   });
   const navigate = useNavigate();
-  const topicInputRef = useRef<HTMLInputElement>(null);
+  const topicInputRef = useRef<HTMLTextAreaElement>(null);
+  const isDesktop = useIsDesktop();
+  const [isEditing, setIsEditing] = useState(false);
   const [topicError, setTopicError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (topicError) topicInputRef.current?.focus();
+  }, [topicError]);
 
   if (surfaceQuery.isPending) {
     return <StoryGenerationLoading />;
@@ -75,12 +91,28 @@ export function StoryGenerationPage({
   }
 
   const surface = surfaceQuery.data;
-  const selection = buildStorySelection(surface, search);
+  const current = currentQuery.data;
+  const hasSearchSelection = Object.values(search).some(
+    (value) => value !== undefined,
+  );
+  const effectiveSearch =
+    !hasSearchSelection && current
+      ? {
+          provider: current.provider,
+          anchor: current.anchor ?? undefined,
+          length: current.length,
+          topic: current.topic ?? undefined,
+        }
+      : search;
+  const selection = buildStorySelection(surface, effectiveSearch);
   const requestRefusal = getRequestRefusal(createGeneration.error);
 
   function updateSearch(patch: Partial<StoryGenerationSearch>) {
+    setIsEditing(true);
     createGeneration.reset();
-    onSearchChange(patch);
+    onSearchChange(
+      hasSearchSelection ? patch : { ...effectiveSearch, ...patch },
+    );
   }
 
   function handleTopicChange(value: string) {
@@ -95,10 +127,10 @@ export function StoryGenerationPage({
 
     const topic = selection.topic.trim();
     if (topic.length > STORY_GENERATION_TOPIC_MAX_CHARACTERS) {
+      setIsEditing(true);
       setTopicError(
         `Keep the topic to ${STORY_GENERATION_TOPIC_MAX_CHARACTERS} characters or fewer.`,
       );
-      topicInputRef.current?.focus();
       return;
     }
 
@@ -108,6 +140,7 @@ export function StoryGenerationPage({
       length: selection.selectedLength,
       topic: topic || undefined,
     };
+    setIsEditing(false);
     createGeneration.mutate(submission);
   }
 
@@ -128,19 +161,29 @@ export function StoryGenerationPage({
     <div className="container-max mx-auto flex w-full flex-col gap-7 pb-10">
       <StoryGenerationHeader />
 
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(20rem,0.78fr)_minmax(0,1.22fr)]">
-        <StoryGenerationFormCard
-          createGeneration={createGeneration}
-          requestRefusal={requestRefusal}
-          selection={selection}
-          surface={surface}
-          topicError={topicError}
-          topicInputRef={topicInputRef}
-          onRetry={handleRetry}
-          onSubmit={submitGeneration}
-          onTopicChange={handleTopicChange}
-          onUpdateSearch={updateSearch}
-        />
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)]">
+        {isDesktop ||
+        !currentQuery.data ||
+        isEditing ||
+        createGeneration.isError ? (
+          <StoryGenerationFormCard
+            createGeneration={createGeneration}
+            requestRefusal={requestRefusal}
+            selection={selection}
+            surface={surface}
+            topicError={topicError}
+            topicInputRef={topicInputRef}
+            onRetry={handleRetry}
+            onSubmit={submitGeneration}
+            onTopicChange={handleTopicChange}
+            onUpdateSearch={updateSearch}
+          />
+        ) : (
+          <GenerationSummary
+            current={currentQuery.data}
+            onEdit={() => setIsEditing(true)}
+          />
+        )}
 
         <GenerationStatusSurface
           current={currentQuery.data}
@@ -157,18 +200,55 @@ export function StoryGenerationPage({
   );
 }
 
+function GenerationSummary({
+  current,
+  onEdit,
+}: {
+  current: NonNullable<ReturnType<typeof useCurrentStoryGeneration>['data']>;
+  onEdit: () => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 radius-field border border-default bg-overlay p-3">
+      <div className="min-w-0 space-y-1">
+        <Text as="p" size="medium" weight="semibold">
+          {ANCHOR_COPY[current.anchor ?? 'none']?.label ?? current.anchor} ·{' '}
+          {current.length} words ·{' '}
+          {PROVIDER_COPY[current.provider]?.label ?? current.provider}
+        </Text>
+        {current.topic ? (
+          <div className="line-clamp-2 break-words">
+            <Text
+              as="p"
+              size="small"
+              tone="subtle"
+              lang="nb"
+              title={current.topic}
+            >
+              {current.topic}
+            </Text>
+          </div>
+        ) : null}
+      </div>
+      <Button variant="link" size="sm" onClick={onEdit}>
+        <Pencil className="icon-sm" aria-hidden />
+        Edit
+      </Button>
+    </div>
+  );
+}
+
 function StoryGenerationHeader() {
   return (
     <header className="space-y-3">
-      <p className="type-label text-primary-80">Reading · Generate</p>
-      <h1 className="type-hero font-display text-foreground">
+      <Heading as="h1" size="xlarge" tone="default">
         Generate a story to read
-      </h1>
-      <p className="max-w-[64ch] type-body text-muted-foreground">
-        Choose what the story should build on, set its length, and give it a
-        direction if you like. Every word will be ready for lookup before you
-        save anything.
-      </p>
+      </Heading>
+      <div className="max-w-[64ch]">
+        <Text as="p" size="medium" tone="subtle">
+          Choose the words, length, and topic. Your story will be ready for word
+          lookup before you save it.
+        </Text>
+      </div>
     </header>
   );
 }
@@ -190,7 +270,7 @@ function StoryGenerationFormCard({
   selection: Selection;
   surface: Surface;
   topicError: string | null;
-  topicInputRef: RefObject<HTMLInputElement | null>;
+  topicInputRef: RefObject<HTMLTextAreaElement | null>;
   onRetry: () => void;
   onSubmit: () => void;
   onTopicChange: (value: string) => void;
@@ -202,7 +282,7 @@ function StoryGenerationFormCard({
   }
 
   return (
-    <AppCard className="p-5 sm:p-6">
+    <Card padding="default">
       <form className="space-y-6" onSubmit={handleSubmit}>
         <AnchorFieldset
           minDeckSize={surface.minDeckSize}
@@ -237,7 +317,7 @@ function StoryGenerationFormCard({
         />
 
         <Button
-          className="w-full"
+          width="full"
           disabled={
             !selection.selectedProvider ||
             selection.selectedLength === undefined ||
@@ -252,9 +332,9 @@ function StoryGenerationFormCard({
         </Button>
 
         {!selection.selectedProvider ? (
-          <p className="type-caption text-muted-foreground">
+          <Text size="medium" tone="subtle">
             No provider is available. Connect an account or try again later.
-          </p>
+          </Text>
         ) : null}
 
         {requestRefusal ? (
@@ -269,6 +349,6 @@ function StoryGenerationFormCard({
           />
         ) : null}
       </form>
-    </AppCard>
+    </Card>
   );
 }

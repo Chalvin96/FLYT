@@ -27,7 +27,7 @@ const findFixExercise: Extract<Exercise, { operation: 'find_fix' }> = {
 };
 
 const meta = {
-  title: 'Flashcard/FlashCardFindFix',
+  title: 'Features/Flashcard/FlashCardFindFix',
   component: FlashCardFindFix,
   tags: ['autodocs'],
   decorators: [
@@ -41,7 +41,7 @@ const meta = {
     ),
   ],
   parameters: { layout: 'fullscreen' },
-  args: { className: 'flex-1', desktopExpanded: true },
+  args: { allowRetry: false, layout: 'fill', desktopExpanded: true },
   argTypes: {
     exercise: { control: 'object' },
     onFinished: { action: 'onFinished' },
@@ -55,10 +55,31 @@ export const Default: Story = {
   args: { exercise: findFixExercise, desktopExpanded: true },
 };
 
-/**
- * Play function: taps "bil" (the error token), clicks Check, and verifies
- * the "Correct" banner appears.
- */
+export const WordSelected: Story = {
+  args: { exercise: findFixExercise, desktopExpanded: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(canvas.getByRole('button', { name: 'bil' }));
+    await expect(canvas.getByRole('button', { name: 'bil' })).toHaveAttribute(
+      'data-state',
+      'selected',
+    );
+  },
+};
+
+export const ResultWrong: Story = {
+  args: { exercise: findFixExercise, desktopExpanded: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(canvas.getByRole('button', { name: 'ser' }));
+    await userEvent.click(canvas.getByRole('button', { name: /check/i }));
+    await expect(canvas.getByRole('status')).toHaveTextContent(/not quite/i);
+    await expect(canvas.getByText(/jeg ser bilen utenfor/i)).toBeVisible();
+  },
+};
+
 export const ResultCorrect: Story = {
   args: { exercise: findFixExercise, desktopExpanded: true },
   play: async ({ canvasElement }) => {
@@ -70,5 +91,15 @@ export const ResultCorrect: Story = {
     await expect(
       canvas.getByText(/the definite form of en bil is bilen/i),
     ).toBeInTheDocument();
+  },
+};
+
+export const InLesson: Story = {
+  args: { allowRetry: true, exercise: findFixExercise, desktopExpanded: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole('button', { name: /reveal answer/i }),
+    ).toBeVisible();
   },
 };

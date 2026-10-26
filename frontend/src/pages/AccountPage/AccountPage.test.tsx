@@ -5,11 +5,12 @@ import {
   within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { http, HttpResponse } from 'msw';
+import { http, HttpResponse } from 'msw/http';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type ReactElement } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+import { ACCOUNT_PAGE_ANCHORS } from '@/components/nav/accountNavigation';
 import { server } from '@/test/msw/server';
 
 import { AccountPage } from './AccountPage';
@@ -85,9 +86,46 @@ describe('AccountPage', () => {
     render(<AccountPage />);
 
     expect(
-      await screen.findByText('ChatGPT', { exact: true }),
+      await screen.findByRole('button', { name: 'Connect' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument();
+  });
+
+  it('test_account_page_given_connection_queries_fail_expect_stable_anchor_targets', async () => {
+    server.use(
+      http.get('*/chatgpt/link', () =>
+        HttpResponse.json(
+          { detail: { message: 'temporary outage' } },
+          { status: 503 },
+        ),
+      ),
+      http.get('*/chatbot', () =>
+        HttpResponse.json(
+          { detail: { message: 'temporary outage' } },
+          { status: 503 },
+        ),
+      ),
+    );
+
+    render(<AccountPage />);
+
+    expect(
+      await screen.findByRole('heading', { name: 'ChatGPT' }),
+    ).toHaveAttribute('id', ACCOUNT_PAGE_ANCHORS.CHATGPT);
+    expect(
+      await screen.findByText(
+        'ChatGPT connection settings could not be loaded. Try again in a moment.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        'Provider key settings could not be loaded. Try again in a moment.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Provider key' }),
+    ).toHaveAttribute('id', ACCOUNT_PAGE_ANCHORS.PROVIDER_KEY);
+    expect(screen.getAllByRole('button', { name: 'Retry' })).toHaveLength(2);
   });
 
   it('test_openrouter_key_given_account_page_expect_save_replace_and_remove_controls', async () => {
@@ -173,6 +211,7 @@ describe('AccountPage', () => {
     const profileCard = screen.getByTestId('account-profile-card');
     const signOut = screen.getByRole('button', { name: /sign out/i });
     expect(profileCard).toContainElement(signOut);
+    // jsdom paints nothing, so the target box is the size utility itself.
     expect(signOut).toHaveClass('h-11');
 
     const dangerZone = screen.getByRole('region', { name: /delete account/i });
@@ -182,13 +221,6 @@ describe('AccountPage', () => {
     expect(dangerZone).not.toContainElement(signOut);
   });
 
-  it('test_account_profile_card_given_session_summary_expect_single_last_sign_in_row', () => {
-    render(<AccountPage />);
-
-    expect(screen.getAllByText('Last sign in')).toHaveLength(1);
-    expect(screen.getAllByText('Email')).toHaveLength(1);
-  });
-
   it('test_account_page_given_danger_actions_expect_touch_sized_target', () => {
     render(<AccountPage />);
 
@@ -196,6 +228,13 @@ describe('AccountPage', () => {
     expect(
       within(dangerZone).getByRole('button', { name: /^delete account$/i }),
     ).toHaveClass('h-11');
+  });
+
+  it('test_account_profile_card_given_session_summary_expect_single_last_sign_in_row', () => {
+    render(<AccountPage />);
+
+    expect(screen.getAllByText('Last sign in')).toHaveLength(1);
+    expect(screen.getAllByText('Email')).toHaveLength(1);
   });
 
   it('test_account_page_given_a_successful_delete_expect_redirect_to_login_with_banner', async () => {

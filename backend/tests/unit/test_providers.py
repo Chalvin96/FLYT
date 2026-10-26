@@ -63,6 +63,41 @@ async def test_openrouter_provider_given_reasoning_effort_expect_payload_reflect
     assert payload["reasoning"] == {"effort": "low"}
 
 
+async def test_openrouter_provider_given_no_temperature_expect_payload_omits_temperature() -> (
+    None
+):
+    provider = OpenRouterProvider()
+
+    with _patched_post(
+        response=_openrouter_response(200, _load_fixture("success_plain.json"))
+    ) as client:
+        await provider.generate(user_id=1, request=_request())
+
+    payload = client.post.call_args.kwargs["json"]
+    assert "temperature" not in payload
+
+
+async def test_openrouter_provider_given_zero_temperature_expect_payload_includes_zero() -> (
+    None
+):
+    provider = OpenRouterProvider()
+
+    with _patched_post(
+        response=_openrouter_response(200, _load_fixture("success_plain.json"))
+    ) as client:
+        await provider.generate(
+            user_id=1,
+            request=GenerationRequest(
+                instructions="Write a story.",
+                prompt="A story.",
+                temperature=0,
+            ),
+        )
+
+    payload = client.post.call_args.kwargs["json"]
+    assert payload["temperature"] == 0
+
+
 def _load_fixture(name: str) -> dict:
     return json.loads((_FIXTURES / name).read_text())
 

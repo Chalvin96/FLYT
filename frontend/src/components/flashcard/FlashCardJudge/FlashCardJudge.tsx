@@ -1,56 +1,55 @@
-import { Check, X } from 'lucide-react';
+import { Heading, Text } from '@flyt/ui';
+import { Check, Minus } from 'lucide-react';
 import { useRef, useState } from 'react';
 
-import { Button } from '@/components/common/Button/Button';
 import { SpanView } from '@/components/portable/SpanView';
-import { useCheckableExercise } from '@/hooks/flashcard/useCheckableExercise/useCheckableExercise';
-import { gradedOutcome } from '@/lib/operationResult';
-import { cn } from '@/lib/utils';
+import { useExerciseAttempt } from '@/hooks/flashcard/useExerciseAttempt/useExerciseAttempt';
 import type { Exercise } from '@/types/lesson-contracts';
 
-import { ExerciseModeProvider } from '../ExerciseModeProvider';
+import { AnswerOption } from '../AnswerOption/AnswerOption';
+import { resolveAnswerOptionState } from '../AnswerOption/answerOptionState';
 import { OperationShell, stimulusSentenceClassName } from '../OperationShell';
 import type { OperationComponentProps } from '../operationTypes';
 
 type JudgeExercise = Extract<Exercise, { operation: 'judge' }>;
 
-/** Verdict options, in render order. Index 0 is tabbable when none chosen. */
 const VERDICTS = [true, false] as const;
 
-export function FlashCardJudge(props: OperationComponentProps<JudgeExercise>) {
-  return (
-    <ExerciseModeProvider allowRetry={false}>
-      <FlashCardJudgeOneShot {...props} />
-    </ExerciseModeProvider>
-  );
-}
-
-function FlashCardJudgeOneShot({
+export function FlashCardJudge({
   exercise,
+  allowRetry,
   onFinished,
   ...props
 }: OperationComponentProps<JudgeExercise>) {
   const [selected, setSelected] = useState<boolean | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const radioRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const { result, check: checkExercise } = useCheckableExercise();
+  const {
+    phase,
+    result,
+    dirty,
+    canReveal,
+    shakeKey,
+    reveal,
+    markDirty,
+    check: checkExercise,
+    finish,
+  } = useExerciseAttempt({ allowRetry, onFinished });
 
   function check() {
     checkExercise(selected === exercise.payload.is_correct);
   }
 
-  function handleContinue() {
-    if (result) {
-      onFinished?.(gradedOutcome(result));
-    }
-  }
-
-  /** Roving select: move focus + selection between the two radios. */
   function selectIndex(nextIndex: number) {
     const normalized = (nextIndex + VERDICTS.length) % VERDICTS.length;
-    setActiveIndex(normalized);
-    setSelected(VERDICTS[normalized]);
+    selectVerdict(VERDICTS[normalized], normalized);
     radioRefs.current[normalized]?.focus();
+  }
+
+  function selectVerdict(verdict: boolean, index: number) {
+    if (selected !== verdict) markDirty();
+    setActiveIndex(index);
+    setSelected(verdict);
   }
 
   function handleRadioKeyDown(
@@ -80,11 +79,22 @@ function FlashCardJudgeOneShot({
     <OperationShell
       exercise={exercise}
       desktopExpanded
-      result={result}
-      canCheck={selected !== null}
+      canCheck={selected !== null && (phase !== 'wrong' || dirty)}
+      attempt={
+        allowRetry
+          ? {
+              kind: 'retry',
+              phase,
+              result,
+              shakeKey,
+              canReveal,
+              onReveal: () => reveal(0),
+            }
+          : { kind: 'single', result }
+      }
       instruction="Read the Norwegian sentence, then decide: is it grammatically correct?"
       onCheck={check}
-      onContinue={handleContinue}
+      onContinue={finish}
       {...props}
     >
       <div
@@ -92,10 +102,12 @@ function FlashCardJudgeOneShot({
         data-testid="judge-stimulus"
         className={`${stimulusSentenceClassName} flex flex-col gap-2`}
       >
-        <p className="type-label text-muted-foreground">The sentence</p>
-        <p lang="no">
+        <Heading as="div" size="xxsmall" tone="subtle">
+          The sentence
+        </Heading>
+        <Text as="p" lang="no" size="fluid" tone="default">
           <SpanView spans={exercise.payload.sentence} />
-        </p>
+        </Text>
       </div>
 
       <div
@@ -106,67 +118,48 @@ function FlashCardJudgeOneShot({
       >
         {VERDICTS.map((value, index) => {
           const checked = selected === value;
-          const isCorrect = result && value === exercise.payload.is_correct;
-          const isWrong = result && checked && !isCorrect;
+          const graded = Boolean(result);
+          const isAnswer = value === exercise.payload.is_correct;
+          const state = resolveAnswerOptionState({ checked, graded, isAnswer });
           const label = value ? 'The sentence is correct' : 'It has an error';
-          const isTabbable = !result && (checked || activeIndex === index);
+          const isTabbable = !graded && (checked || activeIndex === index);
 
           return (
-            <Button
+            <AnswerOption
               key={String(value)}
+              checked={checked}
+              disabled={graded}
+              label={label}
+              marker={
+                state === 'correct' ? (
+                  <Check aria-hidden="true" className="size-4" />
+                ) : state === 'incorrect' ? (
+                  <Minus aria-hidden="true" className="size-4" />
+                ) : undefined
+              }
+              onClick={() => {
+                selectVerdict(value, index);
+              }}
+              onKeyDown={(event) => handleRadioKeyDown(event, index)}
               ref={(node) => {
                 radioRefs.current[index] = node;
               }}
-              type="button"
-              role="radio"
-              aria-checked={checked}
-              tabIndex={result ? -1 : isTabbable ? 0 : -1}
-              disabled={Boolean(result)}
-              variant="outline"
-              className={cn(
-                'radius-field shadow-tile type-body h-auto w-full justify-start whitespace-normal border-2 py-3 text-left',
-                'disabled:opacity-100',
-                !checked &&
-                  !isCorrect &&
-                  !isWrong &&
-                  'border-border bg-card text-foreground',
-                checked &&
-                  !result &&
-                  'tint-selected ring-selected ring-2 ring-offset-2',
-                isCorrect && 'border-accent-20 bg-accent-0 text-accent-90',
-                isWrong &&
-                  'border-destructive-20 bg-destructive-0 text-destructive-80',
-              )}
-              onClick={() => {
-                setActiveIndex(index);
-                setSelected(value);
-              }}
-              onKeyDown={(event) => handleRadioKeyDown(event, index)}
-            >
-              {isCorrect ? (
-                <Check aria-hidden="true" className="shrink-0 text-accent-80" />
-              ) : isWrong ? (
-                <X
-                  aria-hidden="true"
-                  className="shrink-0 text-destructive-80"
-                />
-              ) : null}
-              <span>{label}</span>
-              {isCorrect ? (
-                <span className="sr-only"> — correct answer</span>
-              ) : isWrong ? (
-                <span className="sr-only"> — your answer was incorrect</span>
-              ) : null}
-            </Button>
+              state={state}
+              tabIndex={isTabbable ? 0 : -1}
+            />
           );
         })}
       </div>
       {result && !exercise.payload.is_correct && exercise.payload.feedback ? (
-        <div className="radius-field border border-border bg-card p-4">
-          <p className="type-label text-muted-foreground">Correction</p>
-          <p lang="no" className="type-body mt-2 font-medium">
-            {exercise.payload.feedback}
-          </p>
+        <div className="radius-field border border-default bg-raised p-4">
+          <Heading as="div" size="xxsmall" tone="subtle">
+            Correction
+          </Heading>
+          <div className="mt-2">
+            <Text as="p" lang="no" size="large">
+              {exercise.payload.feedback}
+            </Text>
+          </div>
         </div>
       ) : null}
     </OperationShell>

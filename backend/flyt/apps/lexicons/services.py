@@ -10,6 +10,7 @@ from sqlalchemy import exists
 from sqlalchemy import func
 from sqlalchemy import literal
 from sqlalchemy import select
+from sqlalchemy import union
 from sqlalchemy import union_all
 from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -122,13 +123,19 @@ class LexiconService:
         lemmas = (
             await self.db.scalars(
                 select(Lemma)
-                .outerjoin(WordForm, WordForm.lemma_id == Lemma.id)
-                .outerjoin(LemmaAlias, LemmaAlias.lemma_id == Lemma.id)
                 .where(
-                    (WordForm.form == sanitized_query)
-                    | (LemmaAlias.normalized_alias == sanitized_query.casefold())
+                    Lemma.id.in_(
+                        union(
+                            select(WordForm.lemma_id).where(
+                                WordForm.form == sanitized_query
+                            ),
+                            select(LemmaAlias.lemma_id).where(
+                                LemmaAlias.normalized_alias
+                                == sanitized_query.casefold()
+                            ),
+                        )
+                    )
                 )
-                .distinct()
                 .options(selectinload(Lemma.word_forms))
                 .options(selectinload(Lemma.definitions))
                 .options(selectinload(Lemma.aliases))
@@ -192,20 +199,27 @@ class LexiconService:
         return (
             await self.db.scalars(
                 select(Lemma)
-                .outerjoin(WordForm, WordForm.lemma_id == Lemma.id)
-                .outerjoin(LemmaAlias, LemmaAlias.lemma_id == Lemma.id)
                 .outerjoin(CardPool, CardPool.lemma_id == Lemma.id)
                 .where(
-                    (func.lower(Lemma.word) == func.lower(form))
-                    | (func.lower(WordForm.form) == func.lower(form))
-                    | (LemmaAlias.normalized_alias == form.casefold())
+                    Lemma.id.in_(
+                        union(
+                            select(Lemma.id).where(
+                                func.lower(Lemma.word) == func.lower(form)
+                            ),
+                            select(WordForm.lemma_id).where(
+                                func.lower(WordForm.form) == func.lower(form)
+                            ),
+                            select(LemmaAlias.lemma_id).where(
+                                LemmaAlias.normalized_alias == form.casefold()
+                            ),
+                        )
+                    )
                 )
-                .group_by(Lemma.id)
                 .options(selectinload(Lemma.definitions))
                 .options(selectinload(Lemma.see_also))
                 .options(selectinload(Lemma.aliases))
                 .order_by(
-                    func.min(CardPool.frequency_rank).asc().nullslast(),
+                    CardPool.frequency_rank.asc().nullslast(),
                     Lemma.hgno.asc(),
                     Lemma.id.asc(),
                 )
@@ -536,12 +550,16 @@ class LexiconService:
         lemmas = (
             await self.db.scalars(
                 select(Lemma)
-                .outerjoin(LemmaAlias, LemmaAlias.lemma_id == Lemma.id)
                 .where(
-                    (Lemma.word == headword)
-                    | (LemmaAlias.normalized_alias == headword.casefold())
+                    Lemma.id.in_(
+                        union(
+                            select(Lemma.id).where(Lemma.word == headword),
+                            select(LemmaAlias.lemma_id).where(
+                                LemmaAlias.normalized_alias == headword.casefold()
+                            ),
+                        )
+                    )
                 )
-                .group_by(Lemma.id)
                 .options(selectinload(Lemma.aliases))
                 .order_by(Lemma.hgno, Lemma.id)
             )

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
@@ -73,6 +73,7 @@ describe('FlashCardMatch', () => {
     const onFinished = vi.fn();
     render(
       <FlashCardMatch
+        allowRetry
         exercise={makeOverlappingIdExercise()}
         onFinished={onFinished}
       />,
@@ -82,14 +83,12 @@ describe('FlashCardMatch', () => {
     await user.click(screen.getByRole('button', { name: /^høyre$/i }));
     expect(screen.getByText(/^correct$/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: true,
-      rating: 4,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
   });
   it('renders all left and right items as buttons without language labels', () => {
-    render(<FlashCardMatch exercise={makeExercise()} />);
+    render(<FlashCardMatch allowRetry exercise={makeExercise()} />);
     expect(
       screen.getByRole('button', { name: /^jeg leser$/i }),
     ).toBeInTheDocument();
@@ -114,7 +113,7 @@ describe('FlashCardMatch', () => {
 
   it('arms a tile on tap (aria-pressed + selected label)', async () => {
     const user = userEvent.setup();
-    render(<FlashCardMatch exercise={makeExercise()} />);
+    render(<FlashCardMatch allowRetry exercise={makeExercise()} />);
     const tile = screen.getByRole('button', { name: /^jeg leser$/i });
     await user.click(tile);
     expect(tile.getAttribute('aria-pressed')).toBe('true');
@@ -125,7 +124,7 @@ describe('FlashCardMatch', () => {
 
   it('disarms when the same tile is tapped twice', async () => {
     const user = userEvent.setup();
-    render(<FlashCardMatch exercise={makeExercise()} />);
+    render(<FlashCardMatch allowRetry exercise={makeExercise()} />);
     const tile = screen.getByRole('button', { name: /^jeg leser$/i });
     await user.click(tile);
     expect(tile.getAttribute('aria-pressed')).toBe('true');
@@ -135,7 +134,7 @@ describe('FlashCardMatch', () => {
 
   it('re-arms within the same column without matching', async () => {
     const user = userEvent.setup();
-    render(<FlashCardMatch exercise={makeExercise()} />);
+    render(<FlashCardMatch allowRetry exercise={makeExercise()} />);
     const a = screen.getByRole('button', { name: /^jeg leser$/i });
     const b = screen.getByRole('button', { name: /^hun skriver$/i });
     await user.click(a);
@@ -144,18 +143,18 @@ describe('FlashCardMatch', () => {
     expect(b.getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('locks a correct pair in place (visible, disabled, matched)', async () => {
+  it('test_match_pair_given_correct_taps_expect_visible_disabled_announced_tiles', async () => {
     const user = userEvent.setup();
-    render(<FlashCardMatch exercise={makeExercise()} />);
+    render(<FlashCardMatch allowRetry exercise={makeExercise()} />);
     await user.click(screen.getByRole('button', { name: /^jeg leser$/i }));
     await user.click(screen.getByRole('button', { name: /^I read$/i }));
 
     // Locked tiles stay VISIBLE (not aria-hidden) and are findable by name.
     const leftTile = screen.getByRole('button', {
-      name: /jeg leser.*matched/i,
+      name: /jeg leser.*correct/i,
     });
     const rightTile = screen.getByRole('button', {
-      name: /I read.*matched/i,
+      name: /I read.*correct/i,
     });
     expect(leftTile).toBeDisabled();
     expect(rightTile).toBeDisabled();
@@ -166,6 +165,7 @@ describe('FlashCardMatch', () => {
     const onFinished = vi.fn();
     render(
       <FlashCardMatch
+        allowRetry
         exercise={makeManyToOneExercise()}
         onFinished={onFinished}
       />,
@@ -183,18 +183,20 @@ describe('FlashCardMatch', () => {
 
     expect(screen.getByText(/^correct$/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: true,
-      rating: 4,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
   });
 
-  it('clean pass (no wrong taps) completes Easy (4)', async () => {
+  it('test_match_given_no_wrong_taps_and_completed_board_expect_correct_outcome', async () => {
     const user = userEvent.setup();
     const onFinished = vi.fn();
     render(
-      <FlashCardMatch exercise={makeExercise()} onFinished={onFinished} />,
+      <FlashCardMatch
+        allowRetry
+        exercise={makeExercise()}
+        onFinished={onFinished}
+      />,
     );
     await user.click(screen.getByRole('button', { name: /^jeg leser$/i }));
     await user.click(screen.getByRole('button', { name: /^I read$/i }));
@@ -204,24 +206,30 @@ describe('FlashCardMatch', () => {
     await user.click(screen.getByRole('button', { name: /^we eat$/i }));
     expect(screen.getByText(/^correct$/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: true,
-      rating: 4,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
   });
 
-  it('one or two wrong taps grade Hard (2)', async () => {
+  it('test_match_given_one_wrong_tap_and_completed_board_expect_correct_outcome', async () => {
     const user = userEvent.setup();
     const onFinished = vi.fn();
     render(
-      <FlashCardMatch exercise={makeExercise()} onFinished={onFinished} />,
+      <FlashCardMatch
+        allowRetry
+        exercise={makeExercise()}
+        onFinished={onFinished}
+      />,
     );
 
     // One wrong tap: jeg leser + she writes.
     await user.click(screen.getByRole('button', { name: /^jeg leser$/i }));
     await user.click(screen.getByRole('button', { name: /^she writes$/i }));
-    await new Promise((r) => setTimeout(r, 600));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /^jeg leser$/i }),
+      ).not.toBeDisabled(),
+    );
 
     // Complete all 3 pairs correctly.
     await user.click(screen.getByRole('button', { name: /^jeg leser$/i }));
@@ -233,25 +241,31 @@ describe('FlashCardMatch', () => {
 
     expect(screen.getByText(/^correct$/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: true,
-      rating: 2,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
   });
 
-  it('three or more wrong taps grade Again (1)', async () => {
+  it('test_match_given_three_wrong_taps_and_completed_board_expect_correct_outcome', async () => {
     const user = userEvent.setup();
     const onFinished = vi.fn();
     render(
-      <FlashCardMatch exercise={makeExercise()} onFinished={onFinished} />,
+      <FlashCardMatch
+        allowRetry
+        exercise={makeExercise()}
+        onFinished={onFinished}
+      />,
     );
 
     // Three wrong taps.
     for (let i = 0; i < 3; i++) {
       await user.click(screen.getByRole('button', { name: /^jeg leser$/i }));
       await user.click(screen.getByRole('button', { name: /^she writes$/i }));
-      await new Promise((r) => setTimeout(r, 600));
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: /^jeg leser$/i }),
+        ).not.toBeDisabled(),
+      );
     }
 
     // Complete all 3 pairs correctly.
@@ -264,23 +278,99 @@ describe('FlashCardMatch', () => {
 
     expect(screen.getByText(/^correct$/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: true,
-      rating: 1,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
+  });
+
+  it('test_match_given_wrong_tap_in_review_expect_matching_continues_to_incorrect_again', async () => {
+    const user = userEvent.setup();
+    const onFinished = vi.fn();
+    render(
+      <FlashCardMatch
+        allowRetry={false}
+        exercise={makeExercise()}
+        onFinished={onFinished}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /^jeg leser$/i }));
+    await user.click(screen.getByRole('button', { name: /^she writes$/i }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /^jeg leser$/i }),
+      ).not.toBeDisabled(),
+    );
+
+    expect(screen.queryByText(/^not quite$/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /continue/i })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: /^I read$/i }),
+    ).not.toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: /^jeg leser$/i }));
+    await user.click(screen.getByRole('button', { name: /^I read$/i }));
+    await user.click(screen.getByRole('button', { name: /^hun skriver$/i }));
+    await user.click(screen.getByRole('button', { name: /^she writes$/i }));
+    await user.click(screen.getByRole('button', { name: /^vi spiser$/i }));
+    await user.click(screen.getByRole('button', { name: /^we eat$/i }));
+
+    expect(screen.getByText(/^not quite$/i)).toBeInTheDocument();
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    expect(continueButton).toBeEnabled();
+    await user.click(continueButton);
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: false }),
+    );
+  });
+
+  it('test_match_given_right_pairs_in_review_expect_open_until_board_complete', async () => {
+    const user = userEvent.setup();
+    const onFinished = vi.fn();
+    render(
+      <FlashCardMatch
+        allowRetry={false}
+        exercise={makeExercise()}
+        onFinished={onFinished}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /^jeg leser$/i }));
+    await user.click(screen.getByRole('button', { name: /^I read$/i }));
+    expect(screen.queryByRole('button', { name: /continue/i })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: /^hun skriver$/i }));
+    await user.click(screen.getByRole('button', { name: /^she writes$/i }));
+    await user.click(screen.getByRole('button', { name: /^vi spiser$/i }));
+    await user.click(screen.getByRole('button', { name: /^we eat$/i }));
+
+    expect(screen.getByText(/^correct$/i)).toBeInTheDocument();
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    expect(continueButton).toBeEnabled();
+    await user.click(continueButton);
+
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
+  });
+
+  it('test_match_tile_given_untouched_board_expect_data_state_idle', () => {
+    render(<FlashCardMatch allowRetry exercise={makeExercise()} />);
+    expect(
+      screen.getByRole('button', { name: /^jeg leser$/i }),
+    ).toHaveAttribute('data-state', 'idle');
   });
 
   it('Check button is always disabled (exercise auto-completes)', () => {
-    render(<FlashCardMatch exercise={makeExercise()} />);
+    render(<FlashCardMatch allowRetry exercise={makeExercise()} />);
     expect(screen.getByRole('button', { name: /check/i })).toBeDisabled();
   });
 
-  it('auto-completes a malformed payload with no pairs', async () => {
+  it('test_match_given_empty_board_expect_completed_on_first_render', () => {
     const exercise = makeExercise();
     exercise.payload = { left: [], right: [], pairs: [] };
-    render(<FlashCardMatch exercise={exercise} />);
-    expect(await screen.findByText(/^correct$/i)).toBeInTheDocument();
+    render(<FlashCardMatch allowRetry exercise={exercise} />);
+    expect(screen.getByText(/^correct$/i)).toBeInTheDocument();
   });
 });
 
@@ -306,33 +396,22 @@ describe('FlashCardMatch — interaction state (fake timers)', () => {
   });
 
   it('test_match_board_given_first_tile_armed_expect_target_and_dimmed_states', () => {
-    render(<FlashCardMatch exercise={makeExercise()} />);
+    render(<FlashCardMatch allowRetry exercise={makeExercise()} />);
 
     clickTile(/^jeg leser$/i);
 
     const armed = tile(/jeg leser/i);
     expect(armed).toHaveAttribute('aria-pressed', 'true');
-    expect(armed).toHaveClass('border-primary-70', 'bg-primary-70');
-
-    expect(tile(/^hun skriver$/i)).toHaveClass('opacity-40');
-    expect(tile(/^vi spiser$/i)).toHaveClass('opacity-40');
-    expect(tile(/^I read$/i)).toHaveClass('ring-2', 'ring-primary-30');
-    expect(tile(/^she writes$/i)).toHaveClass('ring-2', 'ring-primary-30');
-    expect(tile(/^we eat$/i)).toHaveClass('ring-2', 'ring-primary-30');
+    expect(armed).toHaveAccessibleName(/selected . tap its match/i);
   });
 
   it('test_match_board_given_wrong_pair_expect_only_attempted_tiles_flash_and_board_locked', () => {
-    render(<FlashCardMatch exercise={makeExercise()} />);
+    render(<FlashCardMatch allowRetry exercise={makeExercise()} />);
 
     clickTile(/^jeg leser$/i);
     clickTile(/^she writes$/i);
 
     for (const flashed of [tile(/^jeg leser$/i), tile(/^she writes$/i)]) {
-      expect(flashed).toHaveClass(
-        'border-destructive-20',
-        'bg-destructive-0',
-        'text-destructive-80',
-      );
       expect(flashed).toBeDisabled();
     }
     for (const untouched of [
@@ -341,7 +420,6 @@ describe('FlashCardMatch — interaction state (fake timers)', () => {
       tile(/^I read$/i),
       tile(/^we eat$/i),
     ]) {
-      expect(untouched).not.toHaveClass('border-destructive-20');
       expect(untouched).toBeDisabled();
     }
 
@@ -356,11 +434,46 @@ describe('FlashCardMatch — interaction state (fake timers)', () => {
       screen.queryByRole('button', { name: /continue/i }),
     ).not.toBeInTheDocument();
 
-    expect(screen.getByRole('alert')).toHaveTextContent(/not a match\./i);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /incorrect — adjust your answer and try again\./i,
+    );
+  });
+
+  it('test_match_tile_given_first_tile_armed_expect_data_state_selected_and_target_and_dimmed', () => {
+    render(<FlashCardMatch allowRetry exercise={makeExercise()} />);
+
+    clickTile(/^jeg leser$/i);
+
+    expect(tile(/jeg leser/i)).toHaveAttribute('data-state', 'selected');
+    expect(tile(/^hun skriver$/i)).toHaveAttribute('data-state', 'dimmed');
+    expect(tile(/^I read$/i)).toHaveAttribute('data-state', 'target');
+  });
+
+  it('test_match_tile_given_wrong_pair_expect_data_state_wrong_flash', () => {
+    render(<FlashCardMatch allowRetry exercise={makeExercise()} />);
+
+    clickTile(/^jeg leser$/i);
+    clickTile(/^she writes$/i);
+
+    expect(tile(/^jeg leser$/i)).toHaveAttribute('data-state', 'wrong-flash');
+    expect(tile(/^she writes$/i)).toHaveAttribute('data-state', 'wrong-flash');
+  });
+
+  it('test_match_tile_given_matched_pair_expect_data_state_correct', () => {
+    render(<FlashCardMatch allowRetry exercise={makeExercise()} />);
+
+    clickTile(/^jeg leser$/i);
+    clickTile(/^I read$/i);
+
+    expect(tile(/jeg leser.*correct/i)).toHaveAttribute(
+      'data-state',
+      'correct',
+    );
+    expect(tile(/I read.*correct/i)).toHaveAttribute('data-state', 'correct');
   });
 
   it('test_match_board_given_wrong_pair_timeout_expect_board_restored_after_500ms', () => {
-    render(<FlashCardMatch exercise={makeExercise()} />);
+    render(<FlashCardMatch allowRetry exercise={makeExercise()} />);
 
     clickTile(/^jeg leser$/i);
     clickTile(/^she writes$/i);
@@ -371,7 +484,6 @@ describe('FlashCardMatch — interaction state (fake timers)', () => {
     });
 
     for (const restored of [tile(/^jeg leser$/i), tile(/^she writes$/i)]) {
-      expect(restored).not.toHaveClass('border-destructive-20');
       expect(restored).not.toBeDisabled();
     }
 
@@ -384,13 +496,13 @@ describe('FlashCardMatch — interaction state (fake timers)', () => {
   });
 
   it('test_match_board_given_matching_pair_expect_locked_checkmarks_and_progress_increment', () => {
-    render(<FlashCardMatch exercise={makeExercise()} />);
+    render(<FlashCardMatch allowRetry exercise={makeExercise()} />);
 
     clickTile(/^jeg leser$/i);
     clickTile(/^I read$/i);
 
-    const leftTile = tile(/jeg leser.*matched/i);
-    const rightTile = tile(/I read.*matched/i);
+    const leftTile = tile(/jeg leser.*correct/i);
+    const rightTile = tile(/I read.*correct/i);
     expect(leftTile).toBeDisabled();
     expect(rightTile).toBeDisabled();
     expect(leftTile.textContent).toContain('✓');
@@ -398,14 +510,19 @@ describe('FlashCardMatch — interaction state (fake timers)', () => {
     expect(statusHint()).toHaveTextContent(/1 \/ 3 matched/i);
 
     clickTile(/^hun skriver$/i);
-    expect(leftTile).toHaveClass('opacity-70');
-    expect(tile(/^she writes$/i)).toHaveClass('ring-2', 'ring-primary-30');
+    expect(leftTile).toBeDisabled();
+    expect(leftTile).toHaveAccessibleName(/jeg leser.*correct/i);
+    expect(tile(/^she writes$/i)).not.toBeDisabled();
   });
 
-  it('test_match_board_given_all_pairs_locked_expect_subtle_accent_completion_with_continue', () => {
+  it('test_match_board_given_all_pairs_locked_expect_completion_with_continue', () => {
     const onFinished = vi.fn();
     render(
-      <FlashCardMatch exercise={makeExercise()} onFinished={onFinished} />,
+      <FlashCardMatch
+        allowRetry
+        exercise={makeExercise()}
+        onFinished={onFinished}
+      />,
     );
 
     for (const [left, right] of [
@@ -418,18 +535,15 @@ describe('FlashCardMatch — interaction state (fake timers)', () => {
     }
 
     const banner = screen.getByText(/^correct$/i);
-    expect(banner).toHaveClass(
-      'border-accent-20',
-      'bg-accent-0',
-      'text-accent-90',
+    expect(banner).toBeInTheDocument();
+    expect(screen.getByTestId('operation-banner')).toHaveAttribute(
+      'role',
+      'status',
     );
-    expect(banner).toHaveAttribute('role', 'status');
 
     fireEvent.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: true,
-      rating: 4,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
   });
 });

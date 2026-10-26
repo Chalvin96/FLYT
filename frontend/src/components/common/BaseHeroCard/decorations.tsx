@@ -3,7 +3,7 @@ export function DecoReview() {
     <svg
       aria-hidden
       className="pointer-events-none absolute right-0 top-0 size-20 opacity-10"
-      fill="white"
+      fill="currentColor"
       viewBox="0 0 80 80"
     >
       <circle cx="60" cy="18" r="36" />
@@ -18,7 +18,7 @@ export function DecoLessons() {
       aria-hidden
       className="pointer-events-none absolute right-0 top-0 size-20 opacity-10"
       fill="none"
-      stroke="white"
+      stroke="currentColor"
       strokeLinecap="round"
       strokeWidth="14"
       viewBox="0 0 80 80"
@@ -32,7 +32,7 @@ export function DecoDone() {
   return (
     <svg
       aria-hidden
-      className="pointer-events-none absolute right-0 top-0 size-20 fill-secondary-60 opacity-10"
+      className="pointer-events-none absolute right-0 top-0 size-20 fill-[var(--chart-neutral-2)] opacity-10"
       viewBox="0 0 80 80"
     >
       <circle cx="60" cy="18" r="13" />
@@ -46,7 +46,7 @@ export function DecoRisk() {
   return (
     <svg
       aria-hidden
-      className="pointer-events-none absolute right-0 top-0 size-20 stroke-warning-40 opacity-30"
+      className="pointer-events-none absolute right-0 top-0 size-20 stroke-[var(--border-brand-subtle)] opacity-30"
       fill="none"
       strokeWidth="12"
       viewBox="0 0 80 80"
@@ -60,7 +60,7 @@ export function DecoEmpty() {
   return (
     <svg
       aria-hidden
-      className="pointer-events-none absolute right-0 top-0 size-20 fill-secondary-60 opacity-10"
+      className="pointer-events-none absolute right-0 top-0 size-20 fill-[var(--chart-neutral-2)] opacity-10"
       viewBox="0 0 80 80"
     >
       <circle cx="62" cy="18" r="42" />
@@ -75,9 +75,9 @@ export function DecoReading() {
       className="pointer-events-none absolute right-0 top-0 size-28 opacity-15"
       viewBox="0 0 112 112"
     >
-      <circle cx="76" cy="28" r="30" fill="white" />
-      <circle cx="94" cy="78" r="14" fill="white" />
-      <circle cx="42" cy="62" r="22" fill="white" />
+      <circle cx="76" cy="28" r="30" fill="currentColor" />
+      <circle cx="94" cy="78" r="14" fill="currentColor" />
+      <circle cx="42" cy="62" r="22" fill="currentColor" />
     </svg>
   );
 }

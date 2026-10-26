@@ -26,57 +26,64 @@ describe('FlashCardFindFix', () => {
   it('scores a correct token pick and reports onFinished', async () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
-    render(<FlashCardFindFix exercise={exercise} onFinished={onFinished} />);
+    render(
+      <FlashCardFindFix
+        allowRetry={false}
+        exercise={exercise}
+        onFinished={onFinished}
+      />,
+    );
 
     await user.click(screen.getByRole('button', { name: 'bil' }));
     await user.click(screen.getByRole('button', { name: /check/i }));
 
     expect(screen.getByText(/^correct$/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'bil' })).toHaveAttribute(
-      'data-state',
-      'correct',
-    );
+    expect(
+      screen.getByRole('button', { name: 'bil, correct' }),
+    ).toHaveAttribute('data-state', 'correct');
 
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: true,
-      rating: 4,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
   });
 
   it('reveals both the wrong guess and the true answer after an incorrect check', async () => {
     const onFinished = vi.fn();
     const user = userEvent.setup();
-    render(<FlashCardFindFix exercise={exercise} onFinished={onFinished} />);
+    render(
+      <FlashCardFindFix
+        allowRetry={false}
+        exercise={exercise}
+        onFinished={onFinished}
+      />,
+    );
 
     await user.click(screen.getByRole('button', { name: 'går' }));
     await user.click(screen.getByRole('button', { name: /check/i }));
 
     expect(screen.getByText(/not quite/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'går' })).toHaveAttribute(
-      'data-state',
-      'wrong',
-    );
-    expect(screen.getByRole('button', { name: 'bil' })).toHaveAttribute(
-      'data-state',
-      'correct',
-    );
+    expect(
+      screen.getByRole('button', { name: 'går, incorrect' }),
+    ).toHaveAttribute('data-state', 'incorrect');
+    expect(
+      screen.getByRole('button', { name: 'bil, correct' }),
+    ).toHaveAttribute('data-state', 'correct');
     expect(screen.getByText(/correction/i)).toBeInTheDocument();
     expect(screen.getByText(/jeg går med bil/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'går' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'går, incorrect' }),
+    ).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: /continue/i }));
-    expect(onFinished).toHaveBeenCalledWith({
-      kind: 'graded',
-      correct: false,
-      rating: 1,
-    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: false }),
+    );
   });
 
   it('renders the sentence inline and supports roving focus with arrow keys', async () => {
     const user = userEvent.setup();
-    render(<FlashCardFindFix exercise={exercise} />);
+    render(<FlashCardFindFix allowRetry={false} exercise={exercise} />);
 
     const firstWord = screen.getByRole('button', { name: 'Jeg' });
     const secondWord = screen.getByRole('button', { name: 'går' });

@@ -45,7 +45,20 @@ export default defineConfig({
             '../packages/ui/src/**/*.{test,spec}.{ts,tsx}',
             '../packages/lexicon/src/**/*.{test,spec}.{ts,tsx}',
           ],
-          exclude: ['**/*.stories.{ts,tsx}'],
+          exclude: ['**/*.stories.{ts,tsx}', '**/*.browser.test.ts'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'corner-bleed',
+          include: ['src/test/cornerBleed.browser.test.ts'],
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright({}),
+            instances: [{ browser: 'chromium' }],
+          },
         },
       },
       {

@@ -1,10 +1,23 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from '@testing-library/react';
+import { http, HttpResponse } from 'msw/http';
 import { describe, expect, it } from 'vitest';
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-import type { ChatbotMessageRequest } from '@/api/chatbot';
+import {
+  CHATBOT_MODEL_ACTIONS,
+  CHATBOT_MODEL_IDS,
+  CHATBOT_MODEL_REASONS,
+  type ChatbotMessageRequest,
+} from '@/api/chatbot';
 import { server } from '@/test/msw/server';
 
 import {
@@ -16,6 +29,11 @@ import type {
   FlytChatbotContext,
   FlytChatbotMessage,
 } from './FlytChatbotPanel';
+import {
+  CHATBOT_AVAILABILITY_STATUSES,
+  CHATBOT_ERROR_SOURCES,
+  CHATBOT_OPEN_STATES,
+} from './types';
 
 const lesson: FlytChatbotContext = {
   kind: 'lesson',
@@ -67,11 +85,116 @@ const remoteWrapper = (initialMessages: readonly FlytChatbotMessage[] = []) =>
     );
   };
 
+function AccountHarness() {
+  const { messages, openState } = useChatbot();
+  const [draft, setDraft] = useState('');
+
+  return (
+    <div>
+      <span data-testid="message-count">{messages.length}</span>
+      <span data-testid="open-state">{openState}</span>
+      <input
+        data-testid="account-draft"
+        onChange={(event) => setDraft(event.target.value)}
+        value={draft}
+      />
+    </div>
+  );
+}
+
+function PreferenceHarness() {
+  const { rememberRailOpen } = useChatbot();
+
+  return (
+    <button onClick={() => rememberRailOpen(true)} type="button">
+      Remember rail
+    </button>
+  );
+}
+
 describe('ChatbotProvider', () => {
+  it('test_chatbot_provider_given_account_change_expect_history_and_open_state_reset', () => {
+    const view = render(
+      <ChatbotProvider
+        accountId={1}
+        initialMessages={conversation}
+        initialOpenState={CHATBOT_OPEN_STATES.OPEN}
+      >
+        <AccountHarness />
+      </ChatbotProvider>,
+    );
+
+    expect(screen.getByTestId('message-count')).toHaveTextContent('2');
+    expect(screen.getByTestId('open-state')).toHaveTextContent(
+      CHATBOT_OPEN_STATES.OPEN,
+    );
+    fireEvent.change(screen.getByTestId('account-draft'), {
+      target: { value: 'prior account draft' },
+    });
+
+    view.rerender(
+      <ChatbotProvider
+        accountId={2}
+        initialMessages={conversation}
+        initialOpenState={CHATBOT_OPEN_STATES.OPEN}
+      >
+        <AccountHarness />
+      </ChatbotProvider>,
+    );
+
+    expect(screen.getByTestId('message-count')).toHaveTextContent('0');
+    expect(screen.getByTestId('open-state')).toHaveTextContent(
+      CHATBOT_OPEN_STATES.AUTO,
+    );
+    expect(screen.getByTestId('account-draft')).toHaveValue('');
+
+    view.rerender(
+      <ChatbotProvider
+        accountId={1}
+        initialMessages={conversation}
+        initialOpenState={CHATBOT_OPEN_STATES.OPEN}
+      >
+        <AccountHarness />
+      </ChatbotProvider>,
+    );
+
+    expect(screen.getByTestId('message-count')).toHaveTextContent('0');
+    expect(screen.getByTestId('open-state')).toHaveTextContent(
+      CHATBOT_OPEN_STATES.AUTO,
+    );
+    expect(screen.getByTestId('account-draft')).toHaveValue('');
+  });
+
+  it('test_chatbot_provider_given_account_change_expect_preferences_remain_scoped', () => {
+    const view = render(
+      <ChatbotProvider accountId={1}>
+        <PreferenceHarness />
+      </ChatbotProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remember rail' }));
+    expect(window.localStorage.getItem('flyt.chatbot.rail-preference:1')).toBe(
+      CHATBOT_OPEN_STATES.OPEN,
+    );
+
+    view.rerender(
+      <ChatbotProvider accountId={2}>
+        <PreferenceHarness />
+      </ChatbotProvider>,
+    );
+
+    expect(window.localStorage.getItem('flyt.chatbot.rail-preference:1')).toBe(
+      CHATBOT_OPEN_STATES.OPEN,
+    );
+    expect(
+      window.localStorage.getItem('flyt.chatbot.rail-preference:2'),
+    ).toBeNull();
+  });
+
   it('test_chatbot_open_state_given_no_action_expect_auto', () => {
     const { result } = renderChatbot();
 
-    expect(result.current.openState).toBe('auto');
+    expect(result.current.openState).toBe(CHATBOT_OPEN_STATES.AUTO);
     expect(result.current.context).toBeNull();
   });
 
@@ -80,7 +203,7 @@ describe('ChatbotProvider', () => {
 
     act(() => result.current.open(selection));
 
-    expect(result.current.openState).toBe('open');
+    expect(result.current.openState).toBe(CHATBOT_OPEN_STATES.OPEN);
     expect(result.current.context).toEqual(selection);
   });
 
@@ -90,7 +213,7 @@ describe('ChatbotProvider', () => {
     act(() => result.current.open());
     act(() => result.current.close());
 
-    expect(result.current.openState).toBe('closed');
+    expect(result.current.openState).toBe(CHATBOT_OPEN_STATES.CLOSED);
   });
 
   it('test_chatbot_context_given_page_context_expect_ambient_used', () => {
@@ -234,7 +357,7 @@ describe('ChatbotProvider', () => {
   it('test_chatbot_send_given_draft_expect_user_message_appended', () => {
     const { result } = renderChatbot();
 
-    act(() => result.current.send('Hei', 'flyt'));
+    act(() => result.current.send('Hei', CHATBOT_MODEL_IDS.FLYT));
 
     expect(result.current.messages).toHaveLength(1);
     expect(result.current.messages[0]).toMatchObject({
@@ -264,7 +387,7 @@ describe('ChatbotProvider', () => {
         HttpResponse.json({
           models: [
             {
-              id: 'flyt',
+              id: CHATBOT_MODEL_IDS.FLYT,
               label: 'Flyt',
               detail: 'GLM 5.3 Flash',
               model: 'z-ai/glm-5.3-flash',
@@ -274,33 +397,33 @@ describe('ChatbotProvider', () => {
               requiresOpenRouterKey: false,
             },
             {
-              id: 'chatgpt',
+              id: CHATBOT_MODEL_IDS.CHATGPT,
               label: 'ChatGPT',
               detail: 'powered by Luna',
               model: 'gpt-5.6-luna',
               available: false,
-              reason: 'not_linked',
-              action: 'link_account',
+              reason: CHATBOT_MODEL_REASONS.NOT_LINKED,
+              action: CHATBOT_MODEL_ACTIONS.LINK_ACCOUNT,
               requiresOpenRouterKey: false,
             },
             {
-              id: 'deepseek',
+              id: CHATBOT_MODEL_IDS.DEEPSEEK,
               label: 'DeepSeek',
               detail: 'via OpenRouter',
               model: 'deepseek/deepseek-v4-flash-0731',
               available: false,
-              reason: 'openrouter_key_required',
-              action: 'add_openrouter_key',
+              reason: CHATBOT_MODEL_REASONS.OPENROUTER_KEY_REQUIRED,
+              action: CHATBOT_MODEL_ACTIONS.ADD_OPENROUTER_KEY,
               requiresOpenRouterKey: true,
             },
             {
-              id: 'glm',
+              id: CHATBOT_MODEL_IDS.GLM,
               label: 'GLM 5.3 Flash',
               detail: 'via OpenRouter',
               model: 'z-ai/glm-5.3-flash',
               available: false,
-              reason: 'openrouter_key_required',
-              action: 'add_openrouter_key',
+              reason: CHATBOT_MODEL_REASONS.OPENROUTER_KEY_REQUIRED,
+              action: CHATBOT_MODEL_ACTIONS.ADD_OPENROUTER_KEY,
               requiresOpenRouterKey: true,
             },
           ],
@@ -309,7 +432,10 @@ describe('ChatbotProvider', () => {
       ),
       http.post('*/chatbot/messages', async ({ request }) => {
         requestBody = await request.json();
-        return HttpResponse.json({ model: 'flyt', content: 'Svar.' });
+        return HttpResponse.json({
+          model: CHATBOT_MODEL_IDS.FLYT,
+          content: 'Svar.',
+        });
       }),
     );
 
@@ -317,7 +443,7 @@ describe('ChatbotProvider', () => {
       wrapper: remoteWrapper(initialMessages),
     });
 
-    act(() => result.current.send('Explain V2', 'flyt'));
+    act(() => result.current.send('Explain V2', CHATBOT_MODEL_IDS.FLYT));
 
     await waitFor(() =>
       expect(result.current.messages).toEqual(
@@ -325,13 +451,13 @@ describe('ChatbotProvider', () => {
           expect.objectContaining({
             role: 'chatbot',
             content: 'Svar.',
-            model: 'flyt',
+            model: CHATBOT_MODEL_IDS.FLYT,
           }),
         ]),
       ),
     );
     expect(requestBody).toMatchObject({
-      model: 'flyt',
+      model: CHATBOT_MODEL_IDS.FLYT,
       message: 'Explain V2',
       history: initialMessages.slice(-12).map(({ role, content }) => ({
         role,
@@ -346,7 +472,7 @@ describe('ChatbotProvider', () => {
         HttpResponse.json({
           models: [
             {
-              id: 'flyt',
+              id: CHATBOT_MODEL_IDS.FLYT,
               label: 'Flyt',
               detail: 'GLM 5.3 Flash',
               model: 'z-ai/glm-5.3-flash',
@@ -366,13 +492,15 @@ describe('ChatbotProvider', () => {
     });
 
     await waitFor(() =>
-      expect(result.current.modelAvailability.flyt?.available).toBe(true),
+      expect(
+        result.current.modelAvailability[CHATBOT_MODEL_IDS.FLYT]?.available,
+      ).toBe(true),
     );
 
     expect(result.current.unavailableModels).toEqual([
-      'chatgpt',
-      'deepseek',
-      'glm',
+      CHATBOT_MODEL_IDS.CHATGPT,
+      CHATBOT_MODEL_IDS.DEEPSEEK,
+      CHATBOT_MODEL_IDS.GLM,
     ]);
   });
 
@@ -398,7 +526,7 @@ describe('ChatbotProvider', () => {
         requestBodies.push((await request.json()) as ChatbotMessageRequest);
         responseCount += 1;
         return HttpResponse.json({
-          model: 'flyt',
+          model: CHATBOT_MODEL_IDS.FLYT,
           content: responseCount === 1 ? longAnswer : 'Svar.',
         });
       }),
@@ -409,10 +537,10 @@ describe('ChatbotProvider', () => {
     });
 
     act(() => result.current.setPageContext(context));
-    act(() => result.current.send('Q'.repeat(4_000), 'flyt'));
+    act(() => result.current.send('Q'.repeat(4_000), CHATBOT_MODEL_IDS.FLYT));
     await waitFor(() => expect(result.current.messages).toHaveLength(14));
 
-    act(() => result.current.send('Next question', 'flyt'));
+    act(() => result.current.send('Next question', CHATBOT_MODEL_IDS.FLYT));
     await waitFor(() => expect(result.current.messages).toHaveLength(16));
 
     expect(requestBodies).toHaveLength(2);
@@ -446,12 +574,12 @@ describe('ChatbotProvider', () => {
         return HttpResponse.json({
           models: [
             {
-              id: 'flyt',
+              id: CHATBOT_MODEL_IDS.FLYT,
               label: 'Flyt',
               detail: 'GLM 5.3 Flash',
               model: 'z-ai/glm-5.3-flash',
               available: flytAvailable,
-              reason: flytAvailable ? null : 'unavailable',
+              reason: flytAvailable ? null : CHATBOT_MODEL_REASONS.UNAVAILABLE,
               action: null,
               requiresOpenRouterKey: false,
             },
@@ -478,15 +606,150 @@ describe('ChatbotProvider', () => {
     });
 
     await waitFor(() =>
-      expect(result.current.modelAvailability.flyt?.available).toBe(true),
+      expect(
+        result.current.modelAvailability[CHATBOT_MODEL_IDS.FLYT]?.available,
+      ).toBe(true),
     );
 
-    act(() => result.current.send('Explain V2', 'flyt'));
+    act(() => result.current.send('Explain V2', CHATBOT_MODEL_IDS.FLYT));
 
     await waitFor(() =>
-      expect(result.current.modelAvailability.flyt?.available).toBe(false),
+      expect(
+        result.current.modelAvailability[CHATBOT_MODEL_IDS.FLYT]?.available,
+      ).toBe(false),
     );
-    expect(result.current.unavailableModels).toContain('flyt');
+    expect(result.current.unavailableModels).toContain(CHATBOT_MODEL_IDS.FLYT);
     expect(surfaceRequestCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('test_chatbot_remote_given_cached_surface_refetch_failure_expect_error_state', async () => {
+    let surfaceRequestCount = 0;
+    server.use(
+      http.get('*/chatbot', () => {
+        surfaceRequestCount += 1;
+        if (surfaceRequestCount > 1) {
+          return HttpResponse.json(
+            { detail: { message: 'temporary outage' } },
+            { status: 503 },
+          );
+        }
+        return HttpResponse.json({
+          models: [
+            {
+              id: CHATBOT_MODEL_IDS.FLYT,
+              label: 'Flyt',
+              detail: 'GLM 5.3 Flash',
+              model: 'z-ai/glm-5.3-flash',
+              available: true,
+              reason: null,
+              action: null,
+              requiresOpenRouterKey: false,
+            },
+          ],
+          openrouterKeyConfigured: false,
+        });
+      }),
+    );
+
+    const { result } = renderHook(() => useChatbot(), {
+      wrapper: remoteWrapper(),
+    });
+
+    await waitFor(() =>
+      expect(result.current.availabilityStatus).toBe(
+        CHATBOT_AVAILABILITY_STATUSES.READY,
+      ),
+    );
+    act(() => result.current.retryAvailability());
+
+    await waitFor(() =>
+      expect(result.current.availabilityStatus).toBe(
+        CHATBOT_AVAILABILITY_STATUSES.ERROR,
+      ),
+    );
+    expect(result.current.unavailableModels).toEqual([
+      CHATBOT_MODEL_IDS.FLYT,
+      CHATBOT_MODEL_IDS.CHATGPT,
+      CHATBOT_MODEL_IDS.DEEPSEEK,
+      CHATBOT_MODEL_IDS.GLM,
+    ]);
+    expect(result.current.error).toContain('could not be loaded');
+    expect(result.current.errorSource).toBe(CHATBOT_ERROR_SOURCES.AVAILABILITY);
+
+    act(() => result.current.dismissError());
+    expect(result.current.error).toBeNull();
+    expect(result.current.errorSource).toBeNull();
+  });
+
+  it('test_chatbot_remote_given_request_and_surface_failures_expect_request_recovery_remains_primary', async () => {
+    let surfaceRequestCount = 0;
+    let sendRequestCount = 0;
+    server.use(
+      http.get('*/chatbot', () => {
+        surfaceRequestCount += 1;
+        if (surfaceRequestCount > 1) {
+          return HttpResponse.json(
+            { detail: { message: 'temporary outage' } },
+            { status: 503 },
+          );
+        }
+        return HttpResponse.json({
+          models: [
+            {
+              id: CHATBOT_MODEL_IDS.FLYT,
+              label: 'Flyt',
+              detail: 'GLM 5.3 Flash',
+              model: 'z-ai/glm-5.3-flash',
+              available: true,
+              reason: null,
+              action: null,
+              requiresOpenRouterKey: false,
+            },
+          ],
+          openrouterKeyConfigured: false,
+        });
+      }),
+      http.post('*/chatbot/messages', () => {
+        sendRequestCount += 1;
+        return HttpResponse.json(
+          {
+            detail: {
+              message: 'The selected model could not answer right now.',
+              code: 'CHATBOT_PROVIDER_TRANSIENT',
+            },
+          },
+          { status: 503 },
+        );
+      }),
+    );
+
+    const { result } = renderHook(() => useChatbot(), {
+      wrapper: remoteWrapper(),
+    });
+
+    await waitFor(() =>
+      expect(result.current.availabilityStatus).toBe(
+        CHATBOT_AVAILABILITY_STATUSES.READY,
+      ),
+    );
+
+    act(() => result.current.send('Explain V2', CHATBOT_MODEL_IDS.FLYT));
+
+    await waitFor(() =>
+      expect(result.current.errorSource).toBe(CHATBOT_ERROR_SOURCES.REQUEST),
+    );
+    await waitFor(() =>
+      expect(result.current.availabilityStatus).toBe(
+        CHATBOT_AVAILABILITY_STATUSES.ERROR,
+      ),
+    );
+    expect(result.current.error).toContain(
+      'The selected model could not answer right now.',
+    );
+    expect(sendRequestCount).toBe(1);
+
+    act(() => result.current.retry());
+
+    await waitFor(() => expect(sendRequestCount).toBe(2));
   });
 });

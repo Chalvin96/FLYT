@@ -1,4 +1,5 @@
 import { AudioPlayButton as UiAudioPlayButton } from '@flyt/ui';
+import type { AudioPlayButtonPresentation } from '@flyt/ui';
 
 import type { AudioAsset } from '@/types/lesson-contracts';
 
@@ -8,28 +9,32 @@ type LessonAudioButtonProps = {
   asset?: AudioAsset | null;
   src?: string | null;
   label?: string;
-  tone?: 'inline' | 'standalone';
-  className?: string;
+  playingLabel?: string;
+  presentation?: AudioPlayButtonPresentation;
+  unavailable?: 'hide' | 'show';
 };
 
 export function AudioPlayButton({
   asset,
   src,
   label = 'Play audio',
-  tone = 'inline',
-  className,
+  playingLabel = 'Stop audio',
+  presentation = 'inline',
+  unavailable = 'hide',
 }: LessonAudioButtonProps) {
   const playable = isPlayableAudio(asset);
 
-  if (!asset || !playable) return null;
+  if (!asset || !playable) {
+    if (unavailable === 'hide') return null;
+    return <UiAudioPlayButton presentation={presentation} label={label} />;
+  }
 
   return (
     <UiAudioPlayButton
+      presentation={presentation}
       src={src ?? asset.url}
-      tone={tone}
       label={label}
-      playingLabel="Stop audio"
-      className={className}
+      playingLabel={playingLabel}
     />
   );
 }

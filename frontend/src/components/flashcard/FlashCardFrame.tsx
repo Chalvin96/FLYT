@@ -1,39 +1,75 @@
-import type { ReactNode } from 'react';
+import { Heading, Text } from '@flyt/ui';
+import { cva } from 'class-variance-authority';
+import type { ComponentProps, ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
 
+import { ExercisePrompt } from './ExercisePrompt';
+
 // width-agnostic base; consumers set their own max-width.
 export const flashCardPanelClassName =
-  'radius-section shadow-raised mx-auto flex h-full min-h-0 w-full flex-col overflow-hidden border border-border bg-card';
+  'radius-section shadow-raised mx-auto flex h-full min-h-0 w-full flex-col overflow-hidden border border-default bg-raised';
 
-const flashCardFooterBaseClassName = 'bg-card px-4 py-3 sm:px-5';
+const flashCardFooterBaseClassName = 'bg-raised px-4 py-3 sm:px-5';
 
-export const flashCardFooterClassName = `border-t border-border ${flashCardFooterBaseClassName}`;
+export const flashCardFooterClassName = `border-t border-default ${flashCardFooterBaseClassName}`;
 
-interface FlashCardFrameProps {
+export type FlashCardFrameLayout = 'default' | 'fill';
+
+const flashCardFrameVariants = cva(
+  'radius-section shadow-raised mx-auto flex w-full flex-col overflow-hidden border border-default bg-raised',
+  {
+    variants: {
+      height: {
+        contained: 'h-full min-h-0',
+        naturalMobile: 'h-auto min-h-max sm:h-full sm:min-h-0',
+      },
+      width: {
+        panel: 'max-w-panel',
+        expanded: 'max-w-4xl',
+      },
+      layout: {
+        default: null,
+        fill: 'flex-1',
+      },
+    },
+    defaultVariants: {
+      height: 'contained',
+      width: 'panel',
+      layout: 'default',
+    },
+  },
+);
+
+const flashCardBodyVariants = cva('flex flex-col px-4 py-4 sm:px-5 sm:py-5', {
+  variants: {
+    height: {
+      contained: 'min-h-0 flex-1 overflow-y-auto',
+      naturalMobile:
+        'flex-none overflow-visible sm:min-h-0 sm:flex-1 sm:overflow-y-auto',
+    },
+  },
+  defaultVariants: {
+    height: 'contained',
+  },
+});
+
+export interface FlashCardFrameProps extends Omit<
+  ComponentProps<'div'>,
+  'className' | 'style' | 'title'
+> {
   eyebrow?: string;
   title?: ReactNode;
   description?: string;
   headerAccessory?: ReactNode;
   footer?: ReactNode;
   desktopExpanded?: boolean;
-  /**
-   * Skip the built-in editorial header. Operation exercises relocate the
-   * eyebrow + prompt into a left "brief" rail alongside the work surface,
-   * so they render headerless and own that composition themselves.
-   */
   headerless?: boolean;
-  /**
-   * Stretch the body column instead of centring it. Operation cards fill the
-   * card so their work surface meets the footer; passive surfaces keep the
-   * centred shrink-wrap.
-   */
   bodyFill?: boolean;
   /** Let long operation content grow the page instead of nesting a mobile scroll area. */
   naturalHeightOnMobile?: boolean;
   hasFooterDivider?: boolean;
-  className?: string;
-  bodyClassName?: string;
+  layout?: FlashCardFrameLayout;
   children: ReactNode;
 }
 
@@ -48,38 +84,40 @@ export function FlashCardFrame({
   bodyFill = false,
   naturalHeightOnMobile = false,
   hasFooterDivider = true,
-  className,
-  bodyClassName,
+  layout,
   children,
+  ...rootProps
 }: FlashCardFrameProps) {
+  const height = naturalHeightOnMobile ? 'naturalMobile' : 'contained';
+
   return (
     <div
+      {...rootProps}
       className={cn(
-        'radius-section shadow-raised mx-auto flex w-full flex-col overflow-hidden border border-border bg-card',
-        naturalHeightOnMobile
-          ? 'h-auto min-h-max sm:h-full sm:min-h-0'
-          : 'h-full min-h-0',
-        desktopExpanded ? 'max-w-4xl' : 'max-w-panel',
-        className,
+        flashCardFrameVariants({
+          height,
+          width: desktopExpanded ? 'expanded' : 'panel',
+          layout,
+        }),
       )}
+      style={undefined}
     >
-      {/* Editorial prompt header: display eyebrow + large prompt */}
       {headerless ? null : (
         <div className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="max-w-text">
               {eyebrow ? (
-                <p className="font-display type-label leading-flat text-muted-foreground">
+                <Heading as="div" size="xxsmall" tone="subtle">
                   {eyebrow}
-                </p>
+                </Heading>
               ) : null}
-              <h2 className="font-display text-prompt font-semibold leading-prompt text-foreground">
-                {title}
-              </h2>
+              <ExercisePrompt>{title}</ExercisePrompt>
               {description ? (
-                <p className="type-caption mt-1.5 text-muted-foreground">
-                  {description}
-                </p>
+                <div className="mt-1.5">
+                  <Text as="p" size="medium" tone="subtle">
+                    {description}
+                  </Text>
+                </div>
               ) : null}
             </div>
             {headerAccessory ? (
@@ -89,22 +127,9 @@ export function FlashCardFrame({
         </div>
       )}
 
-      {/*
-        Body: a scroll container wrapping a my-auto centering column.
-        Short content shrink-wraps and centers vertically via auto
-        margins (no bottom void, no overflow clipping); tall content
-        grows past the viewport and scrolls. Using my-auto instead of
-        justify-center avoids the flexbox overflow-clipping bug where
-        the top of tall content becomes unreachable.
-      */}
-      <div
-        className={cn(
-          naturalHeightOnMobile
-            ? 'flex flex-none flex-col overflow-visible px-4 py-4 sm:min-h-0 sm:flex-1 sm:overflow-y-auto sm:px-5 sm:py-5'
-            : 'flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-5 sm:py-5',
-          bodyClassName,
-        )}
-      >
+      {/* Centre with my-auto, not justify-center: flexbox clips the top of
+          overflowing content and makes it unreachable. */}
+      <div className={cn(flashCardBodyVariants({ height }))}>
         <div
           className={cn(
             'flex w-full flex-col gap-4',
@@ -124,7 +149,7 @@ export function FlashCardFrame({
           data-testid="flashcard-footer-bar"
           className={cn(
             flashCardFooterBaseClassName,
-            hasFooterDivider && 'border-t border-border',
+            hasFooterDivider && 'border-t border-default',
           )}
         >
           {footer}

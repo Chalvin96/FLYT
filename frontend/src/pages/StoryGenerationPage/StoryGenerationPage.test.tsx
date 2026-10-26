@@ -239,14 +239,28 @@ describe('StoryGenerationPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('test_anchor_radiogroup_given_arrow_key_pressed_expect_next_available_anchor_selected', async () => {
+  it('test_anchor_radiogroup_given_arrow_onto_unavailable_expect_focus_without_selection', async () => {
     const user = userEvent.setup();
     const onSearchChange = vi.fn();
 
     renderPage({}, onSearchChange);
 
     await user.click(screen.getByRole('radio', { name: /Common words/ }));
+    onSearchChange.mockClear();
     await user.keyboard('{ArrowDown}');
+
+    expect(screen.getByRole('radio', { name: /My deck/ })).toHaveFocus();
+    expect(onSearchChange).not.toHaveBeenCalled();
+  });
+
+  it('test_anchor_radiogroup_given_arrow_past_unavailable_expect_next_available_selected', async () => {
+    const user = userEvent.setup();
+    const onSearchChange = vi.fn();
+
+    renderPage({}, onSearchChange);
+
+    await user.click(screen.getByRole('radio', { name: /Common words/ }));
+    await user.keyboard('{ArrowDown}{ArrowDown}');
 
     expect(screen.getByRole('radio', { name: /Anything/ })).toHaveFocus();
     expect(onSearchChange).toHaveBeenLastCalledWith({ anchor: 'none' });
@@ -304,6 +318,7 @@ describe('StoryGenerationPage', () => {
     const oversizedTopic = 'A very long topic '.repeat(13).trim().slice(0, 201);
     renderPage({ topic: oversizedTopic });
 
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
     const topic = screen.getByRole('textbox', { name: 'Topic' });
     const generate = screen.getByRole('button', { name: /^Generate$/ });
     generate.focus();
@@ -360,6 +375,40 @@ describe('StoryGenerationPage', () => {
     expect(screen.queryByTestId('generation-refused')).not.toBeInTheDocument();
   });
 
+  it('test_processing_status_given_elapsed_seconds_expect_only_generation_changes_announced', async () => {
+    vi.useFakeTimers();
+    currentResult = buildCurrentQuery(buildCurrent('processing'));
+    renderPage();
+
+    const status = screen.getByRole('status');
+    expect(status).toHaveAttribute('aria-live', 'polite');
+    expect(status).toHaveTextContent('Writing your story');
+    expect(status).toHaveTextContent(
+      'Usually about ten seconds. We’re getting the words ready for lookup.',
+    );
+    const initialAnnouncement = status.textContent;
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    expect(screen.getByText('Waiting 1 s · usually ~10 s')).toBeInTheDocument();
+    expect(status).not.toHaveTextContent('Waiting');
+    expect(status.textContent).toBe(initialAnnouncement);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(
+        STORY_GENERATION_PROCESSING_STALL_BACKSTOP_MS - 1000,
+      );
+    });
+
+    expect(status).toHaveTextContent('Your story is taking longer than usual');
+    expect(status).toHaveTextContent(
+      'The writer is slower than usual. You can wait or start a new attempt.',
+    );
+    expect(status).not.toHaveTextContent('Waiting');
+  });
+
   it('test_processing_state_given_backstop_not_reached_expect_plain_processing_heading', async () => {
     vi.useFakeTimers();
     currentResult = buildCurrentQuery(buildCurrent('processing'));
@@ -413,7 +462,7 @@ describe('StoryGenerationPage', () => {
       provider: 'openrouter',
       anchor: 'frequency',
       length: 150,
-      topic: undefined,
+      topic: 'A rainy day',
     };
     currentResult = buildCurrentQuery(buildCurrent('failed'));
     const view = renderPage();
@@ -497,7 +546,7 @@ describe('StoryGenerationPage', () => {
     expect(within(shelf).getByText('Not saved.')).toBeInTheDocument();
     expect(
       within(shelf).getByRole('button', { name: 'Generate another' }),
-    ).toHaveAttribute('aria-describedby', 'generated-story-warning');
+    ).toHaveAttribute('aria-describedby', 'generated-story-save-note');
 
     await user.click(within(shelf).getByRole('button', { name: 'Read story' }));
     expect(article).toHaveFocus();
@@ -509,7 +558,7 @@ describe('StoryGenerationPage', () => {
       provider: 'openrouter',
       anchor: 'frequency',
       length: 150,
-      topic: undefined,
+      topic: 'A rainy day',
     });
   });
 
@@ -544,20 +593,6 @@ describe('StoryGenerationPage', () => {
     ).toBeEnabled();
   });
 
-  it('test_generated_story_given_long_content_expect_bounded_desktop_and_sticky_mobile_shelf', () => {
-    currentResult = buildCurrentQuery(buildCurrent('ready'));
-
-    renderPage();
-
-    const card = screen.getByTestId('generated-story');
-    expect(card).toHaveClass('xl:max-h-[calc(100dvh-16rem)]');
-    expect(card).toHaveClass('xl:overflow-hidden');
-
-    const shelf = screen.getByTestId('generated-story-actions');
-    expect(shelf).toHaveClass('sticky', 'top-0', 'bg-card');
-    expect(shelf).toHaveClass('xl:static');
-  });
-
   it('test_generated_story_given_partial_user_states_expect_known_word_not_new', () => {
     currentResult = buildCurrentQuery(
       buildCurrent('ready', { userStates: { 'lemma-solen': 'mastered' } }),
@@ -568,8 +603,8 @@ describe('StoryGenerationPage', () => {
     const knownWord = screen.getByRole('button', { name: 'Solen' });
     const newWord = screen.getByRole('button', { name: 'skinner' });
 
-    expect(knownWord).not.toHaveClass('word-underline-new');
-    expect(newWord).toHaveClass('word-underline-new');
+    expect(knownWord).toHaveAttribute('data-state', 'mastered');
+    expect(newWord).toHaveAttribute('data-state', 'new');
   });
 
   it('test_direct_provider_given_linked_chatgpt_expect_no_usage_field', () => {
@@ -619,5 +654,163 @@ describe('StoryGenerationPage', () => {
     expect(
       screen.getByText('Needs at least 42 words to unlock.'),
     ).toBeInTheDocument();
+  });
+  it('test_generate_given_first_visit_expect_full_form_and_quiet_result_hint', () => {
+    renderPage();
+    expect(screen.getByRole('textbox', { name: 'Topic' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Your story appears here, ready to tap through.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Your story will appear here' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('test_generate_given_ready_story_on_mobile_expect_summary_and_edit_restores_parameters', async () => {
+    currentResult = buildCurrentQuery(
+      buildCurrent('ready', { topic: 'En dag i Tromsø', length: 300 }),
+    );
+    renderPage();
+    expect(
+      screen.queryByRole('textbox', { name: 'Topic' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Common words · 300 words · Flyt'),
+    ).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Edit' }));
+    expect(screen.getByRole('textbox', { name: 'Topic' })).toHaveValue(
+      'En dag i Tromsø',
+    );
+    expect(screen.getByRole('radio', { name: '300 words' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    expect(
+      screen.getByRole('article', { name: 'Generated story' }),
+    ).toHaveAttribute('lang', 'nb');
+  });
+
+  it('test_generate_given_current_story_and_length_edit_expect_saved_topic_and_anchor_preserved', async () => {
+    currentResult = buildCurrentQuery(
+      buildCurrent('ready', {
+        anchor: 'none',
+        length: 300,
+        topic: 'En dag i Tromsø',
+      }),
+    );
+    const user = userEvent.setup();
+    render(
+      <LookupProvider>
+        <StatefulPage />
+      </LookupProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await user.click(screen.getByRole('radio', { name: '150 words' }));
+    expect(screen.getByRole('textbox', { name: 'Topic' })).toHaveValue(
+      'En dag i Tromsø',
+    );
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    expect(createResult.mutate).toHaveBeenCalledWith({
+      provider: 'openrouter',
+      anchor: 'none',
+      length: 150,
+      topic: 'En dag i Tromsø',
+    });
+  });
+
+  it('test_generate_given_existing_result_and_start_failure_expect_visible_error_and_editable_form', async () => {
+    currentResult = buildCurrentQuery(buildCurrent('ready'));
+    const user = userEvent.setup();
+    const view = render(
+      <LookupProvider>
+        <StatefulPage />
+      </LookupProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    expect(
+      screen.queryByRole('textbox', { name: 'Topic' }),
+    ).not.toBeInTheDocument();
+
+    createResult.isError = true;
+    createResult.error = new Error('The connection was interrupted.');
+    createResult.reset.mockImplementation(() => {
+      createResult.isError = false;
+      createResult.error = null;
+    });
+    view.rerender(
+      <LookupProvider>
+        <StatefulPage />
+      </LookupProvider>,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The connection was interrupted.',
+    );
+    expect(screen.getByRole('textbox', { name: 'Topic' })).toBeVisible();
+    await user.click(screen.getByRole('radio', { name: '300 words' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Topic' })).toHaveValue(
+      'A rainy day',
+    );
+    expect(screen.getByRole('radio', { name: '300 words' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+  });
+
+  it('test_generate_another_given_oversized_url_topic_expect_form_reopened_and_invalid_topic_focused', async () => {
+    currentResult = buildCurrentQuery(buildCurrent('ready'));
+    renderPage({ topic: 'a'.repeat(201) });
+
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Generate another' }));
+
+    expect(createResult.mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole('textbox', { name: 'Topic' })).toHaveFocus();
+    expect(screen.getByRole('textbox', { name: 'Topic' })).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    );
+    expect(
+      screen.getByText('Keep the topic to 200 characters or fewer.'),
+    ).toBeVisible();
+  });
+
+  it('test_generate_given_two_hundred_character_topic_expect_multiline_full_prompt_and_counter', () => {
+    const topic =
+      'En kald vintermorgen i Tromsø der bestemor og barnebarnet går til bakeriet, møter en gammel fisker som forteller om nordlyset, og lærer ord for vær, mat og følelser på veien hjem igjen etter skolen.'
+        .padEnd(200, ' ')
+        .slice(0, 200);
+    renderPage({ topic });
+    const input = screen.getByRole('textbox', { name: 'Topic' });
+    expect(input.tagName).toBe('TEXTAREA');
+    expect(input).toHaveValue(topic);
+    expect(input).toHaveAttribute('rows', '6');
+    expect(input).toHaveAttribute('lang', 'nb');
+    expect(screen.getByText('200/200 characters')).toBeInTheDocument();
+  });
+
+  it('test_generate_given_long_failure_code_expect_details_disclosure_and_one_retry', async () => {
+    const code = 'STORY_GENERATION_PROVIDER_MODEL_UNAVAILABLE'.repeat(4);
+    currentResult = buildCurrentQuery(
+      buildCurrent('failed', {
+        failureCode: code,
+        failureMessage: 'Generation failed.',
+      }),
+    );
+    renderPage();
+    expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(
+      1,
+    );
+    expect(screen.getByText(code)).not.toBeVisible();
+    expect(
+      screen.getByText('Nothing was saved. You can try again.'),
+    ).toBeVisible();
+    await userEvent.setup().click(screen.getByText('Details'));
+    expect(screen.getByText(code)).toBeVisible();
   });
 });

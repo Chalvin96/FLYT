@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
-import { vi } from 'vitest';
+
+import { beforeEach, vi } from 'vitest';
 
 // Minimal MV3 `chrome` API mock. The background/content modules register
 // listeners at import time; these stubs let them import under jsdom without a
@@ -9,6 +10,7 @@ const chromeMock = {
     onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
     onInstalled: { addListener: vi.fn() },
     sendMessage: vi.fn(),
+    openOptionsPage: vi.fn(),
     getURL: (path: string) => `chrome-extension://test/${path}`,
     lastError: undefined as { message: string } | undefined,
   },
@@ -28,9 +30,18 @@ const chromeMock = {
   cookies: {
     get: vi.fn(),
   },
+  permissions: {
+    contains: vi.fn(async () => true),
+    request: vi.fn(async () => true),
+  },
   storage: {
     local: { get: vi.fn(), set: vi.fn() },
   },
 };
 
 vi.stubGlobal('chrome', chromeMock);
+
+beforeEach(() => {
+  chromeMock.permissions.contains.mockReset().mockResolvedValue(true);
+  chromeMock.permissions.request.mockReset().mockResolvedValue(true);
+});

@@ -1,17 +1,36 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useState, type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  focusManager,
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query';
 
 import {
   ChatbotProvider,
   useChatbot,
 } from '@/components/chatbot/ChatbotProvider';
 import { LookupProvider } from '@/components/lookup/LookupProvider';
-import { LookupSheet } from '@/components/lookup/LookupSheet';
+import { useLookupContext } from '@/components/lookup/useLookupContext';
+import { readingKeys } from '@/hooks/reading/queries';
 
 import { StoryReaderPage } from './StoryReaderPage';
+
+const viewportState = vi.hoisted(() => ({ isDesktop: false }));
+
+vi.mock('@/hooks/ui/useIsDesktop', () => ({
+  useIsDesktop: () => viewportState.isDesktop,
+}));
 
 interface RouterState {
   location: { pathname: string };
@@ -22,10 +41,12 @@ vi.mock('@tanstack/react-router', () => ({
     children,
     params,
     to,
+    ...props
   }: {
     children: ReactNode;
     params?: Record<string, string>;
     to: string;
+    [key: string]: unknown;
   }): ReactNode => {
     let href = to;
     if (params) {
@@ -33,7 +54,11 @@ vi.mock('@tanstack/react-router', () => ({
         href = href.replace(`$${key}`, value);
       }
     }
-    return <a href={href}>{children}</a>;
+    return (
+      <a href={href} {...props}>
+        {children}
+      </a>
+    );
   },
   useRouterState: ({ select }: { select: (s: RouterState) => string }) =>
     select({ location: { pathname: '/reading/story/story-1' } }),
@@ -44,6 +69,8 @@ const {
   addLemmaToDeck,
   browseHeadword,
   getLemmaDefinitions,
+  getReadingHome,
+  getReadingStories,
   getReadingStory,
   getReadingStoryRecommendations,
   markLemmaKnown,
@@ -52,6 +79,8 @@ const {
   addLemmaToDeck: vi.fn(),
   browseHeadword: vi.fn(),
   getLemmaDefinitions: vi.fn(),
+  getReadingHome: vi.fn(),
+  getReadingStories: vi.fn(),
   getReadingStory: vi.fn(),
   getReadingStoryRecommendations: vi.fn(),
   markLemmaKnown: vi.fn(),
@@ -59,6 +88,8 @@ const {
 }));
 
 vi.mock('@/api/reading', () => ({
+  getReadingHome,
+  getReadingStories,
   getReadingStory,
   getReadingStoryRecommendations,
   saveReadingProgress,
@@ -77,21 +108,41 @@ vi.mock('@/api/review', () => ({
 function ReaderUrlHarness({
   initialPage,
   onNavigate,
+  externalControls = false,
 }: {
   initialPage?: number;
   onNavigate: (page: number) => void;
+  externalControls?: boolean;
 }) {
   const [page, setPage] = useState(initialPage);
 
   return (
-    <StoryReaderPage
-      page={page}
-      onPageChange={(next) => {
-        onNavigate(next);
-        setPage(next);
-      }}
-      storyUuid="story-1"
-    />
+    <>
+      {externalControls && (
+        <>
+          <button onClick={() => setPage(1)}>History back</button>
+          <button onClick={() => setPage(2)}>History forward</button>
+          <DictionarySelectionControl />
+        </>
+      )}
+      <StoryReaderPage
+        page={page}
+        onPageChange={(next) => {
+          onNavigate(next);
+          setPage(next);
+        }}
+        storyUuid="story-1"
+      />
+    </>
+  );
+}
+
+function DictionarySelectionControl() {
+  const { openLemma } = useLookupContext();
+  return (
+    <button onClick={() => openLemma('lemma-kaffe', 'kaffe')}>
+      Select dictionary word
+    </button>
   );
 }
 
@@ -107,7 +158,7 @@ function ChatbotContextProbe() {
   );
 }
 
-function renderPage(initialPage?: number) {
+function renderPage(initialPage?: number, externalControls = false) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -118,16 +169,17 @@ function renderPage(initialPage?: number) {
 
   return {
     onNavigate,
+    queryClient,
     ...render(
       <QueryClientProvider client={queryClient}>
-        <ChatbotProvider>
+        <ChatbotProvider accountId={7}>
           <LookupProvider>
             <ReaderUrlHarness
               initialPage={initialPage}
               onNavigate={onNavigate}
+              externalControls={externalControls}
             />
             <ChatbotContextProbe />
-            <LookupSheet />
           </LookupProvider>
         </ChatbotProvider>
       </QueryClientProvider>,
@@ -201,6 +253,19 @@ function buildStoryResponse({
   };
 }
 
+function buildDifficultyResponse(newCount: number, totalCount: number) {
+  return {
+    ...buildStoryResponse({
+      pageIndex: 0,
+      content: [
+        ...Array<string>(newCount).fill('kaffe'),
+        ...Array<string>(totalCount - newCount).fill('tidlig'),
+      ].join(' '),
+    }),
+    cefrLevel: 'B1',
+  };
+}
+
 function notReadyImportError() {
   return Object.assign(new Error('Request failed'), {
     isAxiosError: true,
@@ -217,10 +282,41 @@ function notReadyImportError() {
   });
 }
 
+function expectPage(page: number, total: number) {
+  expect(screen.getByRole('progressbar')).toHaveAttribute(
+    'aria-valuetext',
+    `Page ${page} of ${total}`,
+  );
+}
+
+async function waitForPage(page: number, total: number) {
+  await waitFor(() => expectPage(page, total));
+}
+
 describe('StoryReaderPage', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
-
+    viewportState.isDesktop = false;
+    window.localStorage.clear();
+    saveReadingProgress.mockResolvedValue(undefined);
+    getReadingHome.mockResolvedValue({ todaysStory: null, sections: [] });
+    getReadingStories.mockResolvedValue({
+      group: {
+        id: 1,
+        key: 'daily_life',
+        title: 'Hverdagsliv',
+        order: 1,
+        storyCount: 1,
+      },
+      stories: [],
+      nextCursor: null,
+      totalCount: 0,
+      levelCounts: {},
+    });
     getReadingStory.mockResolvedValue(buildStoryResponse({ pageIndex: 0 }));
     getReadingStoryRecommendations.mockResolvedValue({
       stories: [
@@ -229,18 +325,9 @@ describe('StoryReaderPage', () => {
           title: 'On the Tram',
           cefrLevel: 'A2',
           createdAt: '2026-04-10T07:00:00Z',
-          preview: 'A short commute turns into a tiny language lesson.',
           wordCount: 198,
           isRead: false,
-        },
-        {
-          uuid: 'story-3',
-          title: 'Lunch Menu',
-          cefrLevel: 'A1',
-          createdAt: '2026-04-09T07:00:00Z',
-          preview: 'A simple lunch order with soup, bread, and tea.',
-          wordCount: 184,
-          isRead: false,
+          completed: false,
         },
       ],
     });
@@ -257,7 +344,7 @@ describe('StoryReaderPage', () => {
           definition: 'coffee as a drink',
           translation: 'coffee',
           translation_source: 'test',
-          examples: [{ no: 'Jeg drikker kaffe hver morgen.', en: null }],
+          examples: [],
           userState: 'new',
         },
       ],
@@ -272,647 +359,818 @@ describe('StoryReaderPage', () => {
     markLemmaKnown.mockResolvedValue({});
   });
 
-  it('renders the story and recommendations', async () => {
-    renderPage();
+  it('test_easier_notice_given_twelve_new_words_at_forty_percent_expect_notice_for_repeated_words', async () => {
+    getReadingStory.mockResolvedValue(buildDifficultyResponse(12, 30));
+    renderPage(1);
+    expect(
+      await screen.findByText('12 words on this page are new to you.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Show A2 stories in Daily Life' }),
+    ).toBeInTheDocument();
+  });
 
+  it('test_easier_notice_given_more_than_forty_percent_but_eleven_new_words_expect_no_notice', async () => {
+    getReadingStory.mockResolvedValue(buildDifficultyResponse(11, 20));
+    renderPage(1);
+    await waitForPage(1, 1);
     expect(
-      await screen.findByRole('heading', { name: 'Morning Coffee' }),
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByRole('button', { name: 'Ida' }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'jobb' })).toBeInTheDocument();
-    expect(
-      await screen.findByRole('heading', { name: 'Continue Reading' }),
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByRole('link', { name: /On the Tram/i }),
-    ).toHaveAttribute('href', '/reading/story/story-2');
-
-    expect(
-      screen.queryByRole('navigation', { name: 'Story pages' }),
+      screen.queryByText(/words on this page are new to you/),
     ).not.toBeInTheDocument();
   });
 
-  it('marks a single-page story complete on first load', async () => {
-    renderPage();
-
-    await screen.findByRole('heading', { name: 'Morning Coffee' });
-
-    await waitFor(() => {
-      expect(saveReadingProgress).toHaveBeenCalledWith('story-1', 0);
+  it('test_easier_notice_given_twelve_unresolved_new_words_expect_notice_without_dictionary_entries', async () => {
+    getReadingStory.mockResolvedValue({
+      ...buildDifficultyResponse(12, 30),
+      page: {
+        index: 0,
+        content: Array<string>(12).fill('ukjent').join(' '),
+        tokens: Array.from({ length: 12 }, (_, index) => ({
+          word: 'ukjent',
+          start: index * 7,
+          end: index * 7 + 6,
+          lemmaUuid: null,
+        })),
+      },
     });
-  });
-
-  it('clicking a token without lemmaUuid opens lookup browse mode', async () => {
-    const user = userEvent.setup();
-
-    renderPage();
-
-    await user.click(await screen.findByRole('button', { name: 'Ida' }));
-
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
-    expect(await screen.findByText(/No definition found/i)).toBeInTheDocument();
-  });
-
-  it('clicking a lemma-backed word opens the lookup sheet in lemma mode', async () => {
-    const user = userEvent.setup();
-
-    renderPage();
-
-    await user.click(await screen.findByRole('button', { name: 'kaffe' }));
-
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    renderPage(1);
     expect(
-      await screen.findByRole('heading', { name: 'kaffe', level: 3 }),
+      await screen.findByText('12 words on this page are new to you.'),
     ).toBeInTheDocument();
+    expect(screen.queryByText('New 12')).not.toBeInTheDocument();
   });
 
-  it('does not render DefinitionPanel component', () => {
-    renderPage();
-
-    expect(screen.queryByTestId('definition-panel')).not.toBeInTheDocument();
-  });
-
-  it('pressing Escape closes the lookup sheet', async () => {
-    const user = userEvent.setup();
-
-    renderPage();
-
-    await user.click(await screen.findByRole('button', { name: 'kaffe' }));
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-
-    await user.keyboard('{Escape}');
-
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    });
-  });
-
-  it('shows definition content when data loads', async () => {
-    const user = userEvent.setup();
-
-    renderPage();
-
-    await user.click(await screen.findByRole('button', { name: 'kaffe' }));
-
-    await user.click(
-      await screen.findByRole('button', {
-        name: /Show Norwegian definition/i,
-      }),
-    );
-    expect(screen.getByText('coffee as a drink')).toBeInTheDocument();
+  it('test_easier_notice_given_twelve_new_words_below_forty_percent_expect_no_notice', async () => {
+    getReadingStory.mockResolvedValue(buildDifficultyResponse(12, 31));
+    renderPage(1);
+    await waitForPage(1, 1);
     expect(
-      screen.getByRole('button', { name: 'I already know this' }),
-    ).toBeInTheDocument();
-  });
-
-  it('hides recommendations when empty', async () => {
-    getReadingStoryRecommendations.mockResolvedValue({ stories: [] });
-
-    renderPage();
-
-    expect(
-      await screen.findByRole('heading', { name: 'Morning Coffee' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: 'Continue Reading' }),
+      screen.queryByText(/words on this page are new to you/),
     ).not.toBeInTheDocument();
   });
 
-  it('shows the definition error state when data fails to load', async () => {
-    const user = userEvent.setup();
-
-    getLemmaDefinitions.mockRejectedValue(new Error('boom'));
-
-    renderPage();
-
-    await user.click(await screen.findByRole('button', { name: 'kaffe' }));
-
+  it('test_easier_notice_given_keep_reading_on_difficult_page_expect_notice_dismissed', async () => {
+    getReadingStory.mockResolvedValue(buildDifficultyResponse(12, 30));
+    renderPage(1);
+    const dismiss = await screen.findAllByRole('button', {
+      name: 'Keep reading',
+    });
+    await userEvent.setup().click(dismiss[0]);
     expect(
-      await screen.findByText('Definition unavailable.'),
-    ).toBeInTheDocument();
+      screen.queryByText(/words on this page are new to you/),
+    ).not.toBeInTheDocument();
   });
 
-  it('test_pagination_given_multi_page_story_expect_full_size_controls', async () => {
+  it('test_reader_given_first_page_expect_header_legend_and_next_without_previous', async () => {
     getReadingStory.mockResolvedValue(
       buildStoryResponse({ pageIndex: 0, totalPages: 3 }),
     );
-
-    renderPage();
-
-    for (const name of [/first/i, /prev/i, /next/i, /last/i, 'Page 2']) {
-      expect(await screen.findByRole('button', { name })).toHaveClass('h-11');
-    }
-  });
-
-  it('test_pagination_given_single_page_story_expect_no_pagination_controls', async () => {
-    renderPage();
-
-    await screen.findByRole('heading', { name: 'Morning Coffee' });
-
+    renderPage(1);
+    await waitForPage(1, 3);
     expect(
-      screen.queryByRole('navigation', { name: 'Story pages' }),
+      screen.getByRole('heading', { name: 'Morning Coffee' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Back to Reading' }),
+    ).toHaveAttribute('href', '/reading');
+    expect(screen.getByRole('button', { name: 'Next page' })).toBeEnabled();
+    expect(
+      screen.queryByRole('button', { name: 'Previous page' }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText(/^Page 1 of 1$/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('group', { name: 'Word states' }),
+    ).toHaveTextContent('New 4Learning 1');
+    expect(
+      screen.queryByRole('heading', { name: 'Continue reading' }),
+    ).not.toBeInTheDocument();
   });
 
-  it('navigates between pages and saves progress for next and previous', async () => {
-    const user = userEvent.setup();
-
-    getReadingStory.mockImplementation(async (_uuid: string, page?: number) =>
-      page === 1
-        ? buildStoryResponse({
-            pageIndex: 1,
-            totalPages: 2,
-            lastPageIndex: 1,
-            completed: true,
-            content:
-              'Senere går Ida hjem igjen.\n\nHun hører regnet mot vinduet og lager mer te.',
-          })
-        : buildStoryResponse({
-            pageIndex: 0,
-            totalPages: 2,
-            lastPageIndex: 0,
-            completed: false,
-          }),
-    );
-
+  it('test_reader_given_single_page_expect_finish_without_automatic_completion', async () => {
     renderPage();
+    await waitForPage(1, 1);
+    expect(screen.getByRole('button', { name: 'Finish story' })).toBeEnabled();
+    expect(saveReadingProgress).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole('heading', { name: 'Story finished' }),
+    ).not.toBeInTheDocument();
+  });
 
-    expect(await screen.findByText('Page 1 of 2')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /prev/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /next/i })).toBeEnabled();
-
-    await user.click(screen.getByRole('button', { name: /next/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
-    });
-    expect(screen.getByRole('button', { name: 'igjen' })).toBeInTheDocument();
-    expect(saveReadingProgress).toHaveBeenCalledWith('story-1', 1);
-    expect(screen.getByRole('button', { name: /prev/i })).toBeEnabled();
-    expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
-
-    await user.click(screen.getByRole('button', { name: /prev/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
-    });
+  it('test_finish_given_unsaved_last_page_expect_save_then_end_and_recommendations', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(
+      await screen.findByRole('button', { name: 'Finish story' }),
+    );
+    expect(
+      await screen.findByRole('heading', { name: 'Story finished' }),
+    ).toBeInTheDocument();
     expect(saveReadingProgress).toHaveBeenCalledWith('story-1', 0);
+    expect(
+      screen.queryByRole('link', { name: 'Next story' }),
+    ).not.toBeInTheDocument();
+    const recommendation = screen.getByRole('link', { name: /On the Tram/ });
+    expect(recommendation).toHaveAttribute('href', '/reading/story/story-2');
+    expect(recommendation).toHaveTextContent(/^A2On the Tram198 words$/);
+    expect(
+      screen.getByRole('heading', { name: 'More to read' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/looked up/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Daily Life · 1 page')).toBeInTheDocument();
+    expect(
+      screen.queryByText(/^Daily Life · 1 page ·/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Practise/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('article')).toHaveFocus();
+  });
+
+  it('test_completion_given_repeated_inflected_lookup_expect_one_dictionary_chip_reopening_context', async () => {
+    const user = userEvent.setup();
+    getLemmaDefinitions.mockResolvedValue({
+      lemma: {
+        uuid: 'lemma-sitte',
+        word: 'sitte',
+        pos: 'verb',
+        primary_translation: null,
+      },
+      definitions: [
+        {
+          uuid: 'definition-sitte',
+          translation: null,
+          translation_source: null,
+          examples: [],
+          userState: 'new',
+        },
+      ],
+    });
+    renderPage();
+    for (let visit = 0; visit < 2; visit++) {
+      await user.click(await screen.findByRole('button', { name: 'sitter' }));
+      await screen.findByText('No translation found');
+      await user.click(
+        screen.getByRole('button', { name: 'Close word lookup' }),
+      );
+    }
+    await user.click(screen.getByRole('button', { name: 'Finish story' }));
+    await screen.findByRole('heading', { name: 'Story finished' });
+    expect(
+      await screen.findByRole('heading', { name: 'Words you looked up 1' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('button', { name: 'Look up sitte' }),
+    ).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Look up sitte' }));
+    expect(
+      await screen.findByText(
+        'Hun sitter ved vinduet og leser avisen før jobb.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('test_completion_given_invalidated_cached_pages_and_prose_observer_expect_no_focus_or_reconnect_fetch', async () => {
+    const user = userEvent.setup();
+    const { queryClient } = renderPage();
+    await user.click(
+      await screen.findByRole('button', { name: 'Finish story' }),
+    );
+    await screen.findByRole('heading', { name: 'Story finished' });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    const requests = getReadingStory.mock.calls.length;
+    await act(async () => {
+      await queryClient.invalidateQueries({
+        queryKey: readingKeys.story('story-1'),
+        refetchType: 'none',
+      });
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+      onlineManager.setOnline(false);
+      onlineManager.setOnline(true);
+    });
+    expect(getReadingStory).toHaveBeenCalledTimes(requests);
+    expect(
+      screen.getByRole('progressbar', { name: 'Mastered words' }),
+    ).toBeInTheDocument();
+  });
+
+  it('test_completion_given_lookup_on_earlier_page_expect_visit_history_retained', async () => {
+    const user = userEvent.setup();
+    getLemmaDefinitions.mockResolvedValue({
+      lemma: {
+        uuid: 'lemma-kaffe',
+        word: 'kaffe',
+        pos: 'noun',
+        primary_translation: null,
+      },
+      definitions: [
+        {
+          uuid: 'definition-kaffe',
+          definition: '',
+          translation: null,
+          examples: [],
+          userState: 'new',
+        },
+      ],
+    });
+    getReadingStory.mockImplementation(async (_uuid, index) =>
+      buildStoryResponse({
+        pageIndex: index ?? 0,
+        totalPages: 2,
+        content:
+          index === 1 ? 'Hun lager kaffe igjen.' : 'Ida lager kaffe tidlig.',
+      }),
+    );
+    renderPage(1);
+    await user.click(await screen.findByRole('button', { name: 'kaffe' }));
+    await screen.findByText('No translation found');
+    await user.click(screen.getByRole('button', { name: 'Close word lookup' }));
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    await waitForPage(2, 2);
+    await user.click(screen.getByRole('button', { name: 'Finish story' }));
+    expect(
+      await screen.findByRole('button', { name: 'Look up kaffe' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Look up kaffe' }));
+    expect(await screen.findByText('Ida lager kaffe tidlig.')).toBeVisible();
+    expect(
+      screen.queryByText('Hun lager kaffe igjen.'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('test_completion_given_authored_theme_list_expect_real_word_count_and_first_unread_destination', async () => {
+    const user = userEvent.setup();
+    getReadingStories.mockResolvedValue({
+      group: {
+        id: 1,
+        key: 'daily_life',
+        title: 'Daily Life',
+        order: 1,
+        storyCount: 3,
+      },
+      stories: [
+        {
+          uuid: 'story-1',
+          title: 'Morning Coffee',
+          cefrLevel: 'A1',
+          wordCount: 640,
+          createdAt: '2026-10-01T00:00:00',
+          isRead: true,
+          completed: false,
+        },
+        {
+          uuid: 'read',
+          title: 'Already read',
+          cefrLevel: 'A1',
+          wordCount: 580,
+          createdAt: '2026-10-01T00:00:00',
+          isRead: true,
+          completed: true,
+        },
+        {
+          uuid: 'unread',
+          title: 'Read this next',
+          cefrLevel: 'A2',
+          wordCount: 580,
+          createdAt: '2026-10-01T00:00:00',
+          isRead: false,
+          completed: false,
+        },
+      ],
+      nextCursor: null,
+      totalCount: 3,
+      levelCounts: {},
+    });
+    renderPage();
+    await user.click(
+      await screen.findByRole('button', { name: 'Finish story' }),
+    );
+    expect(
+      await screen.findByRole('link', { name: 'Read next story' }),
+    ).toHaveAttribute('href', '/reading/story/unread');
+    expect(
+      screen.getByText('Daily Life · 1 page · 640 words'),
+    ).toBeInTheDocument();
+  });
+
+  it('test_completion_given_missing_page_failure_expect_no_partial_summary_and_retry', async () => {
+    const user = userEvent.setup();
+    getReadingStory.mockImplementation(async (_uuid, index) => {
+      if (index === 0) throw new Error('Page unavailable');
+      return buildStoryResponse({ pageIndex: 1, totalPages: 2 });
+    });
+    renderPage(2);
+    await user.click(
+      await screen.findByRole('button', { name: 'Finish story' }),
+    );
+    await screen.findByText("The story's word summary couldn't load.");
+    expect(
+      screen.queryByRole('progressbar', { name: 'Mastered words' }),
+    ).not.toBeInTheDocument();
+    getReadingStory.mockImplementation(async (_uuid, index) =>
+      buildStoryResponse({ pageIndex: index ?? 0, totalPages: 2 }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(
+      await screen.findByRole('progressbar', { name: 'Mastered words' }),
+    ).toBeInTheDocument();
+  });
+
+  it('test_finish_given_save_in_flight_expect_busy_controls_and_no_end', async () => {
+    const user = userEvent.setup();
+    let release = () => {};
+    saveReadingProgress.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    renderPage();
+    await user.click(
+      await screen.findByRole('button', { name: 'Finish story' }),
+    );
+    expect(screen.getByRole('button', { name: 'Finish story' })).toBeDisabled();
+    expect(
+      screen.queryByRole('heading', { name: 'Story finished' }),
+    ).not.toBeInTheDocument();
+    release();
+    expect(
+      await screen.findByRole('heading', { name: 'Story finished' }),
+    ).toBeInTheDocument();
+  });
+
+  it('test_finish_given_failed_save_expect_reader_stays_open_and_retry_succeeds', async () => {
+    const user = userEvent.setup();
+    saveReadingProgress.mockRejectedValueOnce(new Error('save failed'));
+    renderPage();
+    await user.click(
+      await screen.findByRole('button', { name: 'Finish story' }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Finish story' }),
+      ).toBeEnabled(),
+    );
+    expect(saveReadingProgress).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole('heading', { name: 'Story finished' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Finish story' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Story finished' }),
+    ).toBeInTheDocument();
     expect(saveReadingProgress).toHaveBeenCalledTimes(2);
   });
 
-  it('does not save completion when loading the last page fails', async () => {
+  it('test_finish_given_already_completed_story_expect_end_without_duplicate_save', async () => {
     const user = userEvent.setup();
-
-    getReadingStory.mockImplementation(async (_uuid: string, page?: number) => {
-      if (page === 1) {
-        throw new Error('page failed');
-      }
-
-      return buildStoryResponse({
-        pageIndex: 0,
-        totalPages: 2,
-        lastPageIndex: 0,
-        completed: false,
-      });
-    });
-
+    getReadingStory.mockResolvedValue(
+      buildStoryResponse({ pageIndex: 0, completed: true }),
+    );
     renderPage();
-
-    expect(await screen.findByText('Page 1 of 2')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /next/i }));
-
+    await user.click(
+      await screen.findByRole('button', { name: 'Finish story' }),
+    );
     expect(
-      await screen.findByText('Could not load this story.'),
+      await screen.findByRole('heading', { name: 'Story finished' }),
     ).toBeInTheDocument();
     expect(saveReadingProgress).not.toHaveBeenCalled();
   });
 
-  it('shows recommendations on the last page when completed', async () => {
-    const user = userEvent.setup();
-
-    getReadingStory.mockImplementation(async (_uuid: string, page?: number) =>
-      page === 1
-        ? buildStoryResponse({
-            pageIndex: 1,
-            totalPages: 2,
-            lastPageIndex: 1,
-            completed: true,
-            content:
-              'Senere går Ida hjem igjen.\n\nHun hører regnet mot vinduet og lager mer te.',
-          })
-        : buildStoryResponse({
-            pageIndex: 0,
-            totalPages: 2,
-            lastPageIndex: 0,
-            completed: false,
-          }),
+  it('test_completion_given_history_round_trip_expect_last_page_prose', async () => {
+    getReadingStory.mockImplementation((_uuid, pageIndex) =>
+      Promise.resolve(
+        buildStoryResponse({
+          pageIndex: pageIndex ?? 1,
+          totalPages: 2,
+          completed: true,
+        }),
+      ),
     );
-
-    renderPage();
-
-    expect(await screen.findByText('Page 1 of 2')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /next/i }));
-
+    const user = userEvent.setup();
+    renderPage(2, true);
+    await user.click(
+      await screen.findByRole('button', { name: 'Finish story' }),
+    );
+    await screen.findByRole('heading', { name: 'Story finished' });
+    await user.click(screen.getByRole('button', { name: 'History back' }));
+    await waitForPage(1, 2);
+    await user.click(screen.getByRole('button', { name: 'History forward' }));
+    await waitForPage(2, 2);
     expect(
-      await screen.findByRole('heading', { name: /continue reading/i }),
+      screen.queryByRole('heading', { name: 'Story finished' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Finish story' })).toBeEnabled();
+  });
+
+  it('test_page_transition_given_open_lookup_and_reused_word_expect_new_article_focused', async () => {
+    getReadingStory.mockImplementation((_uuid, pageIndex) =>
+      Promise.resolve(
+        buildStoryResponse({ pageIndex: pageIndex ?? 1, totalPages: 2 }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage(2, true);
+    const historyBack = screen.getByRole('button', { name: 'History back' });
+    await user.click(await screen.findByRole('button', { name: 'kaffe' }));
+    await screen.findByRole('dialog');
+    fireEvent.click(historyBack);
+    await waitForPage(1, 2);
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(screen.getByRole('article')).toHaveFocus());
+  });
+
+  it('test_completion_given_finish_response_after_history_round_trip_expect_prose_until_new_finish', async () => {
+    getReadingStory.mockImplementation((_uuid, pageIndex) =>
+      Promise.resolve(
+        buildStoryResponse({ pageIndex: pageIndex ?? 1, totalPages: 2 }),
+      ),
+    );
+    let release = () => {};
+    saveReadingProgress.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const user = userEvent.setup();
+    renderPage(2, true);
+    await user.click(
+      await screen.findByRole('button', { name: 'Finish story' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'History back' }));
+    await waitForPage(1, 2);
+    await user.click(screen.getByRole('button', { name: 'History forward' }));
+    await waitForPage(2, 2);
+    release();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Finish story' }),
+      ).toBeEnabled(),
+    );
+    expect(
+      screen.queryByRole('heading', { name: 'Story finished' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Finish story' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Story finished' }),
     ).toBeInTheDocument();
   });
 
-  it('adds word to deck from lookup', async () => {
+  it('test_completion_given_dictionary_selection_expect_visible_definition', async () => {
     const user = userEvent.setup();
-
-    getReadingStory.mockResolvedValue(
-      buildStoryResponse({
-        pageIndex: 0,
-        totalPages: 1,
-        lastPageIndex: 0,
-        completed: true,
-      }),
+    renderPage(undefined, true);
+    await user.click(
+      await screen.findByRole('button', { name: 'Finish story' }),
     );
-
-    renderPage();
-
-    await user.click(await screen.findByRole('button', { name: 'kaffe' }));
-
+    await screen.findByRole('heading', { name: 'Story finished' });
+    await user.click(
+      screen.getByRole('button', { name: 'Select dictionary word' }),
+    );
     expect(
       await screen.findByRole('heading', { name: 'kaffe', level: 3 }),
     ).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /add to review/i }));
-
-    await waitFor(() => {
-      expect(addLemmaToDeck).toHaveBeenCalled();
-      expect(addLemmaToDeck.mock.calls[0][0]).toBe('lemma-kaffe');
-    });
-  });
-
-  it('test_reader_given_import_story_with_null_cefr_and_group_expect_no_badge_or_group', async () => {
-    getReadingStory.mockResolvedValue({
-      uuid: 'import-1',
-      title: 'Imported article',
-      cefrLevel: null,
-      groupKey: null,
-      groupTitle: null,
-      page: {
-        index: 0,
-        content:
-          'Ida lager kaffe tidlig.\n\nHun sitter ved vinduet og leser avisen før jobb.',
-        tokens: buildStoryTokens(
-          'Ida lager kaffe tidlig.\n\nHun sitter ved vinduet og leser avisen før jobb.',
-        ),
-      },
-      totalPages: 1,
-      lastPageIndex: 0,
-      completed: false,
-      userStates: {
-        'lemma-lager': 'new',
-        'lemma-kaffe': 'new',
-      },
-    });
-    getReadingStoryRecommendations.mockResolvedValue({ stories: [] });
-
-    renderPage();
-
     expect(
-      await screen.findByRole('heading', { name: 'Imported article' }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'kaffe' })).toBeInTheDocument();
-
-    expect(screen.queryByText('Daily Life')).not.toBeInTheDocument();
-    expect(screen.queryByText('A1')).not.toBeInTheDocument();
-    expect(screen.queryByText('A2')).not.toBeInTheDocument();
-    expect(screen.queryByText('B1')).not.toBeInTheDocument();
-    expect(screen.queryByText('B2')).not.toBeInTheDocument();
-  });
-
-  it('test_reader_given_import_not_ready_409_expect_still_processing_state', async () => {
-    getReadingStory.mockRejectedValue(notReadyImportError());
-
-    renderPage();
-
-    expect(
-      await screen.findByRole('heading', {
-        name: 'Still processing this text',
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Check again' }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/Page 1 of/)).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'kaffe' }),
+      screen.queryByRole('button', { name: 'Back to word list' }),
     ).not.toBeInTheDocument();
   });
 
-  it('test_reader_given_not_ready_state_expect_check_again_button_refetches', async () => {
+  it('test_reader_given_word_without_lemma_expect_sentence_reason_and_ask_flyt', async () => {
     const user = userEvent.setup();
-    getReadingStory
-      .mockRejectedValueOnce(notReadyImportError())
-      .mockResolvedValueOnce(buildStoryResponse({ pageIndex: 0 }));
-
     renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Ida' }));
+    expect(await screen.findByText('No translation found')).toBeInTheDocument();
+    expect(
+      screen.getByText(/dialect spelling, a name or a typo/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('blockquote')).toHaveTextContent(
+      'Ida lager kaffe tidlig.',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Ask Flyt what it means' }),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('chatbot-page-context')).toHaveAttribute(
+        'data-context',
+        'selection|Ida|Ida lager kaffe tidlig.',
+      ),
+    );
+  });
 
-    const checkAgain = await screen.findByRole('button', {
-      name: 'Check again',
-    });
-    await user.click(checkAgain);
+  it('test_reader_given_word_lookup_expect_state_badge_and_current_word', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const word = await screen.findByRole('button', { name: 'kaffe' });
+    await user.click(word);
+    expect(
+      await screen.findByRole('heading', { name: 'kaffe', level: 3 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('New word')).toBeInTheDocument();
+    expect(word).toHaveAttribute('aria-current', 'true');
+    await user.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
+    expect(word).not.toHaveAttribute('aria-current');
+    await waitFor(() => expect(word).toHaveFocus());
+  });
+
+  it.each(['explicit', 'saved_preference'])(
+    'test_reader_given_desktop_chatbot_open_expect_word_definition_and_reopenable_chatbot',
+    async (openBy) => {
+      viewportState.isDesktop = true;
+      if (openBy === 'saved_preference')
+        window.localStorage.setItem('flyt.chatbot.rail-preference:7', 'open');
+      const user = userEvent.setup();
+      renderPage();
+      await waitForPage(1, 1);
+      const trigger = screen.getByRole('button', { name: 'Ask Flyt' });
+      if (openBy === 'explicit') await user.click(trigger);
+      expect(trigger).toHaveAttribute('aria-expanded', 'true');
+      await screen.findByRole('complementary', { name: 'Ask Flyt chatbot' });
+      const word = screen.getByRole('button', { name: 'kaffe' });
+
+      await user.click(word);
+
+      expect(
+        await screen.findByRole('heading', { name: 'kaffe', level: 3 }),
+      ).toBeVisible();
+      expect(screen.getByTestId('definition-panel')).toHaveTextContent(
+        'coffee',
+      );
+      expect(word).toHaveAttribute('aria-current', 'true');
+      expect(trigger).toHaveAttribute('aria-expanded', 'false');
+      expect(
+        window.localStorage.getItem('flyt.chatbot.rail-preference:7'),
+      ).toBe('open');
+      await user.click(trigger);
+      expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    },
+  );
+
+  it('test_completion_given_desktop_chatbot_open_expect_lookup_chip_definition', async () => {
+    viewportState.isDesktop = true;
+    const user = userEvent.setup();
+    renderPage();
+    await waitForPage(1, 1);
+    const article = screen.getByRole('article');
+    await user.click(within(article).getByRole('button', { name: 'kaffe' }));
+    await screen.findByRole('heading', { name: 'kaffe', level: 3 });
+    await user.click(screen.getByRole('button', { name: 'Finish story' }));
+    await screen.findByRole('heading', { name: 'Story finished' });
+    const trigger = screen.getByRole('button', { name: 'Ask Flyt' });
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'Look up kaffe' }));
 
     expect(
-      await screen.findByRole('heading', { name: 'Morning Coffee' }),
+      await screen.findByRole('heading', { name: 'kaffe', level: 3 }),
+    ).toBeVisible();
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('test_reader_given_repeated_lemma_expect_only_tapped_occurrence_current', async () => {
+    getReadingStory.mockResolvedValue(
+      buildStoryResponse({ pageIndex: 0, content: 'kaffe og kaffe.' }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    const words = await screen.findAllByRole('button', { name: 'kaffe' });
+    await user.click(words[1]);
+    expect(words[1]).toHaveAttribute('aria-current', 'true');
+    expect(words[0]).not.toHaveAttribute('aria-current');
+  });
+
+  it('test_reader_given_related_dictionary_entry_expect_lookup_outside_page', async () => {
+    getLemmaDefinitions.mockImplementation(async (uuid: string) =>
+      uuid === 'lemma-te'
+        ? {
+            lemma: {
+              uuid,
+              word: 'te',
+              pos: 'noun',
+              primary_translation: 'tea',
+            },
+            definitions: [],
+          }
+        : {
+            lemma: {
+              uuid,
+              word: 'kaffe',
+              pos: 'noun',
+              primary_translation: 'coffee',
+              see_also: [
+                {
+                  article_id: 1,
+                  word: 'te',
+                  relation: 'compare',
+                  target_lemma_uuid: 'lemma-te',
+                },
+              ],
+            },
+            definitions: [],
+          },
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'kaffe' }));
+    await user.click(await screen.findByRole('button', { name: 'Compare te' }));
+    expect(
+      await screen.findByRole('heading', { name: 'te', level: 3 }),
     ).toBeInTheDocument();
   });
-  it('test_reader_given_page_search_value_expect_that_page_requested', async () => {
-    getReadingStory.mockImplementation(async (_uuid: string, page?: number) =>
-      buildStoryResponse({ pageIndex: page ?? 0, totalPages: 12 }),
+
+  it('test_autosave_given_nonfinal_save_failure_expect_retry_after_refetch', async () => {
+    getReadingStory.mockResolvedValue(
+      buildStoryResponse({ pageIndex: 0, totalPages: 3 }),
     );
-
-    renderPage(3);
-
-    expect(await screen.findByText('Page 3 of 12')).toBeInTheDocument();
-    expect(getReadingStory).toHaveBeenCalledWith(
-      'story-1',
-      2,
-      expect.any(AbortSignal),
-    );
-    expect(
-      await screen.findByRole('button', { name: 'Page 3' }),
-    ).toHaveAttribute('aria-current', 'page');
-  });
-
-  it('test_pagination_given_numbered_control_expect_navigation_to_that_page', async () => {
-    const user = userEvent.setup();
-    getReadingStory.mockImplementation(async (_uuid: string, page?: number) =>
-      buildStoryResponse({ pageIndex: page ?? 0, totalPages: 12 }),
-    );
-
-    const { onNavigate } = renderPage(1);
-
-    await user.click(await screen.findByRole('button', { name: 'Page 5' }));
-
-    expect(onNavigate).toHaveBeenCalledWith(5);
-    expect(await screen.findByText('Page 5 of 12')).toBeInTheDocument();
-    expect(getReadingStory).toHaveBeenCalledWith(
-      'story-1',
-      4,
-      expect.any(AbortSignal),
-    );
-  });
-
-  it('test_pagination_given_forward_ellipsis_expect_three_page_jump', async () => {
-    const user = userEvent.setup();
-    getReadingStory.mockImplementation(async (_uuid: string, page?: number) =>
-      buildStoryResponse({ pageIndex: page ?? 0, totalPages: 12 }),
-    );
-
-    renderPage(5);
-
-    await user.click(
-      await screen.findByRole('button', { name: 'Jump forward 3 pages' }),
-    );
-
-    expect(await screen.findByText('Page 8 of 12')).toBeInTheDocument();
-  });
-
-  it('test_pagination_given_last_control_expect_end_controls_disabled', async () => {
-    const user = userEvent.setup();
-    getReadingStory.mockImplementation(async (_uuid: string, page?: number) =>
+    saveReadingProgress.mockRejectedValueOnce(new Error('save failed'));
+    const { queryClient } = renderPage(1);
+    await waitFor(() => expect(saveReadingProgress).toHaveBeenCalledOnce());
+    getReadingStory.mockResolvedValue(
       buildStoryResponse({
-        pageIndex: page ?? 0,
-        totalPages: 12,
-        lastPageIndex: page ?? 0,
+        pageIndex: 0,
+        totalPages: 3,
+        content: 'Ida lager kaffe igjen.',
       }),
     );
-
-    renderPage(1);
-
-    expect(
-      await screen.findByRole('button', { name: /first/i }),
-    ).toBeDisabled();
-    await user.click(screen.getByRole('button', { name: /last/i }));
-
-    expect(await screen.findByText('Page 12 of 12')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /last/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /first/i })).toBeEnabled();
-  });
-
-  it('test_reader_given_page_change_expect_focus_moves_to_story_body', async () => {
-    const user = userEvent.setup();
-    getReadingStory.mockImplementation(async (_uuid: string, page?: number) =>
-      buildStoryResponse({ pageIndex: page ?? 0, totalPages: 12 }),
-    );
-
-    renderPage(1);
-
-    const article = await screen.findByRole('article');
-    expect(article).not.toHaveFocus();
-
-    await user.click(screen.getByRole('button', { name: /next/i }));
-
-    await waitFor(() => expect(article).toHaveFocus());
-  });
-
-  it('test_reader_given_pending_page_expect_busy_article_and_no_early_announcement', async () => {
-    const user = userEvent.setup();
-    let releaseSecondPage = () => {};
-    getReadingStory.mockImplementation(async (_uuid: string, page?: number) => {
-      if (page === 1) {
-        await new Promise<void>((resolve) => {
-          releaseSecondPage = resolve;
-        });
-      }
-      return buildStoryResponse({ pageIndex: page ?? 0, totalPages: 2 });
+    await queryClient.invalidateQueries({
+      queryKey: readingKeys.story('story-1'),
     });
-
-    renderPage(1);
-
-    const article = await screen.findByRole('article');
-    await user.click(screen.getByRole('button', { name: /next/i }));
-
-    await waitFor(() => expect(article).toHaveAttribute('aria-busy', 'true'));
-    expect(screen.queryByText('Page 2 of 2')).not.toBeInTheDocument();
-
-    releaseSecondPage();
-
-    expect(await screen.findByText('Page 2 of 2')).toBeInTheDocument();
-    await waitFor(() => expect(article).toHaveAttribute('aria-busy', 'false'));
+    await waitFor(() => expect(saveReadingProgress).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole('button', { name: 'Next page' })).toBeEnabled();
   });
 
-  it('test_reader_given_settled_page_expect_only_adjacent_pages_prefetched', async () => {
+  it('test_lookup_given_definition_failure_expect_retryable_error', async () => {
+    const user = userEvent.setup();
+    getLemmaDefinitions.mockRejectedValue(new Error('boom'));
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'kaffe' }));
+    expect(
+      await screen.findByText('Definition unavailable.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled();
+  });
+
+  it('test_lookup_given_add_to_review_expect_existing_lemma_action', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'kaffe' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Add to review' }),
+    );
+    await waitFor(() =>
+      expect(addLemmaToDeck.mock.calls[0]?.[0]).toBe('lemma-kaffe'),
+    );
+  });
+
+  it('test_reader_given_page_search_value_expect_requested_page_and_bounded_prefetch', async () => {
     getReadingStory.mockImplementation(async (_uuid: string, page?: number) =>
       buildStoryResponse({ pageIndex: page ?? 0, totalPages: 12 }),
     );
-
     renderPage(5);
-
-    await screen.findByText('Page 5 of 12');
-
-    await waitFor(() => {
+    await waitForPage(5, 12);
+    await waitFor(() =>
       expect(getReadingStory).toHaveBeenCalledWith(
         'story-1',
         5,
         expect.any(AbortSignal),
-      );
-    });
-    const requested = getReadingStory.mock.calls.map((call) => call[1]);
-    expect(new Set(requested)).toEqual(new Set([3, 4, 5]));
+      ),
+    );
+    expect(new Set(getReadingStory.mock.calls.map((call) => call[1]))).toEqual(
+      new Set([3, 4, 5]),
+    );
   });
 
   it('test_reader_given_first_page_expect_only_next_page_prefetched', async () => {
     getReadingStory.mockImplementation(async (_uuid: string, page?: number) =>
       buildStoryResponse({ pageIndex: page ?? 0, totalPages: 3 }),
     );
-
     renderPage(1);
-
-    await screen.findByText('Page 1 of 3');
-
-    await waitFor(() => {
+    await waitForPage(1, 3);
+    await waitFor(() =>
       expect(getReadingStory).toHaveBeenCalledWith(
         'story-1',
         1,
         expect.any(AbortSignal),
-      );
-    });
-    const requested = getReadingStory.mock.calls.map((call) => call[1]);
-    expect(new Set(requested)).toEqual(new Set([0, 1]));
-  });
-
-  it('test_ask_flyt_given_open_story_expect_story_and_page_context', async () => {
-    getReadingStory.mockImplementation(async (_uuid: string, page?: number) =>
-      buildStoryResponse({ pageIndex: page ?? 0, totalPages: 12 }),
-    );
-
-    renderPage(2);
-
-    const probe = await screen.findByTestId('chatbot-page-context');
-    await waitFor(() =>
-      expect(probe).toHaveAttribute(
-        'data-context',
-        'reading|Morning Coffee|Page 2 of 12',
       ),
     );
-  });
-
-  it('test_recommendations_given_page_before_last_expect_hidden', async () => {
-    getReadingStory.mockImplementation(async (_uuid: string, page?: number) =>
-      buildStoryResponse({ pageIndex: page ?? 0, totalPages: 12 }),
+    expect(new Set(getReadingStory.mock.calls.map((call) => call[1]))).toEqual(
+      new Set([0, 1]),
     );
-
-    renderPage(2);
-
-    await screen.findByText('Page 2 of 12');
-    expect(
-      screen.queryByRole('heading', { name: 'Continue Reading' }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/reached the end of this story/i),
-    ).not.toBeInTheDocument();
   });
 
-  it('test_recommendations_given_last_page_without_stories_expect_end_note_only', async () => {
-    getReadingStoryRecommendations.mockResolvedValue({ stories: [] });
+  it('test_reader_given_next_and_previous_expect_url_changes_and_nonfinal_progress_save', async () => {
+    const user = userEvent.setup();
     getReadingStory.mockImplementation(async (_uuid: string, page?: number) =>
       buildStoryResponse({ pageIndex: page ?? 0, totalPages: 3 }),
     );
-
-    renderPage(3);
-
-    expect(
-      await screen.findByText(/reached the end of this story/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: 'Continue Reading' }),
-    ).not.toBeInTheDocument();
+    const { onNavigate } = renderPage(1);
+    await waitForPage(1, 3);
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    await waitForPage(2, 3);
+    expect(onNavigate).toHaveBeenCalledWith(2);
+    expect(saveReadingProgress).toHaveBeenCalledWith('story-1', 1);
+    await user.click(screen.getByRole('button', { name: 'Previous page' }));
+    await waitForPage(1, 3);
+    expect(onNavigate).toHaveBeenCalledWith(1);
+    expect(screen.getByRole('article')).toHaveFocus();
   });
-  it('test_end_section_given_navigation_away_from_last_page_expect_hidden_while_pending', async () => {
+
+  it('test_reader_given_pending_page_expect_previous_prose_busy_and_no_early_announcement', async () => {
     const user = userEvent.setup();
-    let releaseFirstPage = () => {};
-    const firstPagePending = new Promise<void>((resolve) => {
-      releaseFirstPage = resolve;
-    });
+    let release = () => {};
     getReadingStory.mockImplementation(async (_uuid: string, page?: number) => {
-      if (page === 0) await firstPagePending;
-      return buildStoryResponse({
-        pageIndex: page ?? 1,
-        totalPages: 2,
-        lastPageIndex: 1,
-        completed: true,
-      });
+      if (page === 1)
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      return buildStoryResponse({ pageIndex: page ?? 0, totalPages: 2 });
     });
-
-    renderPage(2);
-
-    expect(
-      await screen.findByText(/reached the end of this story/i),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /prev/i }));
-
-    const article = await screen.findByRole('article');
+    renderPage(1);
+    await waitForPage(1, 2);
+    const article = screen.getByRole('article');
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
     await waitFor(() => expect(article).toHaveAttribute('aria-busy', 'true'));
     expect(
-      screen.queryByText(/reached the end of this story/i),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: 'Continue Reading' }),
-    ).not.toBeInTheDocument();
-
-    releaseFirstPage();
-
-    expect(await screen.findByText('Page 1 of 2')).toBeInTheDocument();
-    expect(
-      screen.queryByText(/reached the end of this story/i),
-    ).not.toBeInTheDocument();
+      screen.getByRole('status', { name: 'Current story page' }),
+    ).toHaveTextContent('');
+    expect(screen.getByRole('button', { name: 'kaffe' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Finish story' })).toBeDisabled();
+    release();
+    await waitForPage(2, 2);
+    expect(article).toHaveAttribute('aria-busy', 'false');
   });
 
-  it('test_progress_autosave_given_failed_save_expect_no_immediate_retry', async () => {
-    saveReadingProgress.mockRejectedValue(new Error('save failed'));
-    getReadingStory.mockImplementation(async (_uuid: string, page?: number) =>
-      buildStoryResponse({
-        pageIndex: page ?? 1,
-        totalPages: 2,
-        lastPageIndex: 1,
-      }),
-    );
-
-    renderPage(2);
-
-    await waitFor(() => expect(saveReadingProgress).toHaveBeenCalledTimes(1));
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(saveReadingProgress).toHaveBeenCalledTimes(1);
-  });
-  it('test_progress_autosave_given_failed_save_expect_retry_on_returning_to_page', async () => {
+  it('test_reader_given_failed_last_page_load_expect_no_completion_save', async () => {
     const user = userEvent.setup();
-    saveReadingProgress.mockRejectedValueOnce(new Error('save failed'));
-    getReadingStory.mockImplementation(async (_uuid: string, page?: number) =>
-      buildStoryResponse({
-        pageIndex: page ?? 1,
-        totalPages: 2,
-        lastPageIndex: 1,
-      }),
-    );
+    getReadingStory.mockImplementation(async (_uuid: string, page?: number) => {
+      if (page === 1) throw new Error('failed');
+      return buildStoryResponse({ pageIndex: 0, totalPages: 2 });
+    });
+    renderPage();
+    await waitForPage(1, 2);
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    expect(
+      await screen.findByText("Couldn't open this story"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Back to Reading' }),
+    ).toBeInTheDocument();
+    expect(saveReadingProgress).not.toHaveBeenCalled();
+  });
 
+  it('test_reader_given_pending_initial_load_expect_skeleton_status_and_back', () => {
+    getReadingStory.mockImplementation(() => new Promise(() => {}));
+    renderPage();
+    expect(
+      screen.getByRole('status', { name: 'Loading story' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Back to Reading' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('article')).not.toBeInTheDocument();
+  });
+
+  it('test_reader_given_import_not_ready_expect_preparation_explanation_and_imports_exit', async () => {
+    getReadingStory.mockRejectedValue(notReadyImportError());
+    renderPage();
+    expect(
+      await screen.findByRole('heading', { name: 'Still preparing this text' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Back to your imports' }),
+    ).toHaveAttribute('href', '/reading/imports');
+    expect(
+      screen.queryByRole('button', { name: 'Finish story' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('test_reader_given_import_without_group_or_level_expect_metadata_absent', async () => {
+    getReadingStory.mockResolvedValue({
+      ...buildStoryResponse({ pageIndex: 0 }),
+      cefrLevel: null,
+      groupTitle: null,
+      groupKey: null,
+    });
+    renderPage();
+    await waitForPage(1, 1);
+    expect(screen.queryByText('Daily Life')).not.toBeInTheDocument();
+    expect(screen.queryByText('A1')).not.toBeInTheDocument();
+  });
+
+  it('test_chatbot_given_reading_page_expect_title_and_settled_page_context', async () => {
+    getReadingStory.mockResolvedValue(
+      buildStoryResponse({ pageIndex: 1, totalPages: 3 }),
+    );
     renderPage(2);
-
     await waitFor(() =>
-      expect(saveReadingProgress).toHaveBeenCalledWith('story-1', 1),
-    );
-
-    await user.click(screen.getByRole('button', { name: /prev/i }));
-    await screen.findByText('Page 1 of 2');
-    await user.click(screen.getByRole('button', { name: /next/i }));
-    await screen.findByText('Page 2 of 2');
-
-    await waitFor(() =>
-      expect(
-        saveReadingProgress.mock.calls.filter((call) => call[1] === 1),
-      ).toHaveLength(2),
+      expect(screen.getByTestId('chatbot-page-context')).toHaveAttribute(
+        'data-context',
+        'reading|Morning Coffee|Page 2 of 3',
+      ),
     );
   });
 });

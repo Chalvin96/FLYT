@@ -56,13 +56,13 @@ describe('useReviewCard', () => {
 
     await mutationOptions.mutationFn({
       userCardId: 42,
-      submission: { outcome: 'graded', rating: 3 },
+      submission: { outcome: 'graded', rating: 3, review_version: 7 },
       cardId: 100,
     });
 
     expect(reviewCard).toHaveBeenCalledWith(
       42,
-      { outcome: 'graded', rating: 3 },
+      { outcome: 'graded', rating: 3, review_version: 7 },
       100,
     );
   });

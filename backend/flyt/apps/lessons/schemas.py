@@ -1,5 +1,4 @@
 from copy import deepcopy
-from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel
@@ -8,8 +7,9 @@ from pydantic import Field
 from flyt.apps.lessons.consts import LessonState
 from flyt.apps.lessons.models import Lesson
 from flyt.apps.lessons.models import UserLessonProgress
-from flyt.apps.lessons.utils import estimate_lesson_minutes
 from flyt.content.schemas import AudioStatus
+
+from flyt.core.schemas import UtcDatetime
 
 K_EXERCISE_RESPONSE_MAX_CHARS = 500
 
@@ -17,7 +17,7 @@ K_EXERCISE_RESPONSE_MAX_CHARS = 500
 class LessonSummaryRead(BaseModel):
     id: int
     source_id: str
-    kind: str
+    kind: str | None
     family_id: str | None
     title: str
     cefr_level: str | None
@@ -25,12 +25,12 @@ class LessonSummaryRead(BaseModel):
     order: int
     state: LessonState
     estimated_minutes: int
-    last_activity_at: datetime | None
+    last_activity_at: UtcDatetime | None
 
 
 class LessonProgressRead(BaseModel):
     completed_exercise_ids: list[str]
-    completed_at: datetime | None
+    completed_at: UtcDatetime | None
 
 
 class LessonAudioRead(BaseModel):
@@ -50,7 +50,7 @@ class LessonMediaRead(BaseModel):
 class LessonDetailRead(BaseModel):
     id: int
     source_id: str
-    kind: str
+    kind: str | None
     family_id: str | None
     title: str
     cefr_level: str | None
@@ -88,7 +88,6 @@ def serialize_lesson_summary(
     state: LessonState,
     progress: UserLessonProgress | None,
 ) -> LessonSummaryRead:
-    packet = lesson.packet_json
     return LessonSummaryRead(
         id=lesson.id,
         source_id=lesson.source_id,
@@ -99,7 +98,7 @@ def serialize_lesson_summary(
         goal=lesson.goal,
         order=lesson.release_order,
         state=state,
-        estimated_minutes=estimate_lesson_minutes(packet),
+        estimated_minutes=lesson.estimated_minutes,
         last_activity_at=progress.updated_at if progress is not None else None,
     )
 
@@ -155,7 +154,7 @@ def serialize_lesson_detail(
         cefr_level=lesson.cefr_level,
         goal=lesson.goal,
         order=lesson.release_order,
-        estimated_minutes=estimate_lesson_minutes(packet),
+        estimated_minutes=lesson.estimated_minutes,
         packet=packet,
         media=LessonMediaRead(
             audio=[

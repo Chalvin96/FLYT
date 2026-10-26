@@ -11,7 +11,7 @@ import { ReviewShowcase } from './components/ReviewShowcase';
 
 function HomePage() {
   return (
-    <div className="bg-background text-foreground">
+    <div className="bg-neutral text-default">
       <LandingTopBar />
       <main>
         <LandingHero />

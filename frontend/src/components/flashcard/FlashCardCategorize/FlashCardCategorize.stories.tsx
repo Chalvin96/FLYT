@@ -28,7 +28,7 @@ const categorizeExercise: Extract<Exercise, { operation: 'categorize' }> = {
 };
 
 const meta = {
-  title: 'Flashcard/FlashCardCategorize',
+  title: 'Features/Flashcard/FlashCardCategorize',
   component: FlashCardCategorize,
   tags: ['autodocs'],
   decorators: [
@@ -42,7 +42,7 @@ const meta = {
     ),
   ],
   parameters: { layout: 'fullscreen' },
-  args: { className: 'flex-1', desktopExpanded: true },
+  args: { allowRetry: true, layout: 'fill', desktopExpanded: true },
   argTypes: {
     exercise: { control: 'object' },
     onFinished: { action: 'onFinished' },
@@ -56,11 +56,6 @@ export const Default: Story = {
   args: { exercise: categorizeExercise, desktopExpanded: true },
 };
 
-/**
- * Play function: arms each item (tap) then taps the correct bucket to
- * place it, clicks Check, and verifies the "Correct" banner appears.
- * Demonstrates the tap-to-place interaction alongside drag.
- */
 export const ResultCorrect: Story = {
   args: { exercise: categorizeExercise, desktopExpanded: true },
   play: async ({ canvasElement }) => {
@@ -72,18 +67,17 @@ export const ResultCorrect: Story = {
       .getAllByTestId('drop-zone')
       .find((el) => el.getAttribute('data-dropzone-id') === 'neuter')!;
 
-    // Place en bok → common
     await userEvent.click(canvas.getByText('en bok'));
     await userEvent.click(common);
-    // Place et hus → neuter
     await userEvent.click(canvas.getByText('et hus'));
     await userEvent.click(neuter);
-    // Place en dag → common
     await userEvent.click(canvas.getByText('en dag'));
     await userEvent.click(common);
 
     await userEvent.click(canvas.getByRole('button', { name: /check/i }));
-    await expect(canvas.getByText(/correct/i)).toBeInTheDocument();
+    await expect(canvas.getByTestId('operation-banner')).toHaveTextContent(
+      /^correct$/i,
+    );
     await expect(
       canvas.getByText(/en words are common gender/i),
     ).toBeInTheDocument();

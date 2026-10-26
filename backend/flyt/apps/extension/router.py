@@ -8,6 +8,7 @@ from flyt.apps.extension.schemas import TranslationRead
 from flyt.apps.extension.services import ExtensionTranslationService
 from flyt.apps.users.deps import get_current_user
 from flyt.apps.users.models import User
+from flyt.core.http import build_error_responses
 from flyt.core.db import get_async_db
 from flyt.core.exceptions import DomainException
 from flyt.core.http import http_error
@@ -23,7 +24,9 @@ def get_extension_translation_service(
 router = APIRouter(prefix="/extension", tags=["extension"])
 
 
-@router.post("/translate")
+@router.post(
+    "/translate", responses=build_error_responses(401, 403, 429, 502, 503, 504)
+)
 async def translate_selection(
     body: TranslationCreate,
     current_user: Annotated[User, Depends(get_current_user)],

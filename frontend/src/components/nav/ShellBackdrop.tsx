@@ -23,7 +23,7 @@ export function ShellBackdrop() {
       className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-1/2 overflow-hidden"
     >
       <svg
-        className="fill-foreground h-full w-full opacity-[0.05]"
+        className="fill-[var(--text-default)] h-full w-full opacity-[0.05]"
         preserveAspectRatio="xMidYMax slice"
         viewBox="0 0 1200 480"
       >

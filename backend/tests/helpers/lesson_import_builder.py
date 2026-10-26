@@ -16,7 +16,7 @@ def packet_for(
     lesson_id: str, exercises: list[dict[str, Any]] | None = None
 ) -> dict[str, Any]:
     if exercises is None:
-        exercises = [exercise_for("choose"), exercise_for("speak")]
+        exercises = [exercise_for("choose"), exercise_for("build")]
     return {
         "schema_version": "4.0",
         "id": lesson_id,

@@ -7,7 +7,6 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy import update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flyt.apps.reading.models import Story
@@ -20,13 +19,13 @@ from flyt.apps.reading.constants import K_MAX_NORMALIZED_BYTES
 from flyt.apps.reading.constants import MAX_PAGE_LIMIT
 from flyt.apps.reading.constants import STALE_AFTER
 from flyt.apps.reading.models import ImportMeta
-from flyt.apps.reading.models import ImportQuota
 from flyt.apps.reading.models import ImportStatus
 from flyt.libs.utils.date import now
 from tests.factories import ReadingGroupFactory
 from tests.factories import StoryPageFactory
 from tests.factories import UserFactory
 from tests.helpers.auth import authenticate
+from tests.helpers.reading_imports import seed_active_imports
 
 pytestmark = pytest.mark.anyio
 
@@ -116,14 +115,14 @@ async def test_create_paste_given_empty_text_expect_422_empty(
     assert set(detail.keys()) == {"code", "message", "error"}
 
 
-async def test_create_paste_given_oversized_text_expect_413(
+async def test_create_paste_given_oversized_normalized_text_expect_413(
     client: AsyncClient, db: AsyncSession
 ) -> None:
     user = await UserFactory.create()
     await db.flush()
     await authenticate(client, user)
 
-    big = "a" * (K_MAX_NORMALIZED_BYTES + 1)
+    big = "ø" * (K_MAX_NORMALIZED_BYTES // 2 + 1)
     resp = await client.post("/imports", json={"text": big})
     assert resp.status_code == HTTPStatus.REQUEST_ENTITY_TOO_LARGE
     assert resp.json()["detail"]["code"] == "IMPORT_TOO_LARGE"
@@ -162,71 +161,44 @@ async def test_create_extension_given_credentialed_url_expect_422(
 async def test_create_given_quota_exhausted_expect_429(
     client: AsyncClient, db: AsyncSession
 ) -> None:
-    # Arrange: seed the lifetime counter directly so the cap is reached without
-    # looping IMPORT_LIMIT imports.
     user = await UserFactory.create()
-    await db.flush()
     await authenticate(client, user)
-    await client.post("/imports", json={"text": "første tekst"})
-    await db.execute(
-        pg_insert(ImportQuota)
-        .values(user_id=user.id, used=IMPORT_LIMIT)
-        .on_conflict_do_update(
-            index_elements=[ImportQuota.user_id],
-            set_={"used": IMPORT_LIMIT},
-        )
-    )
-    await db.flush()
+    await seed_active_imports(db, user.id, IMPORT_LIMIT)
 
-    # Act: a new distinct import is rejected because the lifetime cap is hit.
     resp = await client.post("/imports", json={"text": "en helt ny tekst"})
 
-    # Assert
     assert resp.status_code == HTTPStatus.TOO_MANY_REQUESTS
     assert resp.json()["detail"]["code"] == "IMPORT_QUOTA_EXCEEDED"
 
 
-async def test_create_given_deleted_import_expect_quota_not_restored(
+async def test_create_given_deleted_import_expect_quota_restored(
     client: AsyncClient, db: AsyncSession
 ) -> None:
-    # Arrange: create one import (counter -> 1), then delete it.
     user = await UserFactory.create()
-    await db.flush()
     await authenticate(client, user)
+    await seed_active_imports(db, user.id, IMPORT_LIMIT - 1)
     created = await client.post("/imports", json={"text": "tekst som slettes"})
     assert created.status_code == HTTPStatus.CREATED
-    import_id = created.json()["id"]
 
-    # Act
-    del_resp = await client.delete(f"/imports/{import_id}")
-    assert del_resp.status_code == HTTPStatus.NO_CONTENT
+    response = await client.delete(f"/imports/{created.json()['id']}")
 
-    # Assert: the lifetime counter did not decrement on delete.
-    quota = (
-        await db.execute(select(ImportQuota.used).where(ImportQuota.user_id == user.id))
-    ).scalar_one()
-    assert quota == 1
+    assert response.status_code == HTTPStatus.NO_CONTENT
+    listed = await client.get("/imports")
+    assert listed.json()["quota"]["used"] == IMPORT_LIMIT - 1
+    replacement = await client.post("/imports", json={"text": "en ny tekst"})
+    assert replacement.status_code == HTTPStatus.CREATED
+    assert (await client.get("/imports")).json()["quota"]["used"] == IMPORT_LIMIT
 
 
 async def test_create_given_repaste_of_owned_content_at_quota_expect_201(
     client: AsyncClient, db: AsyncSession
 ) -> None:
-    # Arrange: create one import, then seed the counter to the cap.
     user = await UserFactory.create()
-    await db.flush()
     await authenticate(client, user)
     owned_text = "allerede eid tekst"
     created = await client.post("/imports", json={"text": owned_text})
     assert created.status_code == HTTPStatus.CREATED
-    await db.execute(
-        pg_insert(ImportQuota)
-        .values(user_id=user.id, used=IMPORT_LIMIT)
-        .on_conflict_do_update(
-            index_elements=[ImportQuota.user_id],
-            set_={"used": IMPORT_LIMIT},
-        )
-    )
-    await db.flush()
+    await seed_active_imports(db, user.id, IMPORT_LIMIT - 1)
 
     # Act: re-paste content the user already owns while sitting at the cap.
     resp = await client.post("/imports", json={"text": owned_text})
@@ -248,7 +220,6 @@ async def test_create_given_same_content_repaste_expect_no_second_save_no_extra_
     first = await client.post("/imports", json={"text": text})
     second = await client.post("/imports", json={"text": text})
 
-    # Assert: both 201, same UserStory (dedup), and the lifetime count is 1
     # (same-content re-paste does not consume a new slot).
     assert (
         first.status_code == HTTPStatus.CREATED
@@ -664,8 +635,59 @@ async def test_create_given_route_composition_expect_import_and_pages_durable(  
                 delete(StoryPage).where(StoryPage.story_id.in_(story_ids))
             )
             await cleanup.execute(delete(Story).where(Story.id.in_(story_ids)))
-            await cleanup.execute(
-                delete(ImportQuota).where(ImportQuota.user_id == user_id)
-            )
             await cleanup.execute(delete(User).where(User.id == user_id))
             await cleanup.commit()
+
+
+@pytest.mark.parametrize("query", ["%", "_", "/"])
+async def test_list_imports_given_like_characters_expect_literal_title_matches(
+    client: AsyncClient, query: str
+) -> None:
+    user = await UserFactory.create()
+    await authenticate(client, user)
+    await client.post(
+        "/imports", json={"text": "første tekst", "title": f"En {query} tittel"}
+    )
+    await client.post(
+        "/imports", json={"text": "andre tekst", "title": "En annen tittel"}
+    )
+
+    response = await client.get("/imports", params={"q": query})
+
+    assert response.status_code == HTTPStatus.OK
+    assert [item["title"] for item in response.json()["items"]] == [
+        f"En {query} tittel"
+    ]
+
+
+async def test_list_imports_given_oversized_query_expect_validation_error(
+    client: AsyncClient,
+) -> None:
+    user = await UserFactory.create()
+    await authenticate(client, user)
+
+    response = await client.get("/imports", params={"q": "a" * 201})
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+async def test_create_import_given_maximum_text_with_json_escapes_expect_created(
+    client: AsyncClient,
+) -> None:
+    user = await UserFactory.create()
+    await authenticate(client, user)
+
+    async def generate_body():
+        yield b'{"text":"'
+        for _ in range(K_MAX_NORMALIZED_BYTES // 1000):
+            yield b"\\u0061" * 1000
+        yield b'"}'
+
+    response = await client.post(
+        "/imports",
+        content=generate_body(),
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == HTTPStatus.CREATED
+    assert response.json()["wordCount"] == 1

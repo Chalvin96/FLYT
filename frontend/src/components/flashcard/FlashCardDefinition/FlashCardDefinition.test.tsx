@@ -38,6 +38,7 @@ const mockCard: UserCard = {
   fsrs_stability: null,
   fsrs_difficulty: null,
   fsrs_step: null,
+  review_version: 0,
   last_review_at: null,
   due_at: '2026-02-20T10:00:00Z',
   state: 'review',
@@ -45,12 +46,11 @@ const mockCard: UserCard = {
 
 describe('FlashCardDefinition', () => {
   it('renders Norwegian word on the front', () => {
-    render(<FlashCardDefinition card={mockCard} />);
+    render(<FlashCardDefinition allowRetry={false} card={mockCard} />);
     const frontWord = screen
       .getAllByText('hund')
       .find((el) => el.tagName === 'H2');
     expect(frontWord).toBeInTheDocument();
-    expect(frontWord).toHaveClass('font-display');
   });
 
   it('test_expression_card_given_snapshot_forms_expect_primary_front_and_alternatives_on_answer', async () => {
@@ -68,7 +68,7 @@ describe('FlashCardDefinition', () => {
       },
     } as UserCard;
 
-    render(<FlashCardDefinition card={expressionCard} />);
+    render(<FlashCardDefinition allowRetry={false} card={expressionCard} />);
     expect(
       screen
         .getAllByText('få i stand')
@@ -101,6 +101,7 @@ describe('FlashCardDefinition', () => {
   it('shows the Norwegian sense cue on the front when the payload provides one', () => {
     render(
       <FlashCardDefinition
+        allowRetry={false}
         card={makeDefinitionCard({
           word: 'pose',
           sense_cue: 'stilling, holdning',
@@ -111,15 +112,14 @@ describe('FlashCardDefinition', () => {
   });
 
   it('renders no sense cue when the payload has none', () => {
-    render(<FlashCardDefinition card={mockCard} />);
-    // mockCard has no sense_cue; none should render on the front. (The
-    // Norwegian definition gloss now renders on the hidden back face.)
+    render(<FlashCardDefinition allowRetry={false} card={mockCard} />);
     expect(screen.queryByText('stilling, holdning')).not.toBeInTheDocument();
   });
 
   it('test_flash_card_definition_given_saved_sentence_context_expect_context_on_answer_face', async () => {
     render(
       <FlashCardDefinition
+        allowRetry={false}
         card={{
           ...mockCard,
           context: {
@@ -145,19 +145,15 @@ describe('FlashCardDefinition', () => {
   });
 
   it('FlashCardDefinitionBack given a Norwegian definition expect gloss hidden until flipped', () => {
-    render(<FlashCardDefinition card={mockCard} />);
-    // The Norwegian definition lives on the answer face and must not be
-    // visible before the card is flipped (it renders in the hidden back).
+    render(<FlashCardDefinition allowRetry={false} card={mockCard} />);
     const gloss = screen.queryByText('dyr med fire ben som bjeff');
     expect(gloss).not.toBeNull();
     expect(gloss).not.toBeVisible();
   });
 
   it('shows definition on back when flipped', async () => {
-    render(<FlashCardDefinition card={mockCard} />);
+    render(<FlashCardDefinition allowRetry={false} card={mockCard} />);
     await flipCard();
-    // Sense 1 restates the headline translation, so the answer absorbs it: the
-    // English shows once and the Norwegian gloss sits beneath it.
     const answerBody = screen.getByTestId('flashcard-answer-body');
     expect(answerBody).toHaveTextContent(
       'dog (animal with four legs that barks)',
@@ -167,7 +163,7 @@ describe('FlashCardDefinition', () => {
   });
 
   it('test_answer_face_given_translation_matching_first_sense_expect_english_rendered_once', async () => {
-    render(<FlashCardDefinition card={mockCard} />);
+    render(<FlashCardDefinition allowRetry={false} card={mockCard} />);
     await flipCard();
 
     const answerBody = screen.getByTestId('flashcard-answer-body');
@@ -192,7 +188,7 @@ describe('FlashCardDefinition', () => {
       ],
     });
 
-    render(<FlashCardDefinition card={card} />);
+    render(<FlashCardDefinition allowRetry={false} card={card} />);
     await flipCard();
 
     expect(screen.getByText('Jeg har en liten hund.')).toBeVisible();
@@ -219,15 +215,12 @@ describe('FlashCardDefinition', () => {
       ],
     });
 
-    render(<FlashCardDefinition card={card} />);
+    render(<FlashCardDefinition allowRetry={false} card={card} />);
     await flipCard();
 
     expect(
       screen.getByRole('heading', { name: 'Other meanings' }),
     ).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Other meanings' })).toHaveClass(
-      'type-label-sm',
-    );
     const list = screen.getByRole('list');
     expect(list).toHaveAttribute('start', '2');
     expect(screen.getAllByRole('listitem')).toHaveLength(1);
@@ -244,7 +237,7 @@ describe('FlashCardDefinition', () => {
       })),
     });
 
-    render(<FlashCardDefinition card={card} />);
+    render(<FlashCardDefinition allowRetry={false} card={card} />);
     await flipCard();
 
     expect(screen.getAllByRole('listitem')).toHaveLength(3);
@@ -267,11 +260,11 @@ describe('FlashCardDefinition', () => {
       audio_url: 'https://example.com/gå.mp3',
     });
 
-    render(<FlashCardDefinition card={card} />);
+    render(<FlashCardDefinition allowRetry={false} card={card} />);
     await flipCard();
 
     const header = screen.getByTestId('flashcard-answer-header');
-    expect(header).toHaveTextContent('verb');
+    expect(header).toHaveTextContent('Verb');
     const heading = screen.getByRole('heading', { name: 'gå' });
     expect(header).toContainElement(heading);
     const audioButton = screen.getByRole('button', {
@@ -315,6 +308,7 @@ describe('FlashCardDefinition', () => {
 
     render(
       <FlashCardDefinition
+        allowRetry={false}
         card={card}
         wordForms={[
           {
@@ -331,7 +325,7 @@ describe('FlashCardDefinition', () => {
     await flipCard();
 
     const eyebrow = screen.getByTestId('flashcard-answer-eyebrow');
-    expect(eyebrow).toHaveTextContent('noun');
+    expect(eyebrow).toHaveTextContent('Noun');
     expect(eyebrow).toHaveTextContent('Neuter');
     const ipaText = screen.getByText('/hʉːs/');
     const toneBadge = screen.getByRole('img', { name: 'Tone 1' });
@@ -344,6 +338,30 @@ describe('FlashCardDefinition', () => {
     ).toBe(true);
   });
 
+  it('test_eyebrow_given_dual_gender_noun_expect_sentence_case_grammar_chip', async () => {
+    render(
+      <FlashCardDefinition
+        allowRetry={false}
+        card={makeDefinitionCard({ word: 'bok', pos: 'noun' })}
+        wordForms={[
+          {
+            id: 1,
+            form: 'bok',
+            tags_json: ['Masc/Fem', 'Sing', 'Ind'],
+            ipa: null,
+            audio_url: null,
+            ipa_approximate: false,
+          },
+        ]}
+      />,
+    );
+    await flipCard();
+
+    const eyebrow = screen.getByTestId('flashcard-answer-eyebrow');
+    expect(eyebrow).toHaveTextContent('Masculine/feminine');
+    expect(eyebrow).not.toHaveTextContent('Masculine/Feminine');
+  });
+
   it('test_expression_card_given_word_form_audio_expect_no_inferred_pronunciation', async () => {
     const expressionCard = makeDefinitionCard({
       word: 'ta vare på',
@@ -353,6 +371,7 @@ describe('FlashCardDefinition', () => {
 
     render(
       <FlashCardDefinition
+        allowRetry={false}
         card={expressionCard}
         wordForms={[
           {
@@ -376,7 +395,7 @@ describe('FlashCardDefinition', () => {
   });
 
   it('test_answer_face_given_question_revealed_expect_focus_moves_and_question_inert', async () => {
-    render(<FlashCardDefinition card={mockCard} />);
+    render(<FlashCardDefinition allowRetry={false} card={mockCard} />);
     await flipCard();
 
     await waitFor(() =>
@@ -388,7 +407,7 @@ describe('FlashCardDefinition', () => {
   });
 
   it('reveals back only when check button is pressed', async () => {
-    render(<FlashCardDefinition card={mockCard} />);
+    render(<FlashCardDefinition allowRetry={false} card={mockCard} />);
 
     const frontWord = screen
       .getAllByText('hund')
@@ -407,7 +426,7 @@ describe('FlashCardDefinition', () => {
   });
 
   it('supports keyboard flip through the check answer button', async () => {
-    render(<FlashCardDefinition card={mockCard} />);
+    render(<FlashCardDefinition allowRetry={false} card={mockCard} />);
 
     const checkButton = screen.getByRole('button', {
       name: /^(show|check) answer$/i,
@@ -420,17 +439,44 @@ describe('FlashCardDefinition', () => {
     expect(checkButton).toBeDisabled();
   });
 
-  it('calls onFinished when rating selected', async () => {
+  it('test_definition_card_given_self_rating_expect_attempt_outcome', async () => {
     const onFinished = vi.fn();
-    render(<FlashCardDefinition card={mockCard} onFinished={onFinished} />);
+    render(
+      <FlashCardDefinition
+        allowRetry={false}
+        card={mockCard}
+        onFinished={onFinished}
+      />,
+    );
     await flipCard();
     await clickCardRating('good');
-    expect(onFinished).toHaveBeenCalledWith(3);
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
+  });
+
+  it('test_definition_card_given_second_rating_after_failed_submission_expect_outcome_resent', async () => {
+    const onFinished = vi.fn();
+    render(
+      <FlashCardDefinition
+        allowRetry={false}
+        card={mockCard}
+        onFinished={onFinished}
+      />,
+    );
+    await flipCard();
+    await clickCardRating('hard');
+    await clickCardRating('good');
+    expect(onFinished).toHaveBeenCalledTimes(2);
+    expect(onFinished).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: 'graded', correct: true }),
+    );
   });
 
   it('test_answer_body_given_inflection_word_forms_expect_reference_rail', async () => {
     render(
       <FlashCardDefinition
+        allowRetry={false}
         card={makeDefinitionCard({ word: 'hus', pos: 'noun' })}
         wordForms={[
           {
@@ -461,6 +507,7 @@ describe('FlashCardDefinition', () => {
   it('test_answer_body_given_no_reference_material_expect_no_rail', async () => {
     render(
       <FlashCardDefinition
+        allowRetry={false}
         card={{
           ...makeDefinitionCard({ word: 'ta', pos: 'verb' }),
           context: {
@@ -504,7 +551,7 @@ describe('FlashCardDefinition', () => {
       },
     };
     const { container } = render(
-      <FlashCardDefinition card={nonDefinitionCard} />,
+      <FlashCardDefinition allowRetry={false} card={nonDefinitionCard} />,
     );
 
     expect(container).toBeEmptyDOMElement();

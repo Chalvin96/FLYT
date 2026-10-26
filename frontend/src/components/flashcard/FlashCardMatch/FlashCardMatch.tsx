@@ -1,16 +1,16 @@
+import { Heading, Text } from '@flyt/ui';
 import { useReducedMotion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  K_RATING_AGAIN,
-  K_RATING_EASY,
-  K_RATING_HARD,
-} from '@/lib/fsrsRatings';
-import { gradedOutcome } from '@/lib/operationResult';
-import type { OperationResult } from '@/lib/operationResult';
+import { useExerciseAttempt } from '@/hooks/flashcard/useExerciseAttempt/useExerciseAttempt';
 import { cn } from '@/lib/utils';
 import type { Exercise } from '@/types/lesson-contracts';
 
+import {
+  answerVerdictStatusText,
+  verdictMatchTileClass,
+  type MatchTileVerdict,
+} from '../answerVerdict';
 import { OperationShell } from '../OperationShell';
 import type { OperationComponentProps } from '../operationTypes';
 
@@ -18,14 +18,13 @@ type MatchExercise = Extract<Exercise, { operation: 'match_pairs' }>;
 
 interface MatchTile {
   runtimeKey: string;
-  id: string; // left_id or right_id
+  id: string;
   text: string;
   side: 'left' | 'right';
   pairIds: string[];
 }
 
-type TileVisual =
-  'idle' | 'armed' | 'target' | 'dimmed' | 'locked' | 'wrong-flash';
+type TileVisual = MatchTileVerdict | 'target' | 'dimmed';
 
 function shuffleArray<T>(arr: T[]): T[] {
   const copy = [...arr];
@@ -36,33 +35,23 @@ function shuffleArray<T>(arr: T[]): T[] {
   return copy;
 }
 
-function computeRating(wrong: number): number {
-  if (wrong === 0) return K_RATING_EASY;
-  if (wrong <= 2) return K_RATING_HARD;
-  return K_RATING_AGAIN;
-}
-
 function pairKey(leftId: string, rightId: string): string {
   return JSON.stringify([leftId, rightId]);
 }
 
+const WRONG_FLASH_MS = 500;
+
 const cardClassName =
-  'radius-field type-body min-h-14 w-full border-2 px-3 py-2.5 text-center whitespace-normal break-words flex items-center justify-center gap-1.5';
+  'radius-field min-h-14 w-full border-2 px-3 py-2.5 text-center whitespace-normal break-words flex items-center justify-center gap-1.5';
 
 function tileClasses(v: TileVisual): string {
   switch (v) {
-    case 'locked':
-      return 'border-primary-20 bg-secondary-5 text-muted-foreground opacity-70 pointer-events-none';
-    case 'armed':
-      return 'border-primary-70 bg-primary-70 text-white-100 scale-[1.03] shadow-lift';
     case 'target':
-      return 'border-primary-40 bg-primary-5 ring-2 ring-primary-30 cursor-pointer';
+      return 'border-brand-subtle bg-brand-subtle ring-2 ring-[var(--border-brand-subtle)] cursor-pointer';
     case 'dimmed':
-      return 'border-border bg-card text-foreground opacity-40 cursor-pointer';
-    case 'wrong-flash':
-      return 'border-destructive-20 bg-destructive-0 text-destructive-80';
+      return 'border-default bg-raised text-default opacity-40 cursor-pointer';
     default:
-      return 'border-border bg-card text-foreground hover:border-primary-30 hover:bg-primary-5 cursor-pointer';
+      return verdictMatchTileClass[v];
   }
 }
 
@@ -75,36 +64,38 @@ interface TileProps {
 
 function MatchTileButton({ tile, visual, onClick, boardLocked }: TileProps) {
   const reducedMotion = Boolean(useReducedMotion());
-  const isLocked = visual === 'locked';
-  // Disable every tile while the board is locked (the 500ms wrong-flash window),
-  // including the flashing tiles themselves — otherwise a keyboard user can press
-  // Enter on a red tile with no effect or feedback.
-  const isDisabled = isLocked || boardLocked;
+  const isMatched = visual === 'correct';
+  // The flashing tiles are disabled too: Enter on a red tile would otherwise
+  // fire with no effect and no feedback.
+  const isDisabled = isMatched || boardLocked;
 
   return (
     <button
       type="button"
       aria-label={
-        isLocked
-          ? `${tile.text}, matched`
-          : visual === 'armed'
-            ? `${tile.text}, selected — tap its match`
+        isMatched
+          ? `${tile.text}, ${answerVerdictStatusText.correct}`
+          : visual === 'selected'
+            ? `${tile.text}, ${answerVerdictStatusText.selected} — tap its match`
             : tile.text
       }
-      aria-pressed={visual === 'armed'}
+      aria-pressed={visual === 'selected'}
+      data-state={visual}
       disabled={isDisabled}
       onClick={isDisabled ? undefined : onClick}
       className={cn(
         cardClassName,
-        !reducedMotion && 'transition-all duration-150',
+        !reducedMotion && 'transition-[scale,box-shadow] duration-150',
         tileClasses(visual),
       )}
     >
-      <span className="min-w-0 break-words font-medium leading-snug">
-        {tile.text}
+      <span className="min-w-0 break-words">
+        <Text as="span" size="large" weight="semibold">
+          {tile.text}
+        </Text>
       </span>
-      {isLocked && (
-        <span aria-hidden className="text-primary-60">
+      {isMatched && (
+        <span aria-hidden className="text-success">
           ✓
         </span>
       )}
@@ -114,6 +105,7 @@ function MatchTileButton({ tile, visual, onClick, boardLocked }: TileProps) {
 
 export function FlashCardMatch({
   exercise,
+  allowRetry,
   onFinished,
   ...props
 }: OperationComponentProps<MatchExercise>) {
@@ -157,12 +149,13 @@ export function FlashCardMatch({
   const [matchedPairs, setMatchedPairs] = useState<Set<string>>(new Set());
   const [flashingIds, setFlashingIds] = useState<Set<string>>(new Set());
   const [boardLocked, setBoardLocked] = useState(false);
-  const [wrongCount, setWrongCount] = useState(0);
-  // A malformed payload with no pairs would render an empty board the learner
-  // can never complete (tap is the only path to a result) — auto-resolve at init.
-  const [result, setResult] = useState<OperationResult | null>(() =>
-    pairs.length === 0 ? { correct: true, rating: K_RATING_EASY } : null,
-  );
+  const { wrongCount, result, reportRight, reportWrong, finish } =
+    useExerciseAttempt({
+      allowRetry,
+      commitGradesAtCompletion: true,
+      initialResult: pairs.length === 0 ? { correct: true } : null,
+      onFinished,
+    });
 
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -186,9 +179,9 @@ export function FlashCardMatch({
   }
 
   function tileVisual(tile: MatchTile): TileVisual {
-    if (isTileLocked(tile)) return 'locked';
+    if (isTileLocked(tile)) return 'correct';
     if (flashingIds.has(tile.runtimeKey)) return 'wrong-flash';
-    if (armedId === tile.runtimeKey) return 'armed';
+    if (armedId === tile.runtimeKey) return 'selected';
     if (armedId !== null) {
       const armed = tileById.get(armedId)!;
       return armed.side === tile.side ? 'dimmed' : 'target';
@@ -200,19 +193,19 @@ export function FlashCardMatch({
     if (result || boardLocked || isTileLocked(tile)) return;
 
     if (armedId === tile.runtimeKey) {
-      setArmedId(null); // disarm
+      setArmedId(null);
       return;
     }
 
     if (armedId === null) {
-      setArmedId(tile.runtimeKey); // arm
+      setArmedId(tile.runtimeKey);
       return;
     }
 
     const armedTile = tileById.get(armedId)!;
 
     if (armedTile.side === tile.side) {
-      setArmedId(tile.runtimeKey); // re-arm same column
+      setArmedId(tile.runtimeKey);
       return;
     }
 
@@ -226,19 +219,18 @@ export function FlashCardMatch({
       setMatchedPairs(nextMatched);
       setArmedId(null);
       if (nextMatched.size === pairs.length) {
-        setResult({ correct: true, rating: computeRating(wrongCount) });
+        reportRight();
       }
     } else {
-      // wrong
       setArmedId(null);
-      setWrongCount((n) => n + 1);
+      reportWrong();
       setFlashingIds(new Set([armedTile.runtimeKey, tile.runtimeKey]));
       setBoardLocked(true);
       if (flashTimer.current) clearTimeout(flashTimer.current);
       flashTimer.current = setTimeout(() => {
         setFlashingIds(new Set());
         setBoardLocked(false);
-      }, 500);
+      }, WRONG_FLASH_MS);
     }
   }
 
@@ -246,21 +238,18 @@ export function FlashCardMatch({
     <OperationShell
       exercise={exercise}
       desktopExpanded
-      result={result}
+      attempt={{ kind: 'single', result }}
       canCheck={false}
       statusHint={`${matchedPairs.size} / ${pairs.length} matched`}
       instruction="Tap an item on the left, then tap its match on the right."
       onCheck={() => {}}
-      onContinue={() => {
-        if (result) onFinished?.(gradedOutcome(result));
-      }}
+      onContinue={finish}
       {...props}
     >
-      {/* Screen-reader feedback for a wrong match — the red flash is otherwise
-          the only signal. Keyed by wrongCount so each wrong tap re-announces. */}
+      {/* Keyed by wrongCount so every wrong tap re-announces the same text. */}
       {wrongCount > 0 && (
         <span key={wrongCount} role="alert" className="sr-only">
-          Not a match.
+          {answerVerdictStatusText['wrong-flash']}
         </span>
       )}
       <div
@@ -278,20 +267,21 @@ export function FlashCardMatch({
               tile={tile}
               visual={tileVisual(tile)}
               onClick={() => handleTileTap(tile)}
-              boardLocked={boardLocked}
+              boardLocked={boardLocked || Boolean(result)}
             />
           ))}
         </div>
-        {/* center gutter: vertical line + "match" pill with <-> */}
         <div
           className="flex w-7 shrink-0 flex-col items-center sm:w-10"
           aria-hidden
         >
-          <div className="w-px flex-1 bg-border" />
-          <span className="type-label my-1 rounded-full border border-border bg-card px-1.5 py-0.5 text-muted-foreground">
-            ↔
+          <div className="w-px flex-1 bg-neutral-pressed" />
+          <span className="my-1 rounded-full border border-default bg-raised px-1.5 py-0.5">
+            <Heading as="span" size="xxsmall" tone="subtle">
+              ↔
+            </Heading>
           </span>
-          <div className="w-px flex-1 bg-border" />
+          <div className="w-px flex-1 bg-neutral-pressed" />
         </div>
         <div
           className="flex flex-1 flex-col gap-2 sm:gap-3"
@@ -304,7 +294,7 @@ export function FlashCardMatch({
               tile={tile}
               visual={tileVisual(tile)}
               onClick={() => handleTileTap(tile)}
-              boardLocked={boardLocked}
+              boardLocked={boardLocked || Boolean(result)}
             />
           ))}
         </div>

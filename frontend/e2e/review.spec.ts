@@ -1,5 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
-
+import { expect, test, type Page } from './fixtures';
 import { loginAs } from './helpers/auth';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -14,7 +13,7 @@ async function startPractice(page: Page): Promise<void> {
 
 async function isSessionComplete(page: Page): Promise<boolean> {
   return page
-    .getByRole('heading', { name: 'Session complete' })
+    .getByRole('region', { name: 'Review session complete' })
     .isVisible()
     .catch(() => false);
 }
@@ -39,18 +38,18 @@ async function reviewQueueTotal(page: Page): Promise<number> {
   return n + l + r;
 }
 
-/**
- * Answer the current definition card with the given rating. The seeded review
- * users get definition cards: tap "Check answer" to reveal the back, then a
- * rating button. Rating buttons carry an aria-label like "Again, next in 1m"
- * when FSRS previews are present, so match by the leading word.
- */
 async function answerDefinitionCard(
   page: Page,
   rating = 'Easy',
 ): Promise<void> {
   await page.getByRole('button', { name: 'Check answer' }).click();
+  const reviewResponse = page.waitForResponse(
+    (response) =>
+      /^\/me\/cards\/[^/]+\/review$/.test(new URL(response.url()).pathname) &&
+      response.request().method() === 'POST',
+  );
   await page.getByRole('button', { name: new RegExp(`^${rating}\\b`) }).click();
+  expect((await reviewResponse).ok()).toBe(true);
 }
 
 /** Answer definition cards until the completion screen appears. */
@@ -64,24 +63,6 @@ async function drainSession(page: Page, max = 20): Promise<void> {
       await page.waitForTimeout(150);
     }
   }
-}
-
-/**
- * Assert the page has NOT dead-ended: either a card is still showing
- * (Check answer visible) or the "Studying ahead" signal is visible — but
- * NOT the celebratory "Session complete". The waiting screen no longer
- * exists (completion-only model).
- */
-async function isSessionAlive(page: Page): Promise<boolean> {
-  const checkAnswer = page.getByRole('button', { name: 'Check answer' });
-  const ahead = page.getByTestId('ahead-signal');
-
-  const visible = await Promise.all([
-    checkAnswer.isVisible().catch(() => false),
-    ahead.isVisible().catch(() => false),
-  ]);
-
-  return visible.some(Boolean);
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -101,7 +82,7 @@ test('review session advances after rating a card', async ({ page }) => {
   await expect(
     page
       .getByTestId('count-new')
-      .or(page.getByRole('heading', { name: 'Session complete' })),
+      .or(page.getByRole('region', { name: 'Review session complete' })),
   ).toBeVisible();
 });
 
@@ -119,10 +100,22 @@ test('review session shows completion state after the queue is cleared', async (
 
   await drainSession(page);
 
+  const completion = page.getByRole('region', {
+    name: 'Review session complete',
+  });
   await expect(
-    page.getByRole('heading', { name: 'Session complete' }),
+    completion.getByRole('heading', { name: "You're all caught up" }),
   ).toBeVisible();
-  await expect(page.getByText(/\d+ cards? reviewed/)).toBeVisible();
+  await expect(completion.getByText(/\d+ cards? reviewed/)).toBeVisible();
+  await expect(
+    completion.getByRole('button', { name: 'Add more new words' }),
+  ).toBeVisible();
+  await expect(
+    completion.getByRole('link', { name: 'Reading', exact: true }),
+  ).toBeVisible();
+  await expect(
+    completion.getByRole('button', { name: 'Continue reviewing' }),
+  ).not.toBeVisible();
 });
 
 test('definition flashcard back is scrollable and not clipped by a 3D context', async ({
@@ -204,9 +197,8 @@ test('rapidly failing a learning card interleaves another card (Anki requeue_lea
   // short learning step so it stays showable via the learn-ahead window.
   await answerDefinitionCard(page, 'Again');
 
-  // Must NOT show "Session complete" while cards remain in the queue.
   await expect(
-    page.getByRole('heading', { name: 'Session complete' }),
+    page.getByRole('region', { name: 'Review session complete' }),
   ).not.toBeVisible();
 
   // If a second card is available, the Anki interleave rule surfaces another
@@ -219,13 +211,10 @@ test('rapidly failing a learning card interleaves another card (Anki requeue_lea
     await answerDefinitionCard(page, 'Again');
   }
 
-  // The session stays alive: either the next card is already showing or the
-  // "Studying ahead" signal is visible. Give the UI a brief moment.
-  let alive = false;
-  for (let i = 0; i < 20; i++) {
-    alive = await isSessionAlive(page);
-    if (alive) break;
-    await page.waitForTimeout(250);
-  }
-  expect(alive).toBe(true);
+  await expect(
+    page
+      .getByRole('button', { name: 'Check answer' })
+      .or(page.getByTestId('ahead-signal'))
+      .first(),
+  ).toBeVisible();
 });

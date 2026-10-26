@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AxiosError, AxiosHeaders } from 'axios';
 
 import * as lexiconApi from '@/api/lexicon';
 import {
@@ -13,25 +14,16 @@ import { LookupProvider } from './LookupProvider';
 import { LookupSheet } from './LookupSheet';
 import { useLookupContext } from './useLookupContext';
 
-interface RouterState {
-  location: { pathname: string };
-}
-
-// Mutable router + desktop state so individual tests can pin the route and
-// viewport without re-mocking the modules.
-const routerState = vi.hoisted(() => ({ pathname: '/home' }));
 const desktopState = vi.hoisted(() => ({ value: false }));
 
 vi.mock('@tanstack/react-router', () => ({
-  useRouterState: ({ select }: { select: (s: RouterState) => unknown }) =>
-    select({ location: { pathname: routerState.pathname } }),
-  // Simulate the reader-leaf match: truthy only on a story URL, mirroring the
-  // real router's behaviour for `useMatch({ from: '/_reader/reading/story/$uuid' })`.
-  useMatch: ({ shouldThrow }: { shouldThrow?: boolean }) => {
-    const matched = routerState.pathname.startsWith('/reading/story/');
-    if (!matched && shouldThrow) throw new Error('no match');
-    return matched ? { id: '/_reader/reading/story/$uuid' } : false;
-  },
+  useRouterState: ({
+    select,
+  }: {
+    select: (state: {
+      location: { pathname: string; search: Record<string, unknown> };
+    }) => unknown;
+  }) => select({ location: { pathname: '/home', search: {} } }),
 }));
 
 vi.mock('@/hooks/ui/useIsDesktop', () => ({
@@ -224,12 +216,9 @@ describe('LookupSheet — search mode', () => {
 
     await userEvent.type(input, 'zzzz');
 
-    let emptyState: HTMLElement | null = null;
     await waitFor(() => {
-      emptyState = screen.getByText('No matches');
-      expect(emptyState).toBeInTheDocument();
+      expect(screen.getByText('No matches')).toBeInTheDocument();
     });
-    expect(emptyState).toHaveClass('min-h-[7.5rem]');
   });
 
   it('clicking a suggestion is clickable', async () => {
@@ -313,6 +302,29 @@ describe('LookupSheet — search mode', () => {
     expect(option2).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('test_suggestions_given_highlight_expect_selected_row_state', async () => {
+    vi.spyOn(lexiconApi, 'getSuggestions').mockResolvedValue({
+      suggestions: [{ label: 'test1' }, { label: 'test2' }],
+    });
+
+    renderSearchSheet();
+    await userEvent.click(screen.getByText('open search'));
+    await userEvent.type(
+      screen.getByPlaceholderText('Search a Norwegian word'),
+      'te',
+    );
+
+    const first = await screen.findByRole('option', { name: 'test1' });
+    const second = screen.getByRole('option', { name: 'test2' });
+    expect(first).toHaveAttribute('data-state', 'selected');
+    expect(second).toHaveAttribute('data-state', 'idle');
+
+    await userEvent.keyboard('{ArrowDown}');
+
+    expect(second).toHaveAttribute('data-state', 'selected');
+    expect(first).toHaveAttribute('data-state', 'idle');
+  });
+
   it('test_suggestions_given_expression_expect_alternatives_beneath_primary', async () => {
     vi.spyOn(lexiconApi, 'getSuggestions').mockResolvedValue({
       suggestions: [
@@ -339,6 +351,52 @@ describe('LookupSheet — search mode', () => {
     await userEvent.click(option);
 
     expect(screen.getByRole('button', { name: '← "få"' })).toBeVisible();
+  });
+
+  it('test_suggestions_given_canonical_bracket_label_expect_presented_alternatives_with_canonical_accessible_name_and_selection', async () => {
+    const canonical = 'få [stelle|lage] i stand';
+    vi.spyOn(lexiconApi, 'getSuggestions').mockResolvedValue({
+      suggestions: [{ label: canonical }],
+    });
+
+    renderSearchSheet();
+    await userEvent.click(screen.getByText('open search'));
+    await userEvent.type(
+      screen.getByPlaceholderText('Search a Norwegian word'),
+      'få',
+    );
+
+    const option = await screen.findByRole('option', { name: canonical });
+    expect(option).toHaveTextContent('få [stelle / lage] i stand');
+    expect(option).not.toHaveTextContent(canonical);
+
+    await userEvent.click(option);
+
+    expect(screen.getByTestId('lemma-content')).toHaveAttribute(
+      'aria-label',
+      `Dictionary entry for ${canonical}`,
+    );
+  });
+
+  it('test_lookup_sheet_given_prior_query_crumb_expect_back_returns_to_search', async () => {
+    vi.spyOn(lexiconApi, 'getSuggestions').mockResolvedValue({
+      suggestions: [{ label: 'test' }],
+    });
+
+    renderSearchSheet();
+    await userEvent.click(screen.getByText('open search'));
+    await userEvent.type(
+      screen.getByPlaceholderText('Search a Norwegian word'),
+      'te',
+    );
+    await userEvent.click(await screen.findByRole('option', { name: 'test' }));
+
+    const crumb = await screen.findByRole('button', { name: '← "te"' });
+    await userEvent.click(crumb);
+
+    expect(
+      screen.getByPlaceholderText('Search a Norwegian word'),
+    ).toBeInTheDocument();
   });
 
   it('Enter commits selection on highlighted suggestion', async () => {
@@ -453,14 +511,14 @@ describe('LookupSheet — search mode', () => {
   });
 });
 
-function OpenBrowseButton() {
+function OpenBrowseButton({ wordText = 'hus' }: { wordText?: string }) {
   const ctx = useLookupContext();
   return (
     <button
       onClick={() => {
         ctx.openSearch();
         // Browse fallback: open a homograph by headword with no known uuid.
-        ctx.switchToLemma(null, 'hus');
+        ctx.switchToLemma(null, wordText);
       }}
     >
       open browse
@@ -468,12 +526,12 @@ function OpenBrowseButton() {
   );
 }
 
-function renderBrowseSheet() {
+function renderBrowseSheet(wordText = 'hus') {
   const qc = new QueryClient();
   return render(
     <QueryClientProvider client={qc}>
       <LookupProvider>
-        <OpenBrowseButton />
+        <OpenBrowseButton wordText={wordText} />
         <LookupSheet />
       </LookupProvider>
     </QueryClientProvider>,
@@ -515,6 +573,34 @@ describe('LookupSheet — browse mode', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(refetch).toHaveBeenCalledTimes(1);
   });
+
+  it('test_lookup_sheet_given_missing_headword_expect_no_definition_within_default_timeout', async () => {
+    const { useBrowseHeadword: useRealBrowseHeadword } = await vi.importActual<
+      typeof import('@/hooks/lexicon/queries')
+    >('@/hooks/lexicon/queries');
+    const browseRequest = vi
+      .spyOn(lexiconApi, 'browseHeadword')
+      .mockRejectedValue(
+        new AxiosError('Not Found', 'ERR_BAD_REQUEST', undefined, undefined, {
+          data: null,
+          status: 404,
+          statusText: 'Not Found',
+          headers: new AxiosHeaders(),
+          config: { headers: new AxiosHeaders() },
+        }),
+      );
+
+    await vi
+      .mocked(useBrowseHeadword)
+      .withImplementation(useRealBrowseHeadword, async () => {
+        renderBrowseSheet('notaword');
+        await userEvent.click(screen.getByText('open browse'));
+        expect(
+          await screen.findByText('No definition found for this word.'),
+        ).toBeInTheDocument();
+        expect(browseRequest).toHaveBeenCalledExactlyOnceWith('notaword');
+      });
+  });
 });
 
 // ── Desktop lemma rendering ─────────────────────────────────────────────────
@@ -526,16 +612,13 @@ describe('LookupSheet — browse mode', () => {
 
 describe('LookupSheet — desktop lemma routing', () => {
   beforeEach(() => {
-    routerState.pathname = '/home';
     desktopState.value = true;
   });
   afterEach(() => {
-    routerState.pathname = '/home';
     desktopState.value = false;
   });
 
   it('renders lemma modal on desktop outside the reader route', async () => {
-    routerState.pathname = '/home';
     const qc = new QueryClient();
     render(
       <QueryClientProvider client={qc}>
@@ -551,28 +634,6 @@ describe('LookupSheet — desktop lemma routing', () => {
     expect(
       screen.getByRole('heading', { name: 'hus', level: 2 }),
     ).toBeInTheDocument();
-  });
-
-  // Regression: lemma results used to render in a bottom sheet on desktop,
-  // visually disconnecting them from the navbar search entry (search at top,
-  // result sliding up from the bottom). Desktop search AND lemma now share one
-  // top-anchored popover so the back affordance returns to the typing surface.
-  it('renders desktop lemma in the top-anchored popover, not the bottom sheet', async () => {
-    routerState.pathname = '/home';
-    const qc = new QueryClient();
-    render(
-      <QueryClientProvider client={qc}>
-        <LookupProvider>
-          <OpenLemmaButton />
-          <LookupSheet />
-        </LookupProvider>
-      </QueryClientProvider>,
-    );
-
-    await userEvent.click(screen.getByText('open'));
-    const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveClass('top-20');
-    expect(dialog).not.toHaveClass('bottom-4');
   });
 
   // Focus moves into the lemma container ONLY on a search→lemma swap (when
@@ -594,7 +655,6 @@ describe('LookupSheet — desktop lemma routing', () => {
   }
 
   it('moves focus to the lemma container after a search→lemma swap', async () => {
-    routerState.pathname = '/home';
     const qc = new QueryClient();
     render(
       <QueryClientProvider client={qc}>
@@ -613,7 +673,6 @@ describe('LookupSheet — desktop lemma routing', () => {
   });
 
   it('does not steal focus on a direct lemma open (leaves it to Radix)', async () => {
-    routerState.pathname = '/home';
     const qc = new QueryClient();
     render(
       <QueryClientProvider client={qc}>
@@ -632,7 +691,6 @@ describe('LookupSheet — desktop lemma routing', () => {
   });
 
   it('Escape closes the lemma popover on desktop', async () => {
-    routerState.pathname = '/home';
     const qc = new QueryClient();
     render(
       <QueryClientProvider client={qc}>
@@ -651,14 +709,13 @@ describe('LookupSheet — desktop lemma routing', () => {
     });
   });
 
-  it('suppresses lemma modal on the desktop reader route (side panel handles it)', async () => {
-    routerState.pathname = '/reading/story/abc';
+  it('test_lookup_sheet_given_reader_owned_lemma_expect_no_duplicate_dialog', async () => {
     const qc = new QueryClient();
     render(
       <QueryClientProvider client={qc}>
         <LookupProvider>
           <OpenLemmaButton />
-          <LookupSheet />
+          <LookupSheet readerOwnsLemma />
         </LookupProvider>
       </QueryClientProvider>,
     );

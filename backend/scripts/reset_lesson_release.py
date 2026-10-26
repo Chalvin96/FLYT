@@ -43,7 +43,7 @@ def assert_reset_target_is_safe() -> None:
 
 
 def drop_all_tables() -> None:
-    engine = create_engine(settings.DATABASE_URL)
+    engine = create_engine(settings.DATABASE_URL, hide_parameters=True)
     with engine.begin() as connection:
         connection.execute(text("DROP SCHEMA public CASCADE"))
         connection.execute(text("CREATE SCHEMA public"))
